@@ -38,6 +38,7 @@ npm run dev
 Quality checks:
 
 ```bash
+npm run lint
 npm test
 npm run typecheck
 npm run build
