@@ -4,6 +4,10 @@ Regiona is a browser-based, region-first reconstruction editor. It turns raster
 artwork into independently editable visual regions and exports structured SVG
 instead of treating every palette color as one merged object.
 
+## Live MVP
+
+Try Regiona in your browser: **[qgan7125.github.io/regiona](https://qgan7125.github.io/regiona/)**
+
 The full product and engineering specification lives in
 [`docs/regiona-design.md`](docs/regiona-design.md).
 
