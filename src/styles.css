@@ -650,6 +650,21 @@ input[type="range"] {
   text-transform: uppercase;
 }
 
+.preview-pane-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-pane-actions button {
+  min-width: 0;
+  padding: 3px 6px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: none;
+}
+
 .preview-pane-media {
   display: grid;
   min-width: 0;

@@ -158,7 +158,16 @@ export function PreviewWorkspace({
             <section className="preview-pane" aria-labelledby="reconstruction-preview-title">
               <header>
                 <h2 id="reconstruction-preview-title">Reconstruction</h2>
-                <span>{view}{selectedRegionId ? " · selected" : ""}</span>
+                <div className="preview-pane-actions">
+                  <span>{view}{selectedRegionId ? " · selected" : ""}</span>
+                  <Button
+                    size="small"
+                    disabled={!selectedRegionId}
+                    onClick={() => onSelectRegion(undefined)}
+                  >
+                    Clear selection
+                  </Button>
+                </div>
               </header>
               <div className="preview-pane-media">
                 <PixiPreview
