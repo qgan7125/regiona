@@ -12,7 +12,7 @@ The full product and engineering specification lives in
 This first implementation slice includes:
 
 - local PNG, JPEG, and WebP decoding with file and pixel limits;
-- deterministic median-cut-style palette reduction;
+- deterministic weighted palette reduction that preserves substantial colors and removes unused entries;
 - four-connected component labeling with stable scan-order region IDs;
 - independent same-color regions;
 - closed orthogonal SVG paths with hole support;
@@ -22,12 +22,14 @@ This first implementation slice includes:
 - region selection, palette-based recoloring, and color-edit undo;
 - explicit palette regeneration after adjusting the target color count;
 - Material UI controls with a Regiona-specific theme;
+- PixiJS-backed previews with wheel zoom and drag-to-pan;
+- loading feedback while regenerating or recoloring;
+- searchable Material UI palette picker for region fills;
 - editable SVG and Regiona project JSON export.
 
-PixiJS preview, OpenCV.js analysis, shared-boundary reconstruction, curve
-fitting, split/merge operations, undo/redo, and AI proposals are intentionally
-scheduled for later development phases. The geometric core does not depend on
-cloud AI.
+OpenCV.js analysis, shared-boundary reconstruction, curve fitting, split/merge
+operations, redo, and AI proposals are intentionally scheduled for later
+development phases. The geometric core does not depend on cloud AI.
 
 ## Development
 

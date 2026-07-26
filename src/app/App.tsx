@@ -260,7 +260,7 @@ export function App() {
           onFile={handleFile}
         />
         <PreviewWorkspace
-          sourceUrl={source?.url}
+          originalPixels={source?.pixels}
           result={result}
           busy={busy || isRecoloring}
           selectedRegionId={selectedRegionId}

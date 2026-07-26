@@ -23,6 +23,11 @@ interface UploadPanelProps {
   onFile: (file: File) => void;
 }
 
+function formatPalettePercentage(percentage: number) {
+  if (percentage > 0 && percentage < 0.005) return "<1%";
+  return `${Math.round(percentage * 100)}%`;
+}
+
 export function UploadPanel({
   source,
   targetColors,
@@ -133,7 +138,7 @@ export function UploadPanel({
                   aria-hidden="true"
                 />
                 <code>{color.hex}</code>
-                <span>{Math.round(color.percentage * 100)}%</span>
+                <span>{formatPalettePercentage(color.percentage)}</span>
               </li>
             ))}
           </ul>
