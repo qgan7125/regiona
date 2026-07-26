@@ -35,6 +35,22 @@ export interface RasterEdge {
   end: RasterPoint;
 }
 
+export interface LineSegment {
+  type: "line";
+  start: RasterPoint;
+  end: RasterPoint;
+}
+
+export interface CubicBezierSegment {
+  type: "cubic-bezier";
+  start: RasterPoint;
+  control1: RasterPoint;
+  control2: RasterPoint;
+  end: RasterPoint;
+}
+
+export type VectorSegment = LineSegment | CubicBezierSegment;
+
 /**
  * A canonical collection of raster edges shared by two regions, or by one
  * region and the outside of the source image when `regionBId` is omitted.
@@ -44,6 +60,9 @@ export interface SharedBoundary {
   regionAId: string;
   regionBId?: string;
   rasterEdges: RasterEdge[];
+  vectorSegments: VectorSegment[];
+  maximumFitErrorPx: number;
+  averageFitErrorPx: number;
 }
 
 /** A serializable view of the region adjacency graph. */

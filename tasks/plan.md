@@ -12,8 +12,11 @@ shared curve fitting and topology validation in the Regiona design document.
 2. Extract every interior and outer grid edge exactly once from the region label
    map.
 3. Build a bidirectional region adjacency graph from those boundaries.
-4. Include the boundary and adjacency collections in `ReconstructionResult`.
-5. Prove the model with focused unit and reconstruction-pipeline tests.
+4. Convert contiguous collinear grid edges into exact shared line segments.
+5. Record measurable fit error with the boundary geometry.
+6. Include the boundary and adjacency collections in `ReconstructionResult`.
+7. Preserve those collections in exported Regiona project JSON.
+8. Prove the model with focused unit and reconstruction-pipeline tests.
 
 ## Deliberate non-goals
 
@@ -28,4 +31,8 @@ shared curve fitting and topology validation in the Regiona design document.
 - Every outer canvas edge is represented once for its owning region.
 - Boundary identifiers are deterministic and use region identifiers.
 - Every interior boundary is reflected bidirectionally in the adjacency graph.
+- Collinear raster edges are represented by one exact line segment with zero
+  fitting error.
+- Regiona project JSON preserves boundaries, their vector geometry, and
+  adjacency data.
 - Existing reconstruction and color-editing behaviour remains unchanged.

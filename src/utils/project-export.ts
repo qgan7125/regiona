@@ -16,23 +16,29 @@ export function exportRegionaSvg(result: ReconstructionResult) {
   );
 }
 
+export function serializeRegionaProject(result: ReconstructionResult) {
+  return JSON.stringify(
+    {
+      application: "Regiona",
+      version: "0.1.0",
+      source: {
+        filename: result.sourceFilename,
+        width: result.width,
+        height: result.height,
+      },
+      palette: result.palette,
+      regions: result.regions,
+      boundaries: result.boundaries,
+      adjacency: result.adjacency,
+    },
+    null,
+    2,
+  );
+}
+
 export function exportRegionaProject(result: ReconstructionResult) {
   downloadText(
-    JSON.stringify(
-      {
-        application: "Regiona",
-        version: "0.1.0",
-        source: {
-          filename: result.sourceFilename,
-          width: result.width,
-          height: result.height,
-        },
-        palette: result.palette,
-        regions: result.regions,
-      },
-      null,
-      2,
-    ),
+    serializeRegionaProject(result),
     `${safeBaseName(result.sourceFilename)}.regiona.json`,
     "application/json;charset=utf-8",
   );

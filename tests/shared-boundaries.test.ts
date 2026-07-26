@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { extractSharedBoundaries } from "../src/engine/regions/shared-boundaries";
 import { buildRegionAdjacency } from "../src/engine/regions/build-adjacency";
+import { fitRasterEdgesToLines } from "../src/engine/curves/fit-lines";
 import type { VisualRegion } from "../src/types/project";
 
 const regions: VisualRegion[] = [
@@ -31,17 +32,28 @@ describe("extractSharedBoundaries", () => {
   it("stores a touching edge once for the pair of regions", () => {
     const boundaries = extractSharedBoundaries(new Uint32Array([1, 2]), 2, 1, regions);
 
-    expect(boundaries).toContainEqual({
-      id: "boundary-region-00001-region-00002",
-      regionAId: "region-00001",
-      regionBId: "region-00002",
-      rasterEdges: [
-        {
-          start: { x: 1, y: 0 },
-          end: { x: 1, y: 1 },
-        },
-      ],
-    });
+    expect(boundaries).toContainEqual(
+      expect.objectContaining({
+        id: "boundary-region-00001-region-00002",
+        regionAId: "region-00001",
+        regionBId: "region-00002",
+        rasterEdges: [
+          {
+            start: { x: 1, y: 0 },
+            end: { x: 1, y: 1 },
+          },
+        ],
+        vectorSegments: [
+          {
+            type: "line",
+            start: { x: 1, y: 0 },
+            end: { x: 1, y: 1 },
+          },
+        ],
+        maximumFitErrorPx: 0,
+        averageFitErrorPx: 0,
+      }),
+    );
   });
 
   it("records each canvas-facing edge against the outside exactly once", () => {
@@ -54,6 +66,25 @@ describe("extractSharedBoundaries", () => {
     expect(firstRegionOuterBoundary?.rasterEdges).toContainEqual({
       start: { x: 0, y: 0 },
       end: { x: 1, y: 0 },
+    });
+  });
+});
+
+describe("fitRasterEdgesToLines", () => {
+  it("merges connected collinear raster edges without introducing error", () => {
+    expect(
+      fitRasterEdgesToLines([
+        { start: { x: 0, y: 0 }, end: { x: 1, y: 0 } },
+        { start: { x: 1, y: 0 }, end: { x: 2, y: 0 } },
+        { start: { x: 2, y: 0 }, end: { x: 2, y: 1 } },
+      ]),
+    ).toEqual({
+      vectorSegments: [
+        { type: "line", start: { x: 0, y: 0 }, end: { x: 2, y: 0 } },
+        { type: "line", start: { x: 2, y: 0 }, end: { x: 2, y: 1 } },
+      ],
+      maximumFitErrorPx: 0,
+      averageFitErrorPx: 0,
     });
   });
 });

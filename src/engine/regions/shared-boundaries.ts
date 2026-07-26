@@ -3,6 +3,7 @@ import type {
   SharedBoundary,
   VisualRegion,
 } from "../../types/project";
+import { fitRasterEdgesToLines } from "../curves/fit-lines";
 
 interface BoundaryAccumulator {
   regionAId: string;
@@ -112,5 +113,6 @@ export function extractSharedBoundaries(
   return [...boundaries.entries()].map(([id, boundary]) => ({
     id,
     ...boundary,
+    ...fitRasterEdgesToLines(boundary.rasterEdges),
   }));
 }
