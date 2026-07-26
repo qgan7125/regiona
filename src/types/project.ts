@@ -51,6 +51,14 @@ export interface CubicBezierSegment {
 
 export type VectorSegment = LineSegment | CubicBezierSegment;
 
+export interface BoundaryTopology {
+  contourCount: number;
+  isContinuous: boolean;
+  isClosed: boolean;
+  hasSelfIntersection: boolean;
+  isValid: boolean;
+}
+
 /**
  * A canonical collection of raster edges shared by two regions, or by one
  * region and the outside of the source image when `regionBId` is omitted.
@@ -60,9 +68,11 @@ export interface SharedBoundary {
   regionAId: string;
   regionBId?: string;
   rasterEdges: RasterEdge[];
+  vectorContours: VectorSegment[][];
   vectorSegments: VectorSegment[];
   maximumFitErrorPx: number;
   averageFitErrorPx: number;
+  topology: BoundaryTopology;
 }
 
 /** A serializable view of the region adjacency graph. */

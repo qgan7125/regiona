@@ -18,5 +18,5 @@
 
 ## Next increment: topology validation
 
-- [ ] Validate closed contours and reject malformed boundary geometry.
-- [ ] Detect self-intersections before SVG geometry uses a boundary.
+- [x] Validate contour continuity and record closed-boundary state.
+- [x] Detect self-intersections before SVG geometry uses a boundary.

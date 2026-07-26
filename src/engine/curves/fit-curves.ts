@@ -14,6 +14,7 @@ interface CubicFitResult {
 }
 
 interface CurveFitResult {
+  vectorContours: VectorSegment[][];
   vectorSegments: VectorSegment[];
   maximumFitErrorPx: number;
   averageFitErrorPx: number;
@@ -179,21 +180,27 @@ export function fitRasterEdgesToCurves(
   let accumulatedError = 0;
   let sampleCount = 0;
   const vectorSegments: VectorSegment[] = [];
+  const vectorContours: VectorSegment[][] = [];
 
   for (const polyline of connectRasterEdges(edges)) {
     const cubic = fitPolylineToCubicBezier(polyline, maximumErrorPx);
     if (!cubic) {
-      vectorSegments.push(...fitPolylineToLines(polyline));
+      const contour = fitPolylineToLines(polyline);
+      vectorContours.push(contour);
+      vectorSegments.push(...contour);
       continue;
     }
 
     maximumFitErrorPx = Math.max(maximumFitErrorPx, cubic.maximumFitErrorPx);
     accumulatedError += cubic.averageFitErrorPx * cubic.sampleCount;
     sampleCount += cubic.sampleCount;
-    vectorSegments.push(cubic.segment);
+    const contour = [cubic.segment];
+    vectorContours.push(contour);
+    vectorSegments.push(...contour);
   }
 
   return {
+    vectorContours,
     vectorSegments,
     maximumFitErrorPx,
     averageFitErrorPx: sampleCount === 0 ? 0 : accumulatedError / sampleCount,

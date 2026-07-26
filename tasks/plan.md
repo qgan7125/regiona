@@ -16,9 +16,11 @@ shared curve fitting and topology validation in the Regiona design document.
 5. Record measurable fit error with the boundary geometry.
 6. Fit cubic Bézier candidates only when they stay within a configurable error
    limit; otherwise retain exact line segments.
-7. Include the boundary and adjacency collections in `ReconstructionResult`.
-8. Preserve those collections in exported Regiona project JSON.
-9. Prove the model with focused unit and reconstruction-pipeline tests.
+7. Validate contour continuity, closure state, and self-intersections before
+   boundary geometry can be used for SVG.
+8. Include the boundary and adjacency collections in `ReconstructionResult`.
+9. Preserve those collections in exported Regiona project JSON.
+10. Prove the model with focused unit and reconstruction-pipeline tests.
 
 ## Deliberate non-goals
 
@@ -37,6 +39,8 @@ shared curve fitting and topology validation in the Regiona design document.
   fitting error.
 - A cubic Bézier is emitted only when its measured maximum error is within the
   configured tolerance; exact lines remain the fallback.
+- Boundary topology records whether every contour is continuous, closed, and
+  free of self-intersections.
 - Regiona project JSON preserves boundaries, their vector geometry, and
   adjacency data.
 - Existing reconstruction and color-editing behaviour remains unchanged.

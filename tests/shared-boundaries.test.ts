@@ -52,6 +52,13 @@ describe("extractSharedBoundaries", () => {
         ],
         maximumFitErrorPx: 0,
         averageFitErrorPx: 0,
+        topology: {
+          contourCount: 1,
+          isContinuous: true,
+          isClosed: false,
+          hasSelfIntersection: false,
+          isValid: true,
+        },
       }),
     );
   });

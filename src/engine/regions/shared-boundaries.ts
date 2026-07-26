@@ -4,6 +4,7 @@ import type {
   VisualRegion,
 } from "../../types/project";
 import { fitRasterEdgesToCurves } from "../curves/fit-curves";
+import { validateVectorContours } from "../topology/validate-boundaries";
 
 interface BoundaryAccumulator {
   regionAId: string;
@@ -111,9 +112,16 @@ export function extractSharedBoundaries(
     }
   }
 
-  return [...boundaries.entries()].map(([id, boundary]) => ({
-    id,
-    ...boundary,
-    ...fitRasterEdgesToCurves(boundary.rasterEdges, curveFitTolerancePx),
-  }));
+  return [...boundaries.entries()].map(([id, boundary]) => {
+    const geometry = fitRasterEdgesToCurves(
+      boundary.rasterEdges,
+      curveFitTolerancePx,
+    );
+    return {
+      id,
+      ...boundary,
+      ...geometry,
+      topology: validateVectorContours(geometry.vectorContours),
+    };
+  });
 }
