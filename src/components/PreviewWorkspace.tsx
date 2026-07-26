@@ -63,7 +63,7 @@ export function PreviewWorkspace({
 }: PreviewWorkspaceProps) {
   const [view, setView] = useState<PreviewView>("regions");
   const [zoom, setZoom] = useState(100);
-  const [linkViews, setLinkViews] = useState(false);
+  const [linkViews, setLinkViews] = useState(true);
   const [linkedCamera, setLinkedCamera] = useState<Camera>();
   const [isChangingView, setIsChangingView] = useState(false);
   const [pickedColor, setPickedColor] = useState<PickedColor>();

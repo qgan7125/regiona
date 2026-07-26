@@ -312,19 +312,26 @@ h3 {
   font-size: 17px;
 }
 
-.upload-control span:last-of-type {
+.upload-copy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 3px;
   min-width: 0;
 }
 
-.upload-control strong {
+.upload-copy strong,
+.upload-copy small {
+  display: block;
+}
+
+.upload-copy strong {
   font-size: 13px;
 }
 
-.upload-control small {
+.upload-copy small {
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.45;
 }
 
 .source-summary,
@@ -343,6 +350,15 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 10px;
+}
+
+.source-summary dt {
+  flex: 0 0 auto;
+}
+
+.source-summary dd {
+  flex: 1 1 0;
+  text-align: right;
 }
 
 dt {
@@ -497,6 +513,10 @@ input[type="range"] {
   gap: 16px;
   padding: 14px 18px;
   background: rgb(248 248 244 / 90%);
+}
+
+.workspace-toolbar > div:first-child {
+  min-width: 0;
 }
 
 .workspace-toolbar {

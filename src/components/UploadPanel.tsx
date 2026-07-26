@@ -60,7 +60,7 @@ export function UploadPanel({
         <span className="upload-icon" aria-hidden="true">
           ↗
         </span>
-        <span>
+        <span className="upload-copy">
           <strong>{source ? "Replace source image" : "Choose source image"}</strong>
           <small>PNG, JPEG or WebP · up to 20 MB</small>
         </span>
