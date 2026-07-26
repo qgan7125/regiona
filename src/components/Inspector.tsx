@@ -1,9 +1,13 @@
 import { useMemo } from "react";
+import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
 
-import type { VisualRegion } from "../types/project";
+import { getPaletteFillChoices } from "../app/editor-state";
+import type { PaletteColor, VisualRegion } from "../types/project";
 
 interface InspectorProps {
   regions: VisualRegion[];
+  palette: PaletteColor[];
   selectedRegionId?: string;
   onSelectRegion: (regionId: string) => void;
   onRecolor: (hex: string) => void;
@@ -11,6 +15,7 @@ interface InspectorProps {
 
 export function Inspector({
   regions,
+  palette,
   selectedRegionId,
   onSelectRegion,
   onRecolor,
@@ -19,6 +24,10 @@ export function Inspector({
   const listedRegions = useMemo(
     () => [...regions].sort((a, b) => b.pixelArea - a.pixelArea).slice(0, 100),
     [regions],
+  );
+  const paletteFillChoices = useMemo(
+    () => getPaletteFillChoices(palette),
+    [palette],
   );
 
   return (
@@ -67,18 +76,39 @@ export function Inspector({
             </div>
           </dl>
 
-          <label className="color-control">
-            <span>Region fill</span>
-            <span className="color-input-row">
-              <input
-                type="color"
-                value={selected.fill}
-                onInput={(event) => onRecolor(event.currentTarget.value)}
-                aria-label={`Fill color for ${selected.id}`}
-              />
-              <code>{selected.fill}</code>
-            </span>
-          </label>
+          <TextField
+            className="region-color-field"
+            label="Region fill"
+            type="color"
+            value={selected.fill}
+            onChange={(event) => onRecolor(event.currentTarget.value)}
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: { "aria-label": `Fill color for ${selected.id}` },
+            }}
+            size="small"
+            fullWidth
+          />
+          <div className="palette-fill-control">
+            <span>Choose from palette</span>
+            <div className="palette-fill-options" role="list">
+              {paletteFillChoices.map((fill) => (
+                <Button
+                  key={fill}
+                  className={fill === selected.fill ? "is-active" : ""}
+                  style={{ "--swatch": fill } as React.CSSProperties}
+                  onClick={() => onRecolor(fill)}
+                  aria-label={`Set ${selected.id} fill to ${fill}`}
+                  aria-pressed={fill === selected.fill}
+                  variant={fill === selected.fill ? "contained" : "outlined"}
+                  size="small"
+                >
+                  <span aria-hidden="true" />
+                  <code>{fill}</code>
+                </Button>
+              ))}
+            </div>
+          </div>
           <p className="helper-text">
             This changes appearance only. Geometry and neighboring regions remain
             independent.
@@ -98,10 +128,12 @@ export function Inspector({
         <ul className="region-list">
           {listedRegions.map((region) => (
             <li key={region.id}>
-              <button
+              <Button
                 type="button"
                 className={region.id === selectedRegionId ? "is-selected" : ""}
                 onClick={() => onSelectRegion(region.id)}
+                variant="text"
+                fullWidth
               >
                 <span
                   className="swatch"
@@ -110,7 +142,7 @@ export function Inspector({
                 />
                 <span>{region.id}</span>
                 <small>{region.pixelArea.toLocaleString()} px</small>
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

@@ -4,6 +4,8 @@ interface AppHeaderProps {
   status: WorkStatus;
   statusText: string;
   canExport: boolean;
+  canUndo: boolean;
+  onUndoColor: () => void;
   onExportProject: () => void;
   onExportSvg: () => void;
 }
@@ -12,6 +14,8 @@ export function AppHeader({
   status,
   statusText,
   canExport,
+  canUndo,
+  onUndoColor,
   onExportProject,
   onExportSvg,
 }: AppHeaderProps) {
@@ -29,23 +33,36 @@ export function AppHeader({
         {statusText}
       </div>
       <div className="header-actions">
-        <button
+        <Button
+          className="secondary-button undo-button"
+          disabled={!canUndo}
+          onClick={onUndoColor}
+          aria-label="Undo last region color change"
+          variant="outlined"
+          size="small"
+        >
+          Undo color
+        </Button>
+        <Button
           className="secondary-button"
-          type="button"
           disabled={!canExport}
           onClick={onExportProject}
+          variant="outlined"
+          size="small"
         >
           Project JSON
-        </button>
-        <button
+        </Button>
+        <Button
           className="primary-button"
-          type="button"
           disabled={!canExport}
           onClick={onExportSvg}
+          variant="contained"
+          size="small"
         >
           Export editable SVG
-        </button>
+        </Button>
       </div>
     </header>
   );
 }
+import Button from "@mui/material/Button";

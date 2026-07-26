@@ -1,4 +1,6 @@
 import type { ChangeEvent } from "react";
+import Button from "@mui/material/Button";
+import Slider from "@mui/material/Slider";
 
 import type { PaletteColor } from "../types/project";
 
@@ -17,6 +19,7 @@ interface UploadPanelProps {
   regionCount: number;
   busy: boolean;
   onTargetColorsChange: (value: number) => void;
+  onRegenerate: () => void;
   onFile: (file: File) => void;
 }
 
@@ -27,6 +30,7 @@ export function UploadPanel({
   regionCount,
   busy,
   onTargetColorsChange,
+  onRegenerate,
   onFile,
 }: UploadPanelProps) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -42,7 +46,12 @@ export function UploadPanel({
         <h2 id="project-tools-title">Source &amp; reconstruction</h2>
       </div>
 
-      <label className={`upload-control ${busy ? "is-disabled" : ""}`}>
+      <Button
+        component="label"
+        className={`upload-control ${busy ? "is-disabled" : ""}`}
+        disabled={busy}
+        variant="outlined"
+      >
         <span className="upload-icon" aria-hidden="true">
           ↗
         </span>
@@ -56,7 +65,7 @@ export function UploadPanel({
           onChange={handleFileChange}
           disabled={busy}
         />
-      </label>
+      </Button>
 
       {source ? (
         <dl className="source-summary">
@@ -84,18 +93,29 @@ export function UploadPanel({
           <label htmlFor="target-colors">Target palette</label>
           <output htmlFor="target-colors">{targetColors} colors</output>
         </div>
-        <input
+        <Slider
           id="target-colors"
-          type="range"
-          min="2"
-          max="32"
+          min={2}
+          max={32}
           value={targetColors}
           disabled={busy}
-          onChange={(event) => onTargetColorsChange(Number(event.target.value))}
+          onChange={(_event, value) => onTargetColorsChange(Number(value))}
+          valueLabelDisplay="auto"
+          aria-label="Target palette colors"
         />
         <p className="helper-text">
-          Applied on the next import. Color reduction never merges region identity.
+          Choose a value, then regenerate the image. Color reduction never
+          merges region identity.
         </p>
+        <Button
+          className="regenerate-button"
+          disabled={!source || busy}
+          onClick={onRegenerate}
+          variant="contained"
+          fullWidth
+        >
+          Regenerate with {targetColors} colors
+        </Button>
       </div>
 
       <section className="palette-section" aria-labelledby="palette-title">

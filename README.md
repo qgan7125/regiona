@@ -18,7 +18,10 @@ This first implementation slice includes:
 - closed orthogonal SVG paths with hole support;
 - off-main-thread processing in a Web Worker;
 - original, quantized, region-map, and vector previews;
-- region selection and per-region recoloring;
+- side-by-side original and reconstruction previews with 50%–400% zoom;
+- region selection, palette-based recoloring, and color-edit undo;
+- explicit palette regeneration after adjusting the target color count;
+- Material UI controls with a Regiona-specific theme;
 - editable SVG and Regiona project JSON export.
 
 PixiJS preview, OpenCV.js analysis, shared-boundary reconstruction, curve

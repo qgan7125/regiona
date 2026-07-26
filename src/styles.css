@@ -394,6 +394,21 @@ input[type="range"] {
   margin: 8px 0 0;
 }
 
+.regenerate-button {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 12px;
+  cursor: pointer;
+  color: #fff;
+  background: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.regenerate-button:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
 .palette-section,
 .region-list-section {
   padding-top: 18px;
@@ -484,6 +499,12 @@ input[type="range"] {
   border-bottom: 1px solid var(--line);
 }
 
+.workspace-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .workspace-footer {
   justify-content: center;
   padding-block: 9px;
@@ -515,6 +536,32 @@ input[type="range"] {
   box-shadow: 0 1px 3px rgb(20 27 25 / 12%);
 }
 
+.zoom-controls {
+  display: inline-grid;
+  grid-template-columns: 28px auto 28px;
+  min-height: 32px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+}
+
+.zoom-controls button {
+  min-width: 28px;
+  cursor: pointer;
+  color: var(--ink);
+  background: transparent;
+  font-weight: 700;
+}
+
+.zoom-controls button + button {
+  border-left: 1px solid var(--line);
+}
+
+.zoom-controls .zoom-value {
+  min-width: 48px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .preview-stage {
   position: relative;
   display: grid;
@@ -534,6 +581,67 @@ input[type="range"] {
     8px -8px,
     -8px 0;
   background-size: 16px 16px;
+}
+
+.comparison-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.preview-pane {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: rgb(248 248 244 / 86%);
+  border: 1px solid #cfd3cc;
+  box-shadow: 0 8px 22px rgb(21 25 24 / 9%);
+}
+
+.preview-pane > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  background: rgb(255 255 255 / 78%);
+  border-bottom: 1px solid var(--line);
+}
+
+.preview-pane h2 {
+  font-size: 14px;
+}
+
+.preview-pane header span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.preview-pane-media {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  padding: 20px;
+  overflow: auto;
+  place-items: start center;
+}
+
+.zoom-content {
+  min-width: 50%;
+  line-height: 0;
+}
+
+.zoom-content .stage-media,
+.zoom-content .canvas-stack {
+  width: 100%;
+  max-width: none;
+  max-height: none;
 }
 
 .stage-empty {
@@ -692,6 +800,57 @@ input[type="color"] {
   font-size: 11px;
 }
 
+.palette-fill-control {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.palette-fill-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  gap: 5px;
+}
+
+.palette-fill-options button {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px;
+  cursor: pointer;
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+}
+
+.palette-fill-options button:hover,
+.palette-fill-options button.is-active {
+  border-color: var(--accent);
+}
+
+.palette-fill-options button.is-active {
+  background: #fff4ef;
+}
+
+.palette-fill-options button > span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: var(--swatch);
+  border: 1px solid rgb(21 25 24 / 20%);
+}
+
+.palette-fill-options code {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+}
+
 .region-list {
   display: grid;
   gap: 3px;
@@ -767,7 +926,7 @@ input[type="color"] {
     gap: 4px;
   }
 
-  .secondary-button {
+  .header-actions .secondary-button:not(.undo-button) {
     display: none;
   }
 
@@ -796,6 +955,11 @@ input[type="color"] {
     flex-direction: column;
   }
 
+  .workspace-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .view-tabs {
     width: 100%;
     overflow-x: auto;
@@ -808,6 +972,15 @@ input[type="color"] {
   .preview-stage {
     min-height: 380px;
     padding: 16px;
+  }
+
+  .comparison-grid {
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .preview-pane {
+    min-height: 320px;
   }
 
   .stage-media {
