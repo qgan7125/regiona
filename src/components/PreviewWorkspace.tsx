@@ -1,6 +1,7 @@
-import { Fragment, type SyntheticEvent, useMemo, useState } from "react";
+import { Fragment, type Dispatch, type SetStateAction, type SyntheticEvent, useMemo, useState } from "react";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
+import ToggleButton from "@mui/material/ToggleButton";
 import CircularProgress from "@mui/material/CircularProgress";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import ListSubheader from "@mui/material/ListSubheader";
@@ -35,10 +36,10 @@ interface PreviewWorkspaceProps {
   result?: ReconstructionResult;
   busy: boolean;
   pickedColors: ColorSample[];
-  selectedRegionId?: string;
-  onSelectRegion: (regionId?: string) => void;
+  selectedRegionIds: string[];
+  onSelectRegions: Dispatch<SetStateAction<string[]>>;
   onPickColor: (color: ColorSample) => void;
-  onRecolorRegion: (regionId: string, fill: string) => void;
+  onRecolorRegions: (regionIds: string[], fill: string) => void;
 }
 
 function vectorSvg(result: ReconstructionResult) {
@@ -56,10 +57,10 @@ export function PreviewWorkspace({
   result,
   busy,
   pickedColors,
-  selectedRegionId,
-  onSelectRegion,
+  selectedRegionIds,
+  onSelectRegions,
   onPickColor,
-  onRecolorRegion,
+  onRecolorRegions,
 }: PreviewWorkspaceProps) {
   const [view, setView] = useState<PreviewView>("regions");
   const [zoom, setZoom] = useState(100);
@@ -68,16 +69,13 @@ export function PreviewWorkspace({
   const [isChangingView, setIsChangingView] = useState(false);
   const [pickedColor, setPickedColor] = useState<PickedColor>();
   const [regionColorMenu, setRegionColorMenu] = useState<RegionColorMenu>();
+  const [brushSelect, setBrushSelect] = useState(false);
   const regionPixels = useMemo(
     () =>
       result ? renderRegionPixels(result.labelMap, result.regions) : undefined,
     [result],
   );
   const svgMarkup = useMemo(() => (result ? vectorSvg(result) : undefined), [result]);
-  const selectedRegion = useMemo(
-    () => result?.regions.find((region) => region.id === selectedRegionId),
-    [result, selectedRegionId],
-  );
   const paletteSuggestions = useMemo(
     () => getPaletteSuggestions(pickedColors, result?.palette ?? []),
     [pickedColors, result?.palette],
@@ -153,6 +151,16 @@ export function PreviewWorkspace({
             }
             label="Link views"
           />
+          <ToggleButton
+            value="brush"
+            selected={brushSelect}
+            onChange={() => setBrushSelect((current) => !current)}
+            disabled={!result}
+            size="small"
+            aria-label="Toggle brush region selection"
+          >
+            Brush select
+          </ToggleButton>
         </div>
       </div>
 
@@ -224,11 +232,11 @@ export function PreviewWorkspace({
               <header>
                 <h2 id="reconstruction-preview-title">Reconstruction</h2>
                 <div className="preview-pane-actions">
-                  <span>{view}{selectedRegionId ? " · selected" : ""}</span>
+                  <span>{view}{selectedRegionIds.length ? ` · ${selectedRegionIds.length} selected` : ""}</span>
                   <Button
                     size="small"
-                    disabled={!selectedRegionId}
-                    onClick={() => onSelectRegion(undefined)}
+                    disabled={!selectedRegionIds.length}
+                    onClick={() => onSelectRegions([])}
                   >
                     Clear selection
                   </Button>
@@ -242,23 +250,34 @@ export function PreviewWorkspace({
                   pixels={view === "quantized" ? result.quantizedPixels : view === "regions" ? regionPixels : undefined}
                   svgMarkup={view === "vector" ? svgMarkup : undefined}
                   labelMap={result.labelMap}
-                  selectedPath={selectedRegion?.pathData.join(" ")}
-                  selectedFill={selectedRegion?.fill}
-                  selectedOpacity={selectedRegion?.opacity}
+                  selectedPath={result.regions
+                    .filter((region) => selectedRegionIds.includes(region.id))
+                    .flatMap((region) => region.pathData)
+                    .join(" ") || undefined}
+                  selectedFill={selectedRegionIds.length ? "transparent" : undefined}
+                  selectedOpacity={0}
                   isViewLinked={linkViews}
                   linkedCamera={linkViews ? linkedCamera : undefined}
                   onZoomChange={setZoom}
                   onCameraChange={handleCameraChange}
-                  onSelectRegion={(regionNumber) => {
+                  brushSelect={brushSelect}
+                  onSelectRegion={(regionNumber, mode = "replace") => {
                     const region = result.regions[regionNumber - 1];
-                    if (region) onSelectRegion(region.id);
+                    if (!region) return;
+                    if (mode === "replace") onSelectRegions([region.id]);
+                    else if (mode === "toggle") onSelectRegions((current) => current.includes(region.id)
+                      ? current.filter((id) => id !== region.id)
+                      : [...current, region.id]);
+                    else onSelectRegions((current) => current.includes(region.id)
+                      ? current
+                      : [...current, region.id]);
                   }}
                   onContextMenuRegion={(regionNumber, anchorPosition) => {
                     const region = result.regions[regionNumber - 1];
                     if (!region) return;
                     setRegionColorMenu({ anchorPosition, regionId: region.id });
                   }}
-                  onClearSelection={() => onSelectRegion(undefined)}
+                  onClearSelection={() => onSelectRegions([])}
                   ariaLabel="Reconstruction preview. Click to select a region, right-click to choose a similar palette color, drag to pan, and use the mouse wheel to zoom."
                 />
               </div>
@@ -314,7 +333,10 @@ export function PreviewWorkspace({
               <MenuItem
                 key={`${group.picked.hex}-${fill}`}
                 onClick={() => {
-                  if (regionColorMenu) onRecolorRegion(regionColorMenu.regionId, fill);
+                  if (regionColorMenu) onRecolorRegions(
+                    selectedRegionIds.includes(regionColorMenu.regionId) ? selectedRegionIds : [regionColorMenu.regionId],
+                    fill,
+                  );
                   setRegionColorMenu(undefined);
                 }}
               >

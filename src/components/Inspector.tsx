@@ -13,8 +13,8 @@ interface InspectorProps {
   regions: VisualRegion[];
   palette: PaletteColor[];
   busy: boolean;
-  selectedRegionId?: string;
-  onSelectRegion: (regionId: string) => void;
+  selectedRegionIds: string[];
+  onSelectRegions: (regionIds: string[]) => void;
   onRecolor: (hex: string) => void;
 }
 
@@ -22,11 +22,12 @@ export function Inspector({
   regions,
   palette,
   busy,
-  selectedRegionId,
-  onSelectRegion,
+  selectedRegionIds,
+  onSelectRegions,
   onRecolor,
 }: InspectorProps) {
-  const selected = regions.find((region) => region.id === selectedRegionId);
+  const selected = regions.filter((region) => selectedRegionIds.includes(region.id));
+  const primarySelected = selected.at(-1);
   const listedRegions = useMemo(
     () => [...regions].sort((a, b) => b.pixelArea - a.pixelArea).slice(0, 100),
     [regions],
@@ -44,42 +45,42 @@ export function Inspector({
         <h2 id="inspector-title">Region details</h2>
       </div>
 
-      {selected ? (
+      {primarySelected ? (
         <section className="region-inspector">
           <div className="region-identity">
             <span
               className="large-swatch"
-              style={{ "--swatch": selected.fill } as React.CSSProperties}
+              style={{ "--swatch": primarySelected.fill } as React.CSSProperties}
               aria-hidden="true"
             />
             <div>
-              <strong>{selected.id}</strong>
-              <span>{selected.origin}</span>
+              <strong>{selected.length > 1 ? `${selected.length} regions selected` : primarySelected.id}</strong>
+              <span>{selected.length > 1 ? "Batch edit" : primarySelected.origin}</span>
             </div>
           </div>
 
           <dl className="inspector-grid">
             <div>
               <dt>Area</dt>
-              <dd>{selected.pixelArea.toLocaleString()} px</dd>
+              <dd>{selected.reduce((sum, region) => sum + region.pixelArea, 0).toLocaleString()} px</dd>
             </div>
             <div>
               <dt>Paths</dt>
-              <dd>{selected.pathData.length}</dd>
+              <dd>{selected.reduce((sum, region) => sum + region.pathData.length, 0)}</dd>
             </div>
             <div>
               <dt>Opacity</dt>
-              <dd>{Math.round(selected.opacity * 100)}%</dd>
+              <dd>{Math.round(primarySelected.opacity * 100)}%</dd>
             </div>
             <div>
               <dt>Bounds</dt>
               <dd>
-                {selected.bounds.width} × {selected.bounds.height}
+                {primarySelected.bounds.width} × {primarySelected.bounds.height}
               </dd>
             </div>
             <div>
               <dt>Color ID</dt>
-              <dd>{selected.colorId}</dd>
+              <dd>{selected.length > 1 ? "Mixed" : primarySelected.colorId}</dd>
             </div>
           </dl>
 
@@ -87,11 +88,11 @@ export function Inspector({
             className="region-color-field"
             label="Region fill"
             type="color"
-            value={selected.fill}
+            value={primarySelected.fill}
             onChange={(event) => onRecolor(event.currentTarget.value)}
             slotProps={{
               inputLabel: { shrink: true },
-              htmlInput: { "aria-label": `Fill color for ${selected.id}` },
+              htmlInput: { "aria-label": `Fill color for ${selected.length} selected regions` },
             }}
             size="small"
             fullWidth
@@ -129,7 +130,7 @@ export function Inspector({
           <Autocomplete
             autoHighlight
             options={paletteFillChoices}
-            value={selected?.fill.toLowerCase() ?? null}
+            value={primarySelected?.fill.toLowerCase() ?? null}
             onChange={(_event, fill) => {
               if (!fill) return;
               onRecolor(fill);
@@ -162,8 +163,13 @@ export function Inspector({
             <li key={region.id}>
               <Button
                 type="button"
-                className={region.id === selectedRegionId ? "is-selected" : ""}
-                onClick={() => onSelectRegion(region.id)}
+                className={selectedRegionIds.includes(region.id) ? "is-selected" : ""}
+                onClick={(event) => {
+                  if (event.shiftKey) onSelectRegions(selectedRegionIds.includes(region.id)
+                    ? selectedRegionIds.filter((id) => id !== region.id)
+                    : [...selectedRegionIds, region.id]);
+                  else onSelectRegions([region.id]);
+                }}
                 variant="text"
                 fullWidth
               >

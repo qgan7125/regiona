@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   reconstructImage,
   recolorRegion,
+  recolorRegions,
   renderRegionPixels,
 } from "../src/engine/reconstruct";
 
@@ -78,6 +79,17 @@ describe("region appearance editing", () => {
     expect(recolored[0]?.fill).toBe("#ff5a36");
     expect(recolored[1]?.fill).toBe("#111111");
     expect(regions[0]?.fill).toBe("#111111");
+  });
+
+  it("recolors every selected region in one batch", () => {
+    const regions = [
+      { id: "a", colorId: "c", fill: "#111111", opacity: 1, pixelArea: 1, bounds: { x: 0, y: 0, width: 1, height: 1 }, origin: "deterministic" as const, pathData: [] },
+      { id: "b", colorId: "c", fill: "#222222", opacity: 1, pixelArea: 1, bounds: { x: 1, y: 0, width: 1, height: 1 }, origin: "deterministic" as const, pathData: [] },
+      { id: "c", colorId: "c", fill: "#333333", opacity: 1, pixelArea: 1, bounds: { x: 2, y: 0, width: 1, height: 1 }, origin: "deterministic" as const, pathData: [] },
+    ];
+
+    expect(recolorRegions(regions, ["a", "c"], "#ff5a36").map((region) => region.fill))
+      .toEqual(["#ff5a36", "#222222", "#ff5a36"]);
   });
 
   it("renders edited region colors from the label map", () => {

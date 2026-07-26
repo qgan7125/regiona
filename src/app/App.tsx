@@ -6,7 +6,7 @@ import { PreviewWorkspace } from "../components/PreviewWorkspace";
 import { UploadPanel } from "../components/UploadPanel";
 import { appendColorHistory, undoColorEdit } from "./editor-state";
 import { appendPickedColor } from "./palette-suggestions";
-import { recolorRegion } from "../engine/reconstruct";
+import { recolorRegions } from "../engine/reconstruct";
 import type { ColorSample } from "../preview/color-sample";
 import type { ReconstructionResult } from "../types/project";
 import { decodeImage } from "../utils/image-file";
@@ -41,7 +41,7 @@ export function App() {
   >([]);
   const [pickedColors, setPickedColors] = useState<ColorSample[]>([]);
   const [isRecoloring, setIsRecoloring] = useState(false);
-  const [selectedRegionId, setSelectedRegionId] = useState<string>();
+  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([]);
   const [status, setStatus] = useState<WorkStatus>("idle");
   const [statusText, setStatusText] = useState("Ready for a source image");
   const [error, setError] = useState<string>();
@@ -98,7 +98,7 @@ export function App() {
           if (!isCurrent || processingRequestRef.current !== requestId) return;
 
           setResult(reconstruction);
-          setSelectedRegionId(undefined);
+          setSelectedRegionIds([]);
           setStatus("ready");
           setStatusText(
             `${reconstruction.regions.length.toLocaleString()} regions ready`,
@@ -142,7 +142,7 @@ export function App() {
       setResult(undefined);
       setColorHistory([]);
       setPickedColors([]);
-      setSelectedRegionId(undefined);
+      setSelectedRegionIds([]);
     } catch (cause) {
       setStatus("error");
       setStatusText("Import failed");
@@ -150,13 +150,9 @@ export function App() {
     }
   };
 
-  const recolorSelectedRegion = (regionId: string, fill: string) => {
+  const recolorSelectedRegions = (regionIds: string[], fill: string) => {
     if (!result) return;
-    const recoloredRegions = recolorRegion(
-      result.regions,
-      regionId,
-      fill,
-    );
+    const recoloredRegions = recolorRegions(result.regions, regionIds, fill);
     const nextHistory = appendColorHistory(
       colorHistory,
       result.regions,
@@ -173,8 +169,8 @@ export function App() {
   };
 
   const handleRecolor = (fill: string) => {
-    if (!selectedRegionId) return;
-    recolorSelectedRegion(selectedRegionId, fill);
+    if (!selectedRegionIds.length) return;
+    recolorSelectedRegions(selectedRegionIds, fill);
   };
 
   const handleUndoColor = useCallback(() => {
@@ -191,7 +187,7 @@ export function App() {
     setResult(undefined);
     setColorHistory([]);
     setPickedColors([]);
-    setSelectedRegionId(undefined);
+    setSelectedRegionIds([]);
     setStatus("processing");
     setStatusText(`Rebuilding ${targetColors}-color visual regions`);
     setAppliedTargetColors(targetColors);
@@ -264,19 +260,19 @@ export function App() {
           result={result}
           busy={busy || isRecoloring}
           pickedColors={pickedColors}
-          selectedRegionId={selectedRegionId}
-          onSelectRegion={setSelectedRegionId}
+          selectedRegionIds={selectedRegionIds}
+          onSelectRegions={setSelectedRegionIds}
           onPickColor={(color) => {
             setPickedColors((current) => appendPickedColor(current, color));
           }}
-          onRecolorRegion={recolorSelectedRegion}
+          onRecolorRegions={recolorSelectedRegions}
         />
         <Inspector
           regions={result?.regions ?? []}
           palette={result?.palette ?? []}
           busy={busy || isRecoloring}
-          selectedRegionId={selectedRegionId}
-          onSelectRegion={setSelectedRegionId}
+          selectedRegionIds={selectedRegionIds}
+          onSelectRegions={setSelectedRegionIds}
           onRecolor={handleRecolor}
         />
       </div>

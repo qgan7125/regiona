@@ -53,9 +53,18 @@ export function recolorRegion(
   regionId: string,
   fill: string,
 ) {
+  return recolorRegions(regions, [regionId], fill);
+}
+
+export function recolorRegions(
+  regions: VisualRegion[],
+  regionIds: string[],
+  fill: string,
+) {
   parseHex(fill);
+  const selectedIds = new Set(regionIds);
   return regions.map((region) =>
-    region.id === regionId ? { ...region, fill: fill.toLowerCase() } : region,
+    selectedIds.has(region.id) ? { ...region, fill: fill.toLowerCase() } : region,
   );
 }
 
