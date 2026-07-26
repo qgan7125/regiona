@@ -700,6 +700,43 @@ input[type="range"] {
   height: 100% !important;
 }
 
+.picked-color-popover {
+  border: 1px solid var(--line);
+  border-radius: 0 !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.picked-color-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.picked-color-swatch {
+  width: 32px;
+  height: 32px;
+  background: var(--swatch);
+  border: 1px solid rgb(21 25 24 / 20%);
+}
+
+.picked-color-content div {
+  display: grid;
+  gap: 2px;
+}
+
+.picked-color-content p,
+.picked-color-content span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.picked-color-content code {
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .zoom-content {
   min-width: 50%;
   line-height: 0;

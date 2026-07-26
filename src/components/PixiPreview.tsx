@@ -9,6 +9,8 @@ import {
 
 import { fitCamera, zoomCameraAtPoint } from "../preview/camera";
 import type { Camera } from "../preview/camera";
+import { colorSampleAt } from "../preview/color-sample";
+import type { ColorSample } from "../preview/color-sample";
 import { clearRenderLayer } from "../preview/render-layers";
 
 interface PixiPreviewProps {
@@ -27,6 +29,7 @@ interface PixiPreviewProps {
   onCameraChange?: (camera: Camera) => void;
   onSelectRegion?: (regionNumber: number) => void;
   onClearSelection?: () => void;
+  onPickColor?: (sample: ColorSample, anchorPosition: { left: number; top: number }) => void;
   ariaLabel: string;
 }
 
@@ -70,6 +73,7 @@ export function PixiPreview({
   onCameraChange,
   onSelectRegion,
   onClearSelection,
+  onPickColor,
   ariaLabel,
 }: PixiPreviewProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -89,7 +93,9 @@ export function PixiPreview({
   const onCameraChangeRef = useRef(onCameraChange);
   const onSelectRegionRef = useRef(onSelectRegion);
   const onClearSelectionRef = useRef(onClearSelection);
+  const onPickColorRef = useRef(onPickColor);
   const labelMapRef = useRef(labelMap);
+  const pixelsRef = useRef(pixels);
   const baseDisplayRef = useRef<Sprite | Graphics | null>(null);
   const fitRef = useRef<() => void>(() => undefined);
   const pixelTextureCacheRef = useRef(new WeakMap<Uint8ClampedArray, Texture>());
@@ -120,15 +126,19 @@ export function PixiPreview({
     onCameraChangeRef.current = onCameraChange;
     onSelectRegionRef.current = onSelectRegion;
     onClearSelectionRef.current = onClearSelection;
+    onPickColorRef.current = onPickColor;
     labelMapRef.current = labelMap;
+    pixelsRef.current = pixels;
     fitRef.current = fitViewport;
   }, [
     fitViewport,
     labelMap,
     onCameraChange,
     onClearSelection,
+    onPickColor,
     onSelectRegion,
     onZoomChange,
+    pixels,
   ]);
 
   useEffect(() => {
@@ -205,6 +215,18 @@ export function PixiPreview({
         const imageY = Math.floor((event.global.y - viewport.y) / viewport.scale.y);
         if (imageX < 0 || imageY < 0 || imageX >= width || imageY >= height) {
           onClearSelectionRef.current?.();
+          return;
+        }
+        const sampledPixels = pixelsRef.current;
+        if (sampledPixels && onPickColorRef.current) {
+          const sample = colorSampleAt(sampledPixels, width, height, imageX, imageY);
+          if (sample) {
+            const bounds = app.canvas.getBoundingClientRect();
+            onPickColorRef.current(sample, {
+              left: bounds.left + event.global.x,
+              top: bounds.top + event.global.y,
+            });
+          }
           return;
         }
         const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
