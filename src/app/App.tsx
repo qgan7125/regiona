@@ -33,6 +33,8 @@ export function App() {
   const processingRequestRef = useRef(0);
   const [targetColors, setTargetColors] = useState(12);
   const [appliedTargetColors, setAppliedTargetColors] = useState(12);
+  const [tinyRegionMaximumArea, setTinyRegionMaximumArea] = useState(0);
+  const [appliedTinyRegionMaximumArea, setAppliedTinyRegionMaximumArea] = useState(0);
   const [generation, setGeneration] = useState(0);
   const [source, setSource] = useState<SourceState>();
   const [result, setResult] = useState<ReconstructionResult>();
@@ -75,7 +77,9 @@ export function App() {
 
     const timer = window.setTimeout(() => {
       setStatus("processing");
-      setStatusText(`Building ${appliedTargetColors}-color visual regions`);
+      setStatusText(
+        `Building ${appliedTargetColors}-color visual regions${appliedTinyRegionMaximumArea ? ` · cleaning regions ≤ ${appliedTinyRegionMaximumArea}px` : ""}`,
+      );
       void (async () => {
         try {
           const worker = workerRef.current;
@@ -92,6 +96,7 @@ export function App() {
               width: source.processedWidth,
               height: source.processedHeight,
               targetColors: appliedTargetColors,
+              tinyRegionMaximumArea: appliedTinyRegionMaximumArea,
               sourceFilename: source.filename,
             },
             (_progress, stage) => {
@@ -121,7 +126,7 @@ export function App() {
       isCurrent = false;
       window.clearTimeout(timer);
     };
-  }, [appliedTargetColors, generation, source]);
+  }, [appliedTargetColors, appliedTinyRegionMaximumArea, generation, source]);
 
   const handleFile = async (file: File) => {
     setError(undefined);
@@ -141,6 +146,7 @@ export function App() {
         pixels: decoded.pixels,
       });
       setAppliedTargetColors(targetColors);
+      setAppliedTinyRegionMaximumArea(tinyRegionMaximumArea);
       setGeneration((current) => current + 1);
       setResult(undefined);
       setColorHistory([]);
@@ -206,8 +212,11 @@ export function App() {
     setPickedColors([]);
     setSelectedRegionIds([]);
     setStatus("processing");
-    setStatusText(`Rebuilding ${targetColors}-color visual regions`);
+    setStatusText(
+      `Rebuilding ${targetColors}-color visual regions${tinyRegionMaximumArea ? ` · cleaning regions ≤ ${tinyRegionMaximumArea}px` : ""}`,
+    );
     setAppliedTargetColors(targetColors);
+    setAppliedTinyRegionMaximumArea(tinyRegionMaximumArea);
     setGeneration((current) => current + 1);
   };
 
@@ -237,10 +246,6 @@ export function App() {
         status={status}
         statusText={statusText}
         canExport={Boolean(result)}
-        canUndo={Boolean(result && colorHistory.length)}
-        canRedo={Boolean(result && colorFuture.length)}
-        onUndoColor={handleUndoColor}
-        onRedoColor={handleRedoColor}
         onExportProject={() => {
           if (result) exportRegionaProject(result);
         }}
@@ -273,10 +278,12 @@ export function App() {
               : undefined
           }
           targetColors={targetColors}
+          tinyRegionMaximumArea={tinyRegionMaximumArea}
           palette={result?.palette ?? []}
           regionCount={result?.regions.length ?? 0}
           busy={busy}
           onTargetColorsChange={setTargetColors}
+          onTinyRegionMaximumAreaChange={setTinyRegionMaximumArea}
           onRegenerate={handleRegenerate}
           onFile={handleFile}
         />
@@ -286,7 +293,11 @@ export function App() {
           busy={busy || isRecoloring}
           pickedColors={pickedColors}
           selectedRegionIds={selectedRegionIds}
+          canUndo={Boolean(result && colorHistory.length)}
+          canRedo={Boolean(result && colorFuture.length)}
           onSelectRegions={setSelectedRegionIds}
+          onUndoColor={handleUndoColor}
+          onRedoColor={handleRedoColor}
           onPickColor={(color) => {
             setPickedColors((current) => appendPickedColor(current, color));
           }}

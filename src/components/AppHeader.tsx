@@ -4,10 +4,6 @@ interface AppHeaderProps {
   status: WorkStatus;
   statusText: string;
   canExport: boolean;
-  canUndo: boolean;
-  canRedo: boolean;
-  onUndoColor: () => void;
-  onRedoColor: () => void;
   onExportProject: () => void;
   onExportSvg: () => void;
 }
@@ -16,10 +12,6 @@ export function AppHeader({
   status,
   statusText,
   canExport,
-  canUndo,
-  canRedo,
-  onUndoColor,
-  onRedoColor,
   onExportProject,
   onExportSvg,
 }: AppHeaderProps) {
@@ -37,26 +29,6 @@ export function AppHeader({
         {statusText}
       </div>
       <div className="header-actions">
-        <Button
-          className="secondary-button undo-button"
-          disabled={!canUndo}
-          onClick={onUndoColor}
-          aria-label="Undo last region color change"
-          variant="outlined"
-          size="small"
-        >
-          Undo color
-        </Button>
-        <Button
-          className="secondary-button undo-button"
-          disabled={!canRedo}
-          onClick={onRedoColor}
-          aria-label="Redo last region color change"
-          variant="outlined"
-          size="small"
-        >
-          Redo color
-        </Button>
         <Button
           className="secondary-button"
           disabled={!canExport}

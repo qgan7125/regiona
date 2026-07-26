@@ -5,6 +5,7 @@ export interface ProcessImagePayload {
   width: number;
   height: number;
   targetColors: number;
+  tinyRegionMaximumArea: number;
   sourceFilename: string;
 }
 
@@ -34,4 +35,3 @@ export type WorkerResponse =
       requestId?: string;
       payload: { message: string };
     };
-

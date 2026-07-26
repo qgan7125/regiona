@@ -47,6 +47,28 @@ describe("reconstructImage", () => {
     expect(result.regions[0]?.opacity).toBe(0);
     expect(result.quantizedPixels[3]).toBe(0);
   });
+
+  it("removes isolated palette regions when tiny-region cleanup is enabled", () => {
+    const red: [number, number, number, number] = [255, 0, 0, 255];
+    const blue: [number, number, number, number] = [0, 0, 255, 255];
+    const result = reconstructImage({
+      pixels: new Uint8ClampedArray([
+        red, red, red,
+        red, blue, red,
+        red, red, red,
+      ].flat()),
+      width: 3,
+      height: 3,
+      targetColors: 2,
+      tinyRegionMaximumArea: 1,
+      sourceFilename: "speck.png",
+    });
+
+    expect(result.regions).toHaveLength(1);
+    expect([...result.quantizedPixels.slice(16, 20)]).toEqual(
+      [...result.quantizedPixels.slice(0, 4)],
+    );
+  });
 });
 
 describe("region appearance editing", () => {

@@ -1,4 +1,4 @@
-import { Fragment, type Dispatch, type SetStateAction, type SyntheticEvent, useMemo, useState } from "react";
+import { Fragment, type Dispatch, type SetStateAction, type SyntheticEvent, useEffect, useMemo, useState } from "react";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import ToggleButton from "@mui/material/ToggleButton";
@@ -12,6 +12,7 @@ import Popover from "@mui/material/Popover";
 import Switch from "@mui/material/Switch";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
+import Tooltip from "@mui/material/Tooltip";
 
 import { renderRegionPixels } from "../engine/reconstruct";
 import { getPaletteSuggestions } from "../app/palette-suggestions";
@@ -39,7 +40,11 @@ interface PreviewWorkspaceProps {
   busy: boolean;
   pickedColors: ColorSample[];
   selectedRegionIds: string[];
+  canUndo: boolean;
+  canRedo: boolean;
   onSelectRegions: Dispatch<SetStateAction<string[]>>;
+  onUndoColor: () => void;
+  onRedoColor: () => void;
   onPickColor: (color: ColorSample) => void;
   onRecolorRegions: (regionIds: string[], fill: string) => void;
 }
@@ -60,7 +65,11 @@ export function PreviewWorkspace({
   busy,
   pickedColors,
   selectedRegionIds,
+  canUndo,
+  canRedo,
   onSelectRegions,
+  onUndoColor,
+  onRedoColor,
   onPickColor,
   onRecolorRegions,
 }: PreviewWorkspaceProps) {
@@ -82,6 +91,25 @@ export function PreviewWorkspace({
     () => getPaletteSuggestions(pickedColors, result?.palette ?? []),
     [pickedColors, result?.palette],
   );
+
+  useEffect(() => {
+    const handleToolShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.key === "Escape" && selectedRegionIds.length) {
+        event.preventDefault();
+        onSelectRegions([]);
+        return;
+      }
+      if (event.key.toLowerCase() === "b" && !(event.metaKey || event.ctrlKey || event.altKey)) {
+        event.preventDefault();
+        setBrushTool(event.shiftKey ? "remove" : "add");
+      }
+    };
+
+    window.addEventListener("keydown", handleToolShortcut);
+    return () => window.removeEventListener("keydown", handleToolShortcut);
+  }, [onSelectRegions, selectedRegionIds.length]);
 
   const zoomOut = () => {
     setPickedColor(undefined);
@@ -238,19 +266,53 @@ export function PreviewWorkspace({
                     size="small"
                     aria-label="Region selection tool"
                   >
-                    <ToggleButton value="pan" aria-label="Pan canvas">Pan</ToggleButton>
-                    <ToggleButton value="add" aria-label="Brush to add regions">Brush +</ToggleButton>
-                    <ToggleButton value="remove" aria-label="Brush to remove regions">Brush −</ToggleButton>
+                    <ToggleButton value="pan" aria-label="Pan canvas">
+                      <Tooltip title="Pan canvas — hold Space" placement="top"><span>Pan</span></Tooltip>
+                    </ToggleButton>
+                    <ToggleButton value="add" aria-label="Brush to add regions">
+                      <Tooltip title="Brush add — B" placement="top"><span>Brush +</span></Tooltip>
+                    </ToggleButton>
+                    <ToggleButton value="remove" aria-label="Brush to remove regions">
+                      <Tooltip title="Brush subtract — Shift + B" placement="top"><span>Brush −</span></Tooltip>
+                    </ToggleButton>
                   </ToggleButtonGroup>
-                  <Button
-                    className="canvas-tool-clear"
-                    size="small"
-                    disabled={!selectedRegionIds.length}
-                    onClick={() => onSelectRegions([])}
-                  >
-                    Clear
-                  </Button>
-                  {brushTool !== "pan" ? <span>Hold Space to pan</span> : null}
+                  <Tooltip title="Clear selection — Esc" placement="top">
+                    <span>
+                      <Button
+                        className="canvas-tool-action"
+                        size="small"
+                        disabled={!selectedRegionIds.length}
+                        onClick={() => onSelectRegions([])}
+                      >
+                        Clear
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Undo color change — Ctrl/Cmd + Z" placement="top">
+                    <span>
+                      <Button
+                        className="canvas-tool-action"
+                        size="small"
+                        disabled={!canUndo}
+                        onClick={onUndoColor}
+                      >
+                        Undo
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Redo color change — Ctrl/Cmd + Shift + Z or Ctrl + Y" placement="top">
+                    <span>
+                      <Button
+                        className="canvas-tool-action"
+                        size="small"
+                        disabled={!canRedo}
+                        onClick={onRedoColor}
+                      >
+                        Redo
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  {brushTool !== "pan" ? <span className="canvas-tool-hint">Hold Space to pan</span> : null}
                 </div>
                 <PixiPreview
                   width={result.width}

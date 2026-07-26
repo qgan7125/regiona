@@ -732,7 +732,7 @@ input[type="range"] {
   background: #e5e7e1;
 }
 
-.canvas-tool-clear {
+.canvas-tool-action {
   min-width: 0 !important;
   padding: 4px 7px !important;
   color: var(--accent) !important;
@@ -743,7 +743,7 @@ input[type="range"] {
   text-transform: none !important;
 }
 
-.canvas-tool-bar > span {
+.canvas-tool-hint {
   padding-right: 4px;
   font-size: 10px;
   font-weight: 700;

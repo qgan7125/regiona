@@ -4,6 +4,7 @@ import type {
 } from "../types/project";
 import { quantizeImage } from "./color/quantize";
 import { buildRegions } from "./regions/build-regions";
+import { removeTinyPaletteRegions } from "./regions/remove-tiny-regions";
 import { traceAllRegionPaths } from "./regions/trace-regions";
 
 export interface ReconstructImageInput {
@@ -11,6 +12,7 @@ export interface ReconstructImageInput {
   width: number;
   height: number;
   targetColors: number;
+  tinyRegionMaximumArea?: number;
   sourceFilename: string;
 }
 
@@ -79,8 +81,14 @@ export function reconstructImage(
     input.pixels,
     input.targetColors,
   );
-  const { labelMap, regions } = buildRegions(
+  const cleanedPaletteIndexes = removeTinyPaletteRegions(
     paletteIndexes,
+    input.width,
+    input.height,
+    input.tinyRegionMaximumArea ?? 0,
+  );
+  const { labelMap, regions } = buildRegions(
+    cleanedPaletteIndexes,
     input.width,
     input.height,
     palette,

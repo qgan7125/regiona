@@ -15,10 +15,12 @@ interface SourceSummary {
 interface UploadPanelProps {
   source?: SourceSummary;
   targetColors: number;
+  tinyRegionMaximumArea: number;
   palette: PaletteColor[];
   regionCount: number;
   busy: boolean;
   onTargetColorsChange: (value: number) => void;
+  onTinyRegionMaximumAreaChange: (value: number) => void;
   onRegenerate: () => void;
   onFile: (file: File) => void;
 }
@@ -31,10 +33,12 @@ function formatPalettePercentage(percentage: number) {
 export function UploadPanel({
   source,
   targetColors,
+  tinyRegionMaximumArea,
   palette,
   regionCount,
   busy,
   onTargetColorsChange,
+  onTinyRegionMaximumAreaChange,
   onRegenerate,
   onFile,
 }: UploadPanelProps) {
@@ -112,6 +116,27 @@ export function UploadPanel({
           Choose a value, then regenerate the image. Color reduction never
           merges region identity.
         </p>
+        <div className="control-label">
+          <label htmlFor="tiny-region-cleanup">Remove tiny regions</label>
+          <output htmlFor="tiny-region-cleanup">
+            {tinyRegionMaximumArea ? `≤ ${tinyRegionMaximumArea}px` : "Off"}
+          </output>
+        </div>
+        <Slider
+          id="tiny-region-cleanup"
+          min={0}
+          max={16}
+          step={1}
+          value={tinyRegionMaximumArea}
+          disabled={busy}
+          onChange={(_event, value) => onTinyRegionMaximumAreaChange(Number(value))}
+          valueLabelDisplay="auto"
+          valueLabelFormat={(value) => value ? `≤ ${value}px` : "Off"}
+          aria-label="Remove tiny regions by pixel area"
+        />
+        <p className="helper-text">
+          Merge isolated regions into the neighboring color with the longest shared edge.
+        </p>
         <Button
           className="regenerate-button"
           disabled={!source || busy}
@@ -119,7 +144,7 @@ export function UploadPanel({
           variant="contained"
           fullWidth
         >
-          Regenerate with {targetColors} colors
+          Regenerate with {targetColors} colors{tinyRegionMaximumArea ? " + cleanup" : ""}
         </Button>
       </div>
 
