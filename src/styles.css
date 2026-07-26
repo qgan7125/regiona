@@ -505,6 +505,18 @@ input[type="range"] {
   gap: 10px;
 }
 
+.link-views-toggle {
+  margin: 0 !important;
+  color: var(--muted);
+}
+
+.link-views-toggle .MuiTypography-root {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .workspace-footer {
   justify-content: center;
   padding-block: 9px;
@@ -566,34 +578,24 @@ input[type="range"] {
   position: relative;
   display: grid;
   min-height: 440px;
-  padding: 28px;
-  place-items: center;
+  padding: 0;
+  place-items: stretch;
   overflow: hidden;
-  background:
-    linear-gradient(45deg, #d9dcd6 25%, transparent 25%),
-    linear-gradient(-45deg, #d9dcd6 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #d9dcd6 75%),
-    linear-gradient(-45deg, transparent 75%, #d9dcd6 75%),
-    #eef0eb;
-  background-position:
-    0 0,
-    0 8px,
-    8px -8px,
-    -8px 0;
-  background-size: 16px 16px;
+  background: transparent;
 }
 
 .preview-loading {
   position: absolute;
+  inset: 0;
   z-index: 2;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 9px;
   padding: 10px 14px;
   color: var(--ink);
-  background: rgb(255 255 255 / 92%);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
+  background: rgb(255 255 255 / 76%);
+  backdrop-filter: blur(1px);
   font-size: 12px;
   font-weight: 700;
 }
@@ -612,7 +614,7 @@ input[type="range"] {
   display: grid;
   width: 100%;
   height: 100%;
-  min-height: 0;
+  min-height: 440px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
 }
@@ -652,15 +654,15 @@ input[type="range"] {
   display: grid;
   min-width: 0;
   min-height: 0;
-  padding: 20px;
-  overflow: auto;
-  place-items: start center;
+  padding: 0;
+  overflow: hidden;
+  place-items: stretch;
 }
 
 .pixi-preview {
   width: 100%;
   height: 100%;
-  min-height: 340px;
+  min-height: 0;
   overflow: hidden;
   touch-action: none;
   background:
@@ -694,6 +696,7 @@ input[type="range"] {
 .stage-empty {
   max-width: 390px;
   padding: 34px;
+  place-self: center;
   text-align: center;
   background: rgb(248 248 244 / 92%);
   border: 1px solid #cfd3cc;

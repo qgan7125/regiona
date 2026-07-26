@@ -1,11 +1,14 @@
-import { useMemo, useState } from "react";
+import { type SyntheticEvent, useMemo, useState } from "react";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import CircularProgress from "@mui/material/CircularProgress";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 
 import { renderRegionPixels } from "../engine/reconstruct";
+import type { Camera } from "../preview/camera";
 import type { ReconstructionResult } from "../types/project";
 import { PixiPreview } from "./PixiPreview";
 
@@ -16,7 +19,7 @@ interface PreviewWorkspaceProps {
   result?: ReconstructionResult;
   busy: boolean;
   selectedRegionId?: string;
-  onSelectRegion: (regionId: string) => void;
+  onSelectRegion: (regionId?: string) => void;
 }
 
 function vectorSvg(result: ReconstructionResult) {
@@ -38,15 +41,30 @@ export function PreviewWorkspace({
 }: PreviewWorkspaceProps) {
   const [view, setView] = useState<PreviewView>("regions");
   const [zoom, setZoom] = useState(100);
+  const [linkViews, setLinkViews] = useState(false);
+  const [linkedCamera, setLinkedCamera] = useState<Camera>();
+  const [isChangingView, setIsChangingView] = useState(false);
   const regionPixels = useMemo(
     () =>
       result ? renderRegionPixels(result.labelMap, result.regions) : undefined,
     [result],
   );
   const svgMarkup = useMemo(() => (result ? vectorSvg(result) : undefined), [result]);
+  const selectedRegion = useMemo(
+    () => result?.regions.find((region) => region.id === selectedRegionId),
+    [result, selectedRegionId],
+  );
 
   const zoomOut = () => setZoom((current) => Math.max(50, current - 25));
   const zoomIn = () => setZoom((current) => Math.min(400, current + 25));
+  const handleViewChange = (_event: SyntheticEvent, nextView: PreviewView) => {
+    if (nextView === view) return;
+    setIsChangingView(true);
+    window.requestAnimationFrame(() => {
+      setView(nextView);
+      window.requestAnimationFrame(() => setIsChangingView(false));
+    });
+  };
 
   return (
     <main className="workspace" aria-labelledby="workspace-title">
@@ -61,7 +79,7 @@ export function PreviewWorkspace({
           <Tabs
             className="view-tabs"
             value={view}
-            onChange={(_event, value: PreviewView) => setView(value)}
+            onChange={handleViewChange}
             aria-label="Reconstruction preview mode"
           >
             {(["quantized", "regions", "vector"] as const).map((option) => (
@@ -80,14 +98,28 @@ export function PreviewWorkspace({
             </Button>
             <Button onClick={zoomIn} disabled={!result || zoom >= 400}>+</Button>
           </ButtonGroup>
+          <FormControlLabel
+            className="link-views-toggle"
+            control={
+              <Switch
+                checked={linkViews}
+                size="small"
+                onChange={(_event, checked) => {
+                  setLinkViews(checked);
+                  setLinkedCamera(undefined);
+                }}
+              />
+            }
+            label="Link views"
+          />
         </div>
       </div>
 
       <div className="preview-stage">
-        {busy ? (
+        {busy || isChangingView ? (
           <div className="preview-loading" role="status" aria-live="polite">
             <CircularProgress color="secondary" size={30} />
-            <span>Updating preview…</span>
+            <span>{isChangingView ? "Switching preview…" : "Updating preview…"}</span>
           </div>
         ) : null}
 
@@ -113,7 +145,10 @@ export function PreviewWorkspace({
                     height={result.height}
                     zoom={zoom}
                     pixels={originalPixels}
+                    isViewLinked={linkViews}
+                    linkedCamera={linkViews ? linkedCamera : undefined}
                     onZoomChange={setZoom}
+                    onCameraChange={linkViews ? setLinkedCamera : undefined}
                     ariaLabel="Original uploaded artwork. Drag to pan and use the mouse wheel to zoom."
                   />
                 ) : null}
@@ -132,12 +167,19 @@ export function PreviewWorkspace({
                   zoom={zoom}
                   pixels={view === "quantized" ? result.quantizedPixels : view === "regions" ? regionPixels : undefined}
                   svgMarkup={view === "vector" ? svgMarkup : undefined}
-                  labelMap={view === "regions" ? result.labelMap : undefined}
+                  labelMap={result.labelMap}
+                  selectedPath={selectedRegion?.pathData.join(" ")}
+                  selectedFill={selectedRegion?.fill}
+                  selectedOpacity={selectedRegion?.opacity}
+                  isViewLinked={linkViews}
+                  linkedCamera={linkViews ? linkedCamera : undefined}
                   onZoomChange={setZoom}
+                  onCameraChange={linkViews ? setLinkedCamera : undefined}
                   onSelectRegion={(regionNumber) => {
                     const region = result.regions[regionNumber - 1];
                     if (region) onSelectRegion(region.id);
                   }}
+                  onClearSelection={() => onSelectRegion(undefined)}
                   ariaLabel="Reconstruction preview. Drag to pan and use the mouse wheel to zoom."
                 />
               </div>

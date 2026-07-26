@@ -22,7 +22,7 @@ This first implementation slice includes:
 - region selection, palette-based recoloring, and color-edit undo;
 - explicit palette regeneration after adjusting the target color count;
 - Material UI controls with a Regiona-specific theme;
-- PixiJS-backed previews with wheel zoom and drag-to-pan;
+- PixiJS-backed previews with wheel zoom, drag-to-pan, optional linked views, and selection focus;
 - loading feedback while regenerating or recoloring;
 - searchable Material UI palette picker for region fills;
 - editable SVG and Regiona project JSON export.
