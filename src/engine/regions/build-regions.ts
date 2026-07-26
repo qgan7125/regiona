@@ -4,7 +4,8 @@ import type {
   VisualRegion,
 } from "../../types/project";
 
-type PaletteReference = Pick<PaletteColor, "id" | "hex">;
+type PaletteReference = Pick<PaletteColor, "id" | "hex"> &
+  Partial<Pick<PaletteColor, "rgba">>;
 
 export function buildRegions(
   paletteIndexes: Uint8Array,
@@ -75,6 +76,7 @@ export function buildRegions(
       id: `region-${regionNumber.toString().padStart(5, "0")}`,
       colorId: color.id,
       fill: color.hex,
+      opacity: (color.rgba?.[3] ?? 255) / 255,
       pixelArea,
       bounds: {
         x: minimumX,
@@ -89,4 +91,3 @@ export function buildRegions(
 
   return { labelMap, regions };
 }
-

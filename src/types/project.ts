@@ -18,6 +18,7 @@ export interface VisualRegion {
   id: string;
   colorId: string;
   fill: string;
+  opacity: number;
   pixelArea: number;
   bounds: Rect;
   origin: "deterministic";
@@ -36,3 +37,8 @@ export interface EditableSvgInput {
   regions: VisualRegion[];
 }
 
+export interface ReconstructionResult extends EditableSvgInput {
+  palette: PaletteColor[];
+  labelMap: Uint32Array;
+  quantizedPixels: Uint8ClampedArray;
+}

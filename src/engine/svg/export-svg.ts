@@ -20,10 +20,11 @@ export function exportEditableSvg(input: EditableSvgInput) {
   );
   const paths = input.regions
     .filter((region) => region.pathData.length > 0)
-    .map(
-      (region) =>
-        `  <path id="${escapeXml(region.id)}" data-region-id="${escapeXml(region.id)}" data-color-id="${escapeXml(region.colorId)}" fill="${escapeXml(region.fill)}" fill-rule="evenodd" d="${escapeXml(region.pathData.join(" "))}" />`,
-    )
+    .map((region) => {
+      const opacity =
+        region.opacity < 1 ? ` fill-opacity="${region.opacity.toFixed(4)}"` : "";
+      return `  <path id="${escapeXml(region.id)}" data-region-id="${escapeXml(region.id)}" data-color-id="${escapeXml(region.colorId)}" fill="${escapeXml(region.fill)}"${opacity} fill-rule="evenodd" d="${escapeXml(region.pathData.join(" "))}" />`;
+    })
     .join("\n");
 
   return [
@@ -37,4 +38,3 @@ export function exportEditableSvg(input: EditableSvgInput) {
     "",
   ].join("\n");
 }
-

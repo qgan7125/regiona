@@ -66,38 +66,7 @@ function pointsToPath(points: Point[]) {
   return commands.join(" ");
 }
 
-export function traceRegionPaths(
-  labelMap: Uint32Array,
-  width: number,
-  height: number,
-  regionNumber: number,
-): string[] {
-  if (labelMap.length !== width * height) {
-    throw new Error("Label map dimensions are invalid.");
-  }
-
-  const edges: Edge[] = [];
-  const addEdge = (start: Point, end: Point) =>
-    edges.push({ start, end, used: false });
-  const isRegion = (x: number, y: number) =>
-    x >= 0 &&
-    y >= 0 &&
-    x < width &&
-    y < height &&
-    (labelMap[y * width + x] ?? 0) === regionNumber;
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      if (!isRegion(x, y)) continue;
-      if (!isRegion(x, y - 1)) addEdge({ x, y }, { x: x + 1, y });
-      if (!isRegion(x + 1, y))
-        addEdge({ x: x + 1, y }, { x: x + 1, y: y + 1 });
-      if (!isRegion(x, y + 1))
-        addEdge({ x: x + 1, y: y + 1 }, { x, y: y + 1 });
-      if (!isRegion(x - 1, y)) addEdge({ x, y: y + 1 }, { x, y });
-    }
-  }
-
+function traceEdges(edges: Edge[]) {
   const outgoing = new Map<string, Edge[]>();
   for (const edge of edges) {
     const key = pointKey(edge.start);
@@ -136,3 +105,62 @@ export function traceRegionPaths(
   return paths;
 }
 
+const edge = (start: Point, end: Point): Edge => ({
+  start,
+  end,
+  used: false,
+});
+
+export function traceAllRegionPaths(
+  labelMap: Uint32Array,
+  width: number,
+  height: number,
+  regionCount: number,
+): string[][] {
+  if (labelMap.length !== width * height) {
+    throw new Error("Label map dimensions are invalid.");
+  }
+
+  const regionEdges = Array.from({ length: regionCount }, () => [] as Edge[]);
+  const labelAt = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < width && y < height
+      ? (labelMap[y * width + x] ?? 0)
+      : 0;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const regionNumber = labelAt(x, y);
+      if (regionNumber === 0) continue;
+      const edges = regionEdges[regionNumber - 1];
+      if (!edges) throw new Error(`Unknown region number ${regionNumber}.`);
+
+      if (labelAt(x, y - 1) !== regionNumber)
+        edges.push(edge({ x, y }, { x: x + 1, y }));
+      if (labelAt(x + 1, y) !== regionNumber)
+        edges.push(edge({ x: x + 1, y }, { x: x + 1, y: y + 1 }));
+      if (labelAt(x, y + 1) !== regionNumber)
+        edges.push(edge({ x: x + 1, y: y + 1 }, { x, y: y + 1 }));
+      if (labelAt(x - 1, y) !== regionNumber)
+        edges.push(edge({ x, y: y + 1 }, { x, y }));
+    }
+  }
+
+  return regionEdges.map(traceEdges);
+}
+
+export function traceRegionPaths(
+  labelMap: Uint32Array,
+  width: number,
+  height: number,
+  regionNumber: number,
+): string[] {
+  let maximumLabel = regionNumber;
+  for (const label of labelMap) maximumLabel = Math.max(maximumLabel, label);
+  const allPaths = traceAllRegionPaths(
+    labelMap,
+    width,
+    height,
+    maximumLabel,
+  );
+  return allPaths[regionNumber - 1] ?? [];
+}

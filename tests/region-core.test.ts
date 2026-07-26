@@ -105,6 +105,7 @@ describe("exportEditableSvg", () => {
           id: "region-00001",
           colorId: "color-000",
           fill: "#202020",
+          opacity: 1,
           pixelArea: 1,
           bounds: { x: 0, y: 0, width: 1, height: 1 },
           origin: "deterministic",
@@ -114,6 +115,7 @@ describe("exportEditableSvg", () => {
           id: "region-00002",
           colorId: "color-000",
           fill: "#202020",
+          opacity: 1,
           pixelArea: 1,
           bounds: { x: 2, y: 0, width: 1, height: 1 },
           origin: "deterministic",
@@ -127,5 +129,26 @@ describe("exportEditableSvg", () => {
     expect(svg).toContain('id="region-00002"');
     expect(svg.match(/fill="#202020"/g)).toHaveLength(2);
   });
-});
 
+  it("writes SVG fill opacity for translucent regions", () => {
+    const svg = exportEditableSvg({
+      width: 1,
+      height: 1,
+      sourceFilename: "transparent.png",
+      regions: [
+        {
+          id: "region-00001",
+          colorId: "color-000",
+          fill: "#336699",
+          opacity: 0.25,
+          pixelArea: 1,
+          bounds: { x: 0, y: 0, width: 1, height: 1 },
+          origin: "deterministic",
+          pathData: ["M 0 0 H 1 V 1 H 0 Z"],
+        },
+      ],
+    });
+
+    expect(svg).toContain('fill-opacity="0.2500"');
+  });
+});
