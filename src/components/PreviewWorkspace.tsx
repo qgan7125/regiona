@@ -243,7 +243,6 @@ export function PreviewWorkspace({
                   onContextMenuRegion={(regionNumber, anchorPosition) => {
                     const region = result.regions[regionNumber - 1];
                     if (!region) return;
-                    onSelectRegion(region.id);
                     setRegionColorMenu({ anchorPosition, regionId: region.id });
                   }}
                   onClearSelection={() => onSelectRegion(undefined)}
@@ -259,8 +258,13 @@ export function PreviewWorkspace({
         open={Boolean(pickedColor)}
         anchorReference="anchorPosition"
         anchorPosition={pickedColor?.anchorPosition}
-        onClose={() => setPickedColor(undefined)}
-        slotProps={{ paper: { className: "picked-color-popover" } }}
+        onClose={(_event, reason) => {
+          if (reason !== "backdropClick") setPickedColor(undefined);
+        }}
+        slotProps={{
+          root: { className: "picked-color-popover-root" },
+          paper: { className: "picked-color-popover" },
+        }}
       >
         {pickedColor ? (
           <div className="picked-color-content">

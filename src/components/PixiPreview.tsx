@@ -11,6 +11,7 @@ import { fitCamera, zoomCameraAtPoint } from "../preview/camera";
 import type { Camera } from "../preview/camera";
 import { colorSampleAt } from "../preview/color-sample";
 import type { ColorSample } from "../preview/color-sample";
+import { isPrimaryPointerButton } from "../preview/pointer-button";
 import { clearRenderLayer } from "../preview/render-layers";
 
 interface PixiPreviewProps {
@@ -190,7 +191,7 @@ export function PixiPreview({
       app.stage.hitArea = app.screen;
 
       app.stage.on("pointerdown", (event) => {
-        if (event.button === 2) return;
+        if (!isPrimaryPointerButton(event.button)) return;
         dragRef.current = { x: event.global.x, y: event.global.y, moved: false };
         app.canvas.style.cursor = "grabbing";
       });
@@ -242,8 +243,6 @@ export function PixiPreview({
         const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
         if (regionNumber && onSelectRegionRef.current) {
           onSelectRegionRef.current(regionNumber);
-        } else {
-          onClearSelectionRef.current?.();
         }
       };
       app.stage.on("pointerup", endPointer);
