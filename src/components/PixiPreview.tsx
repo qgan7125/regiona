@@ -30,7 +30,7 @@ interface PixiPreviewProps {
   ariaLabel: string;
 }
 
-const clampZoom = (zoom: number) => Math.max(50, Math.min(400, zoom));
+const clampZoom = (zoom: number) => Math.max(50, Math.min(1000, zoom));
 
 function canvasTexture(pixels: Uint8ClampedArray, width: number, height: number) {
   const canvas = document.createElement("canvas");
@@ -79,6 +79,7 @@ export function PixiPreview({
   const viewportRef = useRef<Container | null>(null);
   const baseLayerRef = useRef<Container | null>(null);
   const selectionLayerRef = useRef<Container | null>(null);
+  const hasFittedViewportRef = useRef(false);
   const contentSizeRef = useRef({ width, height });
   const contentVersionRef = useRef(0);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -111,6 +112,7 @@ export function PixiPreview({
     const camera = fitCamera(contentSizeRef.current, app.screen, zoomRef.current);
     viewport.scale.set(camera.scale);
     viewport.position.set(camera.x, camera.y);
+    hasFittedViewportRef.current = true;
   }, []);
 
   useEffect(() => {
@@ -242,7 +244,7 @@ export function PixiPreview({
           Math.max(1, host.clientHeight),
         );
         app.stage.hitArea = app.screen;
-        fitRef.current();
+        if (!hasFittedViewportRef.current) fitRef.current();
       });
       observer.observe(host);
       fitRef.current();
@@ -256,6 +258,7 @@ export function PixiPreview({
       baseLayerRef.current = null;
       selectionLayerRef.current = null;
       baseDisplayRef.current = null;
+      hasFittedViewportRef.current = false;
       vectorGraphicCacheRef.current = undefined;
       pixelTextureCacheRef.current = new WeakMap<Uint8ClampedArray, Texture>();
       observer?.disconnect();

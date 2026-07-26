@@ -94,18 +94,8 @@ export function App() {
           );
           if (!isCurrent || processingRequestRef.current !== requestId) return;
 
-          const largestRegion = reconstruction.regions.reduce<
-            (typeof reconstruction.regions)[number] | undefined
-          >(
-            (largest, region) =>
-              !largest || region.pixelArea > largest.pixelArea
-                ? region
-                : largest,
-            undefined,
-          );
-
           setResult(reconstruction);
-          setSelectedRegionId(largestRegion?.id);
+          setSelectedRegionId(undefined);
           setStatus("ready");
           setStatusText(
             `${reconstruction.regions.length.toLocaleString()} regions ready`,

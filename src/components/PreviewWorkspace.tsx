@@ -56,7 +56,7 @@ export function PreviewWorkspace({
   );
 
   const zoomOut = () => setZoom((current) => Math.max(50, current - 25));
-  const zoomIn = () => setZoom((current) => Math.min(400, current + 25));
+  const zoomIn = () => setZoom((current) => Math.min(1000, current + 25));
   const handleViewChange = (_event: SyntheticEvent, nextView: PreviewView) => {
     if (nextView === view) return;
     setIsChangingView(true);
@@ -96,7 +96,7 @@ export function PreviewWorkspace({
             >
               {Math.round(zoom)}%
             </Button>
-            <Button onClick={zoomIn} disabled={!result || zoom >= 400}>+</Button>
+            <Button onClick={zoomIn} disabled={!result || zoom >= 1000}>+</Button>
           </ButtonGroup>
           <FormControlLabel
             className="link-views-toggle"
