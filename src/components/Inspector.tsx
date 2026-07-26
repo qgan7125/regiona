@@ -1,5 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Button from "@mui/material/Button";
+import Autocomplete from "@mui/material/Autocomplete";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
 
 import { getPaletteFillChoices } from "../app/editor-state";
@@ -8,6 +12,7 @@ import type { PaletteColor, VisualRegion } from "../types/project";
 interface InspectorProps {
   regions: VisualRegion[];
   palette: PaletteColor[];
+  busy: boolean;
   selectedRegionId?: string;
   onSelectRegion: (regionId: string) => void;
   onRecolor: (hex: string) => void;
@@ -16,6 +21,7 @@ interface InspectorProps {
 export function Inspector({
   regions,
   palette,
+  busy,
   selectedRegionId,
   onSelectRegion,
   onRecolor,
@@ -29,6 +35,7 @@ export function Inspector({
     () => getPaletteFillChoices(palette),
     [palette],
   );
+  const [paletteDialogOpen, setPaletteDialogOpen] = useState(false);
 
   return (
     <aside className="panel inspector-panel" aria-labelledby="inspector-title">
@@ -88,26 +95,16 @@ export function Inspector({
             }}
             size="small"
             fullWidth
+            disabled={busy}
           />
           <div className="palette-fill-control">
-            <span>Choose from palette</span>
-            <div className="palette-fill-options" role="list">
-              {paletteFillChoices.map((fill) => (
-                <Button
-                  key={fill}
-                  className={fill === selected.fill ? "is-active" : ""}
-                  style={{ "--swatch": fill } as React.CSSProperties}
-                  onClick={() => onRecolor(fill)}
-                  aria-label={`Set ${selected.id} fill to ${fill}`}
-                  aria-pressed={fill === selected.fill}
-                  variant={fill === selected.fill ? "contained" : "outlined"}
-                  size="small"
-                >
-                  <span aria-hidden="true" />
-                  <code>{fill}</code>
-                </Button>
-              ))}
-            </div>
+            <Button
+              onClick={() => setPaletteDialogOpen(true)}
+              variant="outlined"
+              disabled={busy || !paletteFillChoices.length}
+            >
+              Choose from palette
+            </Button>
           </div>
           <p className="helper-text">
             This changes appearance only. Geometry and neighboring regions remain
@@ -119,6 +116,41 @@ export function Inspector({
           Select a region in the map or list to inspect and recolor it.
         </p>
       )}
+
+      <Dialog
+        open={paletteDialogOpen}
+        onClose={() => setPaletteDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        aria-labelledby="palette-picker-title"
+      >
+        <DialogTitle id="palette-picker-title">Choose region fill</DialogTitle>
+        <DialogContent>
+          <Autocomplete
+            autoHighlight
+            options={paletteFillChoices}
+            value={selected?.fill.toLowerCase() ?? null}
+            onChange={(_event, fill) => {
+              if (!fill) return;
+              onRecolor(fill);
+              setPaletteDialogOpen(false);
+            }}
+            renderOption={(props, fill) => (
+              <li {...props} key={fill}>
+                <span
+                  className="dialog-palette-swatch"
+                  style={{ "--swatch": fill } as React.CSSProperties}
+                  aria-hidden="true"
+                />
+                <code>{fill}</code>
+              </li>
+            )}
+            renderInput={(params) => (
+              <TextField {...params} autoFocus label="Search palette colors" />
+            )}
+          />
+        </DialogContent>
+      </Dialog>
 
       <section className="region-list-section" aria-labelledby="region-list-title">
         <div className="section-title-row">

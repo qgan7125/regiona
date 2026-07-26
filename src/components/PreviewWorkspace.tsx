@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
+import CircularProgress from "@mui/material/CircularProgress";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 
@@ -12,6 +13,7 @@ type PreviewView = "quantized" | "regions" | "vector";
 interface PreviewWorkspaceProps {
   sourceUrl?: string;
   result?: ReconstructionResult;
+  busy: boolean;
   selectedRegionId?: string;
   onSelectRegion: (regionId: string) => void;
 }
@@ -89,6 +91,7 @@ function ZoomableContent({ zoom, children }: ZoomableContentProps) {
 export function PreviewWorkspace({
   sourceUrl,
   result,
+  busy,
   selectedRegionId,
   onSelectRegion,
 }: PreviewWorkspaceProps) {
@@ -147,6 +150,12 @@ export function PreviewWorkspace({
       </div>
 
       <div className="preview-stage">
+        {busy ? (
+          <div className="preview-loading" role="status" aria-live="polite">
+            <CircularProgress color="secondary" size={30} />
+            <span>Updating preview…</span>
+          </div>
+        ) : null}
         {!result ? (
           <div className="stage-empty">
             <span aria-hidden="true">R</span>

@@ -37,6 +37,7 @@ export function App() {
   const [colorHistory, setColorHistory] = useState<
     ReconstructionResult["regions"][]
   >([]);
+  const [isRecoloring, setIsRecoloring] = useState(false);
   const [selectedRegionId, setSelectedRegionId] = useState<string>();
   const [status, setStatus] = useState<WorkStatus>("idle");
   const [statusText, setStatusText] = useState("Ready for a source image");
@@ -169,8 +170,12 @@ export function App() {
     );
     if (nextHistory === colorHistory) return;
 
-    setColorHistory(nextHistory);
-    setResult({ ...result, regions: recoloredRegions });
+    setIsRecoloring(true);
+    window.requestAnimationFrame(() => {
+      setColorHistory(nextHistory);
+      setResult({ ...result, regions: recoloredRegions });
+      window.requestAnimationFrame(() => setIsRecoloring(false));
+    });
   };
 
   const handleUndoColor = useCallback(() => {
@@ -257,12 +262,14 @@ export function App() {
         <PreviewWorkspace
           sourceUrl={source?.url}
           result={result}
+          busy={busy || isRecoloring}
           selectedRegionId={selectedRegionId}
           onSelectRegion={setSelectedRegionId}
         />
         <Inspector
           regions={result?.regions ?? []}
           palette={result?.palette ?? []}
+          busy={busy || isRecoloring}
           selectedRegionId={selectedRegionId}
           onSelectRegion={setSelectedRegionId}
           onRecolor={handleRecolor}
