@@ -25,6 +25,27 @@ export interface VisualRegion {
   pathData: string[];
 }
 
+export interface RasterPoint {
+  x: number;
+  y: number;
+}
+
+export interface RasterEdge {
+  start: RasterPoint;
+  end: RasterPoint;
+}
+
+/**
+ * A canonical collection of raster edges shared by two regions, or by one
+ * region and the outside of the source image when `regionBId` is omitted.
+ */
+export interface SharedBoundary {
+  id: string;
+  regionAId: string;
+  regionBId?: string;
+  rasterEdges: RasterEdge[];
+}
+
 export interface RegionBuildResult {
   labelMap: Uint32Array;
   regions: VisualRegion[];
@@ -40,5 +61,6 @@ export interface EditableSvgInput {
 export interface ReconstructionResult extends EditableSvgInput {
   palette: PaletteColor[];
   labelMap: Uint32Array;
+  boundaries: SharedBoundary[];
   quantizedPixels: Uint8ClampedArray;
 }

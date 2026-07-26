@@ -5,6 +5,7 @@ import type {
 import { quantizeImage } from "./color/quantize";
 import { buildRegions } from "./regions/build-regions";
 import { removeTinyPaletteRegions } from "./regions/remove-tiny-regions";
+import { extractSharedBoundaries } from "./regions/shared-boundaries";
 import { traceAllRegionPaths } from "./regions/trace-regions";
 
 export interface ReconstructImageInput {
@@ -103,6 +104,12 @@ export function reconstructImage(
     ...region,
     pathData: paths[index] ?? [],
   }));
+  const boundaries = extractSharedBoundaries(
+    labelMap,
+    input.width,
+    input.height,
+    tracedRegions,
+  );
 
   return {
     width: input.width,
@@ -111,6 +118,7 @@ export function reconstructImage(
     palette,
     labelMap,
     regions: tracedRegions,
+    boundaries,
     quantizedPixels: renderRegionPixels(labelMap, tracedRegions),
   };
 }
