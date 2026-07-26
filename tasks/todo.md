@@ -14,4 +14,9 @@
 - [x] Convert shared raster edges into ordered, fit-ready contours.
 - [x] Add deterministic line fitting and measured error tests.
 - [x] Preserve shared boundary geometry and adjacency in project JSON exports.
-- [ ] Add cubic Bézier fitting with a configurable error limit.
+- [x] Add cubic Bézier fitting with a configurable error limit.
+
+## Next increment: topology validation
+
+- [ ] Validate closed contours and reject malformed boundary geometry.
+- [ ] Detect self-intersections before SVG geometry uses a boundary.

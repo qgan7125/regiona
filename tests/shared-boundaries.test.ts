@@ -68,6 +68,12 @@ describe("extractSharedBoundaries", () => {
       end: { x: 1, y: 0 },
     });
   });
+
+  it("rejects a negative curve-fit tolerance before processing boundaries", () => {
+    expect(() =>
+      extractSharedBoundaries(new Uint32Array([1, 2]), 2, 1, regions, -0.1),
+    ).toThrow("Curve fit tolerance must not be negative.");
+  });
 });
 
 describe("fitRasterEdgesToLines", () => {

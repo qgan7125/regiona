@@ -3,7 +3,7 @@ import type {
   SharedBoundary,
   VisualRegion,
 } from "../../types/project";
-import { fitRasterEdgesToLines } from "../curves/fit-lines";
+import { fitRasterEdgesToCurves } from "../curves/fit-curves";
 
 interface BoundaryAccumulator {
   regionAId: string;
@@ -26,6 +26,7 @@ export function extractSharedBoundaries(
   width: number,
   height: number,
   regions: VisualRegion[],
+  curveFitTolerancePx = 1,
 ): SharedBoundary[] {
   if (labelMap.length !== width * height) {
     throw new Error("Label map dimensions are invalid.");
@@ -113,6 +114,6 @@ export function extractSharedBoundaries(
   return [...boundaries.entries()].map(([id, boundary]) => ({
     id,
     ...boundary,
-    ...fitRasterEdgesToLines(boundary.rasterEdges),
+    ...fitRasterEdgesToCurves(boundary.rasterEdges, curveFitTolerancePx),
   }));
 }

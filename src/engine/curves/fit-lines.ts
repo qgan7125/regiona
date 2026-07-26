@@ -4,7 +4,7 @@ import type {
   VectorSegment,
 } from "../../types/project";
 
-interface LineFitResult {
+export interface LineFitResult {
   vectorSegments: VectorSegment[];
   maximumFitErrorPx: number;
   averageFitErrorPx: number;
@@ -30,7 +30,7 @@ function isCollinear(
   );
 }
 
-function connectRasterEdges(edges: RasterEdge[]) {
+export function connectRasterEdges(edges: RasterEdge[]) {
   const edgeIndexesAtPoint = new Map<string, number[]>();
   edges.forEach((edge, index) => {
     for (const point of [edge.start, edge.end]) {
@@ -93,7 +93,7 @@ function connectRasterEdges(edges: RasterEdge[]) {
   return polylines;
 }
 
-function simplifyPolyline(points: RasterPoint[]) {
+export function simplifyPolyline(points: RasterPoint[]) {
   if (points.length <= 2) return points;
   const simplified = [points[0]!];
 
@@ -108,19 +108,21 @@ function simplifyPolyline(points: RasterPoint[]) {
   return simplified;
 }
 
+export function fitPolylineToLines(points: RasterPoint[]) {
+  const simplified = simplifyPolyline(points);
+  return simplified.slice(1).map((end, index) => ({
+    type: "line" as const,
+    start: simplified[index]!,
+    end,
+  }));
+}
+
 /**
  * Produces exact line segments from raster boundaries. Contiguous collinear
  * edges collapse into one segment, so the measured fitting error is zero.
  */
 export function fitRasterEdgesToLines(edges: RasterEdge[]): LineFitResult {
-  const vectorSegments = connectRasterEdges(edges).flatMap((polyline) => {
-    const points = simplifyPolyline(polyline);
-    return points.slice(1).map((end, index) => ({
-      type: "line" as const,
-      start: points[index]!,
-      end,
-    }));
-  });
+  const vectorSegments = connectRasterEdges(edges).flatMap(fitPolylineToLines);
 
   return {
     vectorSegments,

@@ -15,6 +15,7 @@ export interface ReconstructImageInput {
   height: number;
   targetColors: number;
   tinyRegionMaximumArea?: number;
+  curveFitTolerancePx?: number;
   sourceFilename: string;
 }
 
@@ -110,6 +111,7 @@ export function reconstructImage(
     input.width,
     input.height,
     tracedRegions,
+    input.curveFitTolerancePx ?? 1,
   );
   const adjacency = buildRegionAdjacency(tracedRegions, boundaries);
 

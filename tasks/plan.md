@@ -14,9 +14,11 @@ shared curve fitting and topology validation in the Regiona design document.
 3. Build a bidirectional region adjacency graph from those boundaries.
 4. Convert contiguous collinear grid edges into exact shared line segments.
 5. Record measurable fit error with the boundary geometry.
-6. Include the boundary and adjacency collections in `ReconstructionResult`.
-7. Preserve those collections in exported Regiona project JSON.
-8. Prove the model with focused unit and reconstruction-pipeline tests.
+6. Fit cubic Bézier candidates only when they stay within a configurable error
+   limit; otherwise retain exact line segments.
+7. Include the boundary and adjacency collections in `ReconstructionResult`.
+8. Preserve those collections in exported Regiona project JSON.
+9. Prove the model with focused unit and reconstruction-pipeline tests.
 
 ## Deliberate non-goals
 
@@ -33,6 +35,8 @@ shared curve fitting and topology validation in the Regiona design document.
 - Every interior boundary is reflected bidirectionally in the adjacency graph.
 - Collinear raster edges are represented by one exact line segment with zero
   fitting error.
+- A cubic Bézier is emitted only when its measured maximum error is within the
+  configured tolerance; exact lines remain the fallback.
 - Regiona project JSON preserves boundaries, their vector geometry, and
   adjacency data.
 - Existing reconstruction and color-editing behaviour remains unchanged.
