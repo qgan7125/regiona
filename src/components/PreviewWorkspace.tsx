@@ -256,6 +256,7 @@ export function PreviewWorkspace({
                       path: region.pathData.join(" "),
                       fill: region.fill,
                       opacity: region.opacity,
+                      bounds: region.bounds,
                     }))}
                   isViewLinked={linkViews}
                   linkedCamera={linkViews ? linkedCamera : undefined}

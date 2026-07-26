@@ -23,7 +23,12 @@ interface PixiPreviewProps {
   selectedPath?: string;
   selectedFill?: string;
   selectedOpacity?: number;
-  selectedRegions?: Array<{ path: string; fill: string; opacity: number }>;
+  selectedRegions?: Array<{
+    path: string;
+    fill: string;
+    opacity: number;
+    bounds: { x: number; y: number; width: number; height: number };
+  }>;
   labelMap?: Uint32Array;
   isViewLinked?: boolean;
   linkedCamera?: Camera;
@@ -76,6 +81,23 @@ function selectedRegionsGraphic(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${fills}${whiteOutlines}${accentOutlines}</svg>`,
   );
 }
+
+function largeSelectionBoundsGraphic(
+  regions: Array<{ bounds: { x: number; y: number; width: number; height: number } }>,
+  width: number,
+  height: number,
+  viewportScale: number,
+) {
+  const strokeWidth = 2 / viewportScale;
+  const rectangles = regions.map(({ bounds }) => (
+    `<rect x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" fill="none" stroke="#f25c35" stroke-width="${strokeWidth}" />`
+  )).join("");
+  return new Graphics().svg(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${rectangles}</svg>`,
+  );
+}
+
+const MAX_COMPLEX_SELECTION_PATH_LENGTH = 12_000;
 
 export function PixiPreview({
   width,
@@ -442,12 +464,17 @@ export function PixiPreview({
     clearRenderLayer(selectionLayer);
 
     const selection = selectedRegions ?? (selectedPath && selectedFill
-      ? [{ path: selectedPath, fill: selectedFill, opacity: selectedOpacity }]
+      ? [{ path: selectedPath, fill: selectedFill, opacity: selectedOpacity, bounds: { x: 0, y: 0, width, height } }]
       : []);
-    display.alpha = selection.length ? 0.2 : 1;
+    const hasComplexSelection = selection.some(
+      ({ path }) => path.length > MAX_COMPLEX_SELECTION_PATH_LENGTH,
+    );
+    display.alpha = selection.length && !hasComplexSelection ? 0.2 : 1;
     if (!selection.length) return;
 
-    selectionLayer.addChild(selectedRegionsGraphic(selection, width, height, selectionScale));
+    selectionLayer.addChild(hasComplexSelection
+      ? largeSelectionBoundsGraphic(selection, width, height, selectionScale)
+      : selectedRegionsGraphic(selection, width, height, selectionScale));
   }, [
     contentRevision,
     height,
