@@ -36,9 +36,9 @@ interface PixiPreviewProps {
   onCameraChange?: (camera: Camera) => void;
   onSelectRegion?: (
     regionNumbers: number | number[],
-    mode?: "replace" | "toggle" | "add",
+    mode?: "replace" | "toggle" | "add" | "remove",
   ) => void;
-  brushSelect?: boolean;
+  brushMode?: "add" | "remove";
   onContextMenuRegion?: (
     regionNumber: number,
     anchorPosition: { left: number; top: number },
@@ -115,7 +115,7 @@ export function PixiPreview({
   onZoomChange,
   onCameraChange,
   onSelectRegion,
-  brushSelect = false,
+  brushMode,
   onContextMenuRegion,
   onClearSelection,
   onPickColor,
@@ -132,15 +132,23 @@ export function PixiPreview({
   const hasFittedViewportRef = useRef(false);
   const contentSizeRef = useRef({ width, height });
   const contentVersionRef = useRef(0);
-  const dragRef = useRef<{ x: number; y: number; moved: boolean; brushing: boolean } | null>(null);
+  const dragRef = useRef<{
+    x: number;
+    y: number;
+    moved: boolean;
+    brushing: boolean;
+    brushMode?: "add" | "remove";
+  } | null>(null);
   const pendingBrushRegionsRef = useRef(new Set<number>());
+  const pendingBrushModeRef = useRef<"add" | "remove" | undefined>(undefined);
   const brushFrameRef = useRef(0);
   const zoomRef = useRef(zoom);
   const reportedZoomRef = useRef(zoom);
   const onZoomChangeRef = useRef(onZoomChange);
   const onCameraChangeRef = useRef(onCameraChange);
   const onSelectRegionRef = useRef(onSelectRegion);
-  const brushSelectRef = useRef(brushSelect);
+  const brushModeRef = useRef(brushMode);
+  const spacePressedRef = useRef(false);
   const onContextMenuRegionRef = useRef(onContextMenuRegion);
   const onClearSelectionRef = useRef(onClearSelection);
   const onPickColorRef = useRef(onPickColor);
@@ -176,7 +184,7 @@ export function PixiPreview({
     onZoomChangeRef.current = onZoomChange;
     onCameraChangeRef.current = onCameraChange;
     onSelectRegionRef.current = onSelectRegion;
-    brushSelectRef.current = brushSelect;
+    brushModeRef.current = brushMode;
     onContextMenuRegionRef.current = onContextMenuRegion;
     onClearSelectionRef.current = onClearSelection;
     onPickColorRef.current = onPickColor;
@@ -191,7 +199,7 @@ export function PixiPreview({
     onContextMenuRegion,
     onPickColor,
     onSelectRegion,
-    brushSelect,
+    brushMode,
     onZoomChange,
     pixels,
   ]);
@@ -206,6 +214,9 @@ export function PixiPreview({
     let observer: ResizeObserver | undefined;
     let handleWheel: ((event: WheelEvent) => void) | undefined;
     let handleContextMenu: ((event: MouseEvent) => void) | undefined;
+    let handleKeyDown: ((event: KeyboardEvent) => void) | undefined;
+    let handleKeyUp: ((event: KeyboardEvent) => void) | undefined;
+    let handleWindowBlur: (() => void) | undefined;
     const app = new Application();
     void (async () => {
       await app.init({
@@ -235,26 +246,40 @@ export function PixiPreview({
       app.stage.addChild(viewport);
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
-      const enqueueBrushSelection = (regionNumber: number) => {
+      const updateCursor = () => {
+        const drag = dragRef.current;
+        app.canvas.style.cursor = drag && !drag.brushing
+          ? "grabbing"
+          : brushModeRef.current && !spacePressedRef.current
+            ? "crosshair"
+            : "grab";
+      };
+      const enqueueBrushSelection = (regionNumber: number, mode: "add" | "remove") => {
         pendingBrushRegionsRef.current.add(regionNumber);
+        pendingBrushModeRef.current ??= mode;
         if (brushFrameRef.current) return;
         brushFrameRef.current = window.requestAnimationFrame(() => {
           brushFrameRef.current = 0;
           const regionNumbers = [...pendingBrushRegionsRef.current];
+          const pendingMode = pendingBrushModeRef.current;
           pendingBrushRegionsRef.current.clear();
-          if (regionNumbers.length) onSelectRegionRef.current?.(regionNumbers, "add");
+          pendingBrushModeRef.current = undefined;
+          if (regionNumbers.length && pendingMode) {
+            onSelectRegionRef.current?.(regionNumbers, pendingMode);
+          }
         });
       };
 
       app.stage.on("pointerdown", (event) => {
         if (!isPrimaryPointerButton(event.button)) return;
-        const brushing = brushSelectRef.current && Boolean(onSelectRegionRef.current);
-        dragRef.current = { x: event.global.x, y: event.global.y, moved: false, brushing };
+        const activeBrushMode = brushModeRef.current;
+        const brushing = Boolean(activeBrushMode) && !spacePressedRef.current && Boolean(onSelectRegionRef.current);
+        dragRef.current = { x: event.global.x, y: event.global.y, moved: false, brushing, brushMode: activeBrushMode };
         if (brushing) {
           const imageX = Math.floor((event.global.x - viewport.x) / viewport.scale.x);
           const imageY = Math.floor((event.global.y - viewport.y) / viewport.scale.y);
           const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
-          if (regionNumber) enqueueBrushSelection(regionNumber);
+          if (regionNumber && activeBrushMode) enqueueBrushSelection(regionNumber, activeBrushMode);
           app.canvas.style.cursor = "crosshair";
         } else app.canvas.style.cursor = "grabbing";
       });
@@ -265,7 +290,7 @@ export function PixiPreview({
           const imageX = Math.floor((event.global.x - viewport.x) / viewport.scale.x);
           const imageY = Math.floor((event.global.y - viewport.y) / viewport.scale.y);
           const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
-          if (regionNumber) enqueueBrushSelection(regionNumber);
+          if (regionNumber && drag.brushMode) enqueueBrushSelection(regionNumber, drag.brushMode);
           return;
         }
         const deltaX = event.global.x - drag.x;
@@ -288,7 +313,7 @@ export function PixiPreview({
       const endPointer = (event: { global: { x: number; y: number }; shiftKey: boolean }) => {
         const drag = dragRef.current;
         dragRef.current = null;
-        app.canvas.style.cursor = brushSelectRef.current ? "crosshair" : "grab";
+        updateCursor();
         if (!drag || drag.moved) {
           return;
         }
@@ -355,7 +380,26 @@ export function PixiPreview({
         onZoomChangeRef.current(nextZoom);
       };
       app.canvas.addEventListener("wheel", handleWheel, { passive: false });
-      app.canvas.style.cursor = brushSelectRef.current ? "crosshair" : "grab";
+      handleKeyDown = (event) => {
+        if (event.code !== "Space" || !brushModeRef.current) return;
+        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+        spacePressedRef.current = true;
+        event.preventDefault();
+        updateCursor();
+      };
+      handleKeyUp = (event) => {
+        if (event.code !== "Space") return;
+        spacePressedRef.current = false;
+        updateCursor();
+      };
+      handleWindowBlur = () => {
+        spacePressedRef.current = false;
+        updateCursor();
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("keyup", handleKeyUp);
+      window.addEventListener("blur", handleWindowBlur);
+      updateCursor();
 
       observer = new ResizeObserver(() => {
         app.renderer.resize(
@@ -385,6 +429,9 @@ export function PixiPreview({
       window.cancelAnimationFrame(brushFrameRef.current);
       if (handleWheel) app.canvas.removeEventListener("wheel", handleWheel);
       if (handleContextMenu) app.canvas.removeEventListener("contextmenu", handleContextMenu);
+      if (handleKeyDown) window.removeEventListener("keydown", handleKeyDown);
+      if (handleKeyUp) window.removeEventListener("keyup", handleKeyUp);
+      if (handleWindowBlur) window.removeEventListener("blur", handleWindowBlur);
       if (initialized) app.destroy({ removeView: true });
     };
   }, [height, width]);
@@ -404,6 +451,12 @@ export function PixiPreview({
     viewport.position.set(linkedCamera.x, linkedCamera.y);
     setSelectionScale(linkedCamera.scale);
   }, [linkedCamera]);
+
+  useEffect(() => {
+    const app = appRef.current;
+    if (!app || dragRef.current) return;
+    app.canvas.style.cursor = brushMode && !spacePressedRef.current ? "crosshair" : "grab";
+  }, [brushMode]);
 
   useEffect(() => {
     const app = appRef.current;

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   appendColorHistory,
   getPaletteFillChoices,
+  redoColorEdit,
   undoColorEdit,
 } from "../src/app/editor-state";
 import type { PaletteColor, VisualRegion } from "../src/types/project";
@@ -42,6 +43,17 @@ describe("editor color state", () => {
     expect(undoColorEdit(after, history)).toEqual({
       regions: before,
       history: [],
+    });
+  });
+
+  it("restores an undone color edit when redoing it", () => {
+    const before = [region("region-00001", "#112233")];
+    const after = [region("region-00001", "#ff5a36")];
+    const undone = undoColorEdit(after, appendColorHistory([], before, after));
+
+    expect(redoColorEdit(undone.regions, [after])).toEqual({
+      regions: after,
+      future: [],
     });
   });
 

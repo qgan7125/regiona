@@ -4,7 +4,7 @@ import { AppHeader } from "../components/AppHeader";
 import { Inspector } from "../components/Inspector";
 import { PreviewWorkspace } from "../components/PreviewWorkspace";
 import { UploadPanel } from "../components/UploadPanel";
-import { appendColorHistory, undoColorEdit } from "./editor-state";
+import { appendColorHistory, redoColorEdit, undoColorEdit } from "./editor-state";
 import { appendPickedColor } from "./palette-suggestions";
 import { recolorRegions } from "../engine/reconstruct";
 import type { ColorSample } from "../preview/color-sample";
@@ -37,6 +37,9 @@ export function App() {
   const [source, setSource] = useState<SourceState>();
   const [result, setResult] = useState<ReconstructionResult>();
   const [colorHistory, setColorHistory] = useState<
+    ReconstructionResult["regions"][]
+  >([]);
+  const [colorFuture, setColorFuture] = useState<
     ReconstructionResult["regions"][]
   >([]);
   const [pickedColors, setPickedColors] = useState<ColorSample[]>([]);
@@ -141,6 +144,7 @@ export function App() {
       setGeneration((current) => current + 1);
       setResult(undefined);
       setColorHistory([]);
+      setColorFuture([]);
       setPickedColors([]);
       setSelectedRegionIds([]);
     } catch (cause) {
@@ -163,6 +167,7 @@ export function App() {
     setIsRecoloring(true);
     window.requestAnimationFrame(() => {
       setColorHistory(nextHistory);
+      setColorFuture([]);
       setResult({ ...result, regions: recoloredRegions });
       window.requestAnimationFrame(() => setIsRecoloring(false));
     });
@@ -179,13 +184,25 @@ export function App() {
     if (previous.regions === result.regions) return;
 
     setColorHistory(previous.history);
+    setColorFuture((current) => [result.regions, ...current].slice(0, 50));
     setResult({ ...result, regions: previous.regions });
   }, [colorHistory, result]);
+
+  const handleRedoColor = useCallback(() => {
+    if (!result) return;
+    const next = redoColorEdit(result.regions, colorFuture);
+    if (next.regions === result.regions) return;
+
+    setColorHistory((current) => appendColorHistory(current, result.regions, next.regions));
+    setColorFuture(next.future);
+    setResult({ ...result, regions: next.regions });
+  }, [colorFuture, result]);
 
   const handleRegenerate = () => {
     if (!source || busy) return;
     setResult(undefined);
     setColorHistory([]);
+    setColorFuture([]);
     setPickedColors([]);
     setSelectedRegionIds([]);
     setStatus("processing");
@@ -196,17 +213,23 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") {
+      if (!(event.metaKey || event.ctrlKey)) {
         return;
       }
-      if (!colorHistory.length) return;
+      const key = event.key.toLowerCase();
+      const shouldRedo = key === "y" || (key === "z" && event.shiftKey);
+      if (key !== "z" && key !== "y") {
+        return;
+      }
+      const action = shouldRedo ? handleRedoColor : handleUndoColor;
+      if (shouldRedo ? !colorFuture.length : !colorHistory.length) return;
       event.preventDefault();
-      handleUndoColor();
+      action();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [colorHistory.length, handleUndoColor]);
+  }, [colorFuture.length, colorHistory.length, handleRedoColor, handleUndoColor]);
 
   return (
     <div className="app-shell">
@@ -215,7 +238,9 @@ export function App() {
         statusText={statusText}
         canExport={Boolean(result)}
         canUndo={Boolean(result && colorHistory.length)}
+        canRedo={Boolean(result && colorFuture.length)}
         onUndoColor={handleUndoColor}
+        onRedoColor={handleRedoColor}
         onExportProject={() => {
           if (result) exportRegionaProject(result);
         }}

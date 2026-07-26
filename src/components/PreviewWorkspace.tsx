@@ -2,6 +2,7 @@ import { Fragment, type Dispatch, type SetStateAction, type SyntheticEvent, useM
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import CircularProgress from "@mui/material/CircularProgress";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import ListSubheader from "@mui/material/ListSubheader";
@@ -20,6 +21,7 @@ import type { ReconstructionResult } from "../types/project";
 import { PixiPreview } from "./PixiPreview";
 
 type PreviewView = "quantized" | "regions" | "vector";
+type BrushTool = "pan" | "add" | "remove";
 
 interface PickedColor {
   anchorPosition: { left: number; top: number };
@@ -69,7 +71,7 @@ export function PreviewWorkspace({
   const [isChangingView, setIsChangingView] = useState(false);
   const [pickedColor, setPickedColor] = useState<PickedColor>();
   const [regionColorMenu, setRegionColorMenu] = useState<RegionColorMenu>();
-  const [brushSelect, setBrushSelect] = useState(false);
+  const [brushTool, setBrushTool] = useState<BrushTool>("pan");
   const regionPixels = useMemo(
     () =>
       result ? renderRegionPixels(result.labelMap, result.regions) : undefined,
@@ -151,16 +153,6 @@ export function PreviewWorkspace({
             }
             label="Link views"
           />
-          <ToggleButton
-            value="brush"
-            selected={brushSelect}
-            onChange={() => setBrushSelect((current) => !current)}
-            disabled={!result}
-            size="small"
-            aria-label="Toggle brush region selection"
-          >
-            Brush select
-          </ToggleButton>
         </div>
       </div>
 
@@ -233,16 +225,33 @@ export function PreviewWorkspace({
                 <h2 id="reconstruction-preview-title">Reconstruction</h2>
                 <div className="preview-pane-actions">
                   <span>{view}{selectedRegionIds.length ? ` · ${selectedRegionIds.length} selected` : ""}</span>
+                </div>
+              </header>
+              <div className="preview-pane-media">
+                <div className="canvas-tool-bar" role="toolbar" aria-label="Region selection tools">
+                  <ToggleButtonGroup
+                    exclusive
+                    value={brushTool}
+                    onChange={(_event, nextTool: BrushTool | null) => {
+                      if (nextTool) setBrushTool(nextTool);
+                    }}
+                    size="small"
+                    aria-label="Region selection tool"
+                  >
+                    <ToggleButton value="pan" aria-label="Pan canvas">Pan</ToggleButton>
+                    <ToggleButton value="add" aria-label="Brush to add regions">Brush +</ToggleButton>
+                    <ToggleButton value="remove" aria-label="Brush to remove regions">Brush −</ToggleButton>
+                  </ToggleButtonGroup>
                   <Button
+                    className="canvas-tool-clear"
                     size="small"
                     disabled={!selectedRegionIds.length}
                     onClick={() => onSelectRegions([])}
                   >
-                    Clear selection
+                    Clear
                   </Button>
+                  {brushTool !== "pan" ? <span>Hold Space to pan</span> : null}
                 </div>
-              </header>
-              <div className="preview-pane-media">
                 <PixiPreview
                   width={result.width}
                   height={result.height}
@@ -262,7 +271,7 @@ export function PreviewWorkspace({
                   linkedCamera={linkViews ? linkedCamera : undefined}
                   onZoomChange={setZoom}
                   onCameraChange={handleCameraChange}
-                  brushSelect={brushSelect}
+                  brushMode={brushTool === "pan" ? undefined : brushTool}
                   onSelectRegion={(regionNumbers, mode = "replace") => {
                     const numbers = Array.isArray(regionNumbers) ? regionNumbers : [regionNumbers];
                     const regionIds = numbers
@@ -273,6 +282,7 @@ export function PreviewWorkspace({
                     else if (mode === "toggle") onSelectRegions((current) => current.some((id) => regionIds.includes(id))
                       ? current.filter((id) => !regionIds.includes(id))
                       : [...current, ...regionIds.filter((id) => !current.includes(id))]);
+                    else if (mode === "remove") onSelectRegions((current) => current.filter((id) => !regionIds.includes(id)));
                     else onSelectRegions((current) => [...current, ...regionIds.filter((id) => !current.includes(id))]);
                   }}
                   onContextMenuRegion={(regionNumber, anchorPosition) => {
@@ -281,7 +291,7 @@ export function PreviewWorkspace({
                     setRegionColorMenu({ anchorPosition, regionId: region.id });
                   }}
                   onClearSelection={() => onSelectRegions([])}
-                  ariaLabel="Reconstruction preview. Click to select a region, right-click to choose a similar palette color, drag to pan, and use the mouse wheel to zoom."
+                  ariaLabel="Reconstruction preview. Click to select a region, right-click to choose a similar palette color, drag to pan, and use the mouse wheel to zoom. Choose Brush plus or minus to add or remove multiple regions; hold Space while brushing to pan."
                 />
               </div>
             </section>

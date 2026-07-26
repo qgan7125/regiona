@@ -33,3 +33,16 @@ export function undoColorEdit(
     history: history.slice(0, -1),
   };
 }
+
+export function redoColorEdit(
+  regions: VisualRegion[],
+  future: VisualRegion[][],
+) {
+  const nextRegions = future[0];
+  if (!nextRegions) return { regions, future };
+
+  return {
+    regions: nextRegions,
+    future: future.slice(1),
+  };
+}

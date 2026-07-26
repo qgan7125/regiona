@@ -692,12 +692,63 @@ input[type="range"] {
 }
 
 .preview-pane-media {
+  position: relative;
   display: grid;
   min-width: 0;
   min-height: 0;
   padding: 0;
   overflow: hidden;
   place-items: stretch;
+}
+
+.canvas-tool-bar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  color: var(--muted);
+  background: rgb(255 255 255 / 88%);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgb(21 25 24 / 12%);
+}
+
+.canvas-tool-bar .MuiToggleButton-root {
+  min-width: 48px;
+  padding: 4px 7px;
+  color: var(--muted);
+  border-radius: 0 !important;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.canvas-tool-bar .MuiToggleButton-root.Mui-selected {
+  color: var(--ink);
+  background: #e5e7e1;
+}
+
+.canvas-tool-clear {
+  min-width: 0 !important;
+  padding: 4px 7px !important;
+  color: var(--accent) !important;
+  border-left: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+}
+
+.canvas-tool-bar > span {
+  padding-right: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .pixi-preview {
