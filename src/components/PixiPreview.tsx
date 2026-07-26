@@ -9,6 +9,7 @@ import {
 
 import { fitCamera, zoomCameraAtPoint } from "../preview/camera";
 import type { Camera } from "../preview/camera";
+import { clearRenderLayer } from "../preview/render-layers";
 
 interface PixiPreviewProps {
   width: number;
@@ -76,6 +77,8 @@ export function PixiPreview({
   const [contentRevision, setContentRevision] = useState(0);
   const appRef = useRef<Application | null>(null);
   const viewportRef = useRef<Container | null>(null);
+  const baseLayerRef = useRef<Container | null>(null);
+  const selectionLayerRef = useRef<Container | null>(null);
   const contentSizeRef = useRef({ width, height });
   const contentVersionRef = useRef(0);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -87,7 +90,6 @@ export function PixiPreview({
   const onClearSelectionRef = useRef(onClearSelection);
   const labelMapRef = useRef(labelMap);
   const baseDisplayRef = useRef<Sprite | Graphics | null>(null);
-  const selectionOverlayRef = useRef<Graphics | null>(null);
   const fitRef = useRef<() => void>(() => undefined);
   const pixelTextureCacheRef = useRef(new WeakMap<Uint8ClampedArray, Texture>());
   const vectorGraphicCacheRef = useRef<
@@ -155,7 +157,13 @@ export function PixiPreview({
       host.appendChild(app.canvas);
       appRef.current = app;
       const viewport = new Container();
+      const baseLayer = new Container();
+      const selectionLayer = new Container();
       viewportRef.current = viewport;
+      baseLayerRef.current = baseLayer;
+      selectionLayerRef.current = selectionLayer;
+      viewport.addChild(baseLayer);
+      viewport.addChild(selectionLayer);
       app.stage.addChild(viewport);
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
@@ -245,6 +253,11 @@ export function PixiPreview({
       disposed = true;
       appRef.current = null;
       viewportRef.current = null;
+      baseLayerRef.current = null;
+      selectionLayerRef.current = null;
+      baseDisplayRef.current = null;
+      vectorGraphicCacheRef.current = undefined;
+      pixelTextureCacheRef.current = new WeakMap<Uint8ClampedArray, Texture>();
       observer?.disconnect();
       window.cancelAnimationFrame(reportFrame);
       if (handleWheel) app.canvas.removeEventListener("wheel", handleWheel);
@@ -270,22 +283,22 @@ export function PixiPreview({
   useEffect(() => {
     const app = appRef.current;
     const viewport = viewportRef.current;
-    if (!app || !viewport || !ready) return;
+    const baseLayer = baseLayerRef.current;
+    if (!app || !viewport || !baseLayer || !ready) return;
 
     const version = contentVersionRef.current + 1;
     contentVersionRef.current = version;
-    viewport.removeChildren().forEach((child) => {
+    baseLayer.removeChildren().forEach((child) => {
       if (child !== vectorGraphicCacheRef.current?.graphic) child.destroy();
     });
     baseDisplayRef.current = null;
-    selectionOverlayRef.current = null;
 
     const addDisplayObject = (display: Sprite | Graphics) => {
       if (contentVersionRef.current !== version) {
         return;
       }
       display.alpha = 1;
-      viewport.addChild(display);
+      baseLayer.addChild(display);
       baseDisplayRef.current = display;
       contentSizeRef.current = { width, height };
       fitRef.current();
@@ -320,14 +333,11 @@ export function PixiPreview({
 
   useEffect(() => {
     const viewport = viewportRef.current;
+    const selectionLayer = selectionLayerRef.current;
     const display = baseDisplayRef.current;
-    if (!viewport || !display || !ready) return;
+    if (!viewport || !selectionLayer || !display || !ready) return;
 
-    if (selectionOverlayRef.current) {
-      viewport.removeChild(selectionOverlayRef.current);
-      selectionOverlayRef.current.destroy();
-      selectionOverlayRef.current = null;
-    }
+    clearRenderLayer(selectionLayer);
 
     display.alpha = selectedPath ? 0.2 : 1;
     if (!selectedPath || !selectedFill) return;
@@ -339,8 +349,7 @@ export function PixiPreview({
       width,
       height,
     );
-    viewport.addChild(overlay);
-    selectionOverlayRef.current = overlay;
+    selectionLayer.addChild(overlay);
   }, [
     contentRevision,
     height,
