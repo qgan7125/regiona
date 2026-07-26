@@ -29,7 +29,10 @@ interface PixiPreviewProps {
   linkedCamera?: Camera;
   onZoomChange: (zoom: number) => void;
   onCameraChange?: (camera: Camera) => void;
-  onSelectRegion?: (regionNumber: number, mode?: "replace" | "toggle" | "add") => void;
+  onSelectRegion?: (
+    regionNumbers: number | number[],
+    mode?: "replace" | "toggle" | "add",
+  ) => void;
   brushSelect?: boolean;
   onContextMenuRegion?: (
     regionNumber: number,
@@ -52,18 +55,25 @@ function canvasTexture(pixels: Uint8ClampedArray, width: number, height: number)
   return Texture.from(canvas);
 }
 
-function selectedRegionGraphic(
-  pathData: string,
-  fill: string,
-  opacity: number,
+function selectedRegionsGraphic(
+  regions: Array<{ path: string; fill: string; opacity: number }>,
   width: number,
   height: number,
   viewportScale: number,
 ) {
   const whiteStroke = 3 / viewportScale;
   const accentStroke = 1.5 / viewportScale;
+  const fills = regions
+    .map(({ path, fill, opacity }) => `<path d="${path}" fill="${fill}" fill-opacity="${opacity}" />`)
+    .join("");
+  const whiteOutlines = regions
+    .map(({ path }) => `<path d="${path}" fill="none" stroke="#ffffff" stroke-width="${whiteStroke}" />`)
+    .join("");
+  const accentOutlines = regions
+    .map(({ path }) => `<path d="${path}" fill="none" stroke="#f25c35" stroke-width="${accentStroke}" />`)
+    .join("");
   return new Graphics().svg(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><path d="${pathData}" fill="${fill}" fill-opacity="${opacity}" /><path d="${pathData}" fill="none" stroke="#ffffff" stroke-width="${whiteStroke}" /><path d="${pathData}" fill="none" stroke="#f25c35" stroke-width="${accentStroke}" /></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${fills}${whiteOutlines}${accentOutlines}</svg>`,
   );
 }
 
@@ -101,6 +111,8 @@ export function PixiPreview({
   const contentSizeRef = useRef({ width, height });
   const contentVersionRef = useRef(0);
   const dragRef = useRef<{ x: number; y: number; moved: boolean; brushing: boolean } | null>(null);
+  const pendingBrushRegionsRef = useRef(new Set<number>());
+  const brushFrameRef = useRef(0);
   const zoomRef = useRef(zoom);
   const reportedZoomRef = useRef(zoom);
   const onZoomChangeRef = useRef(onZoomChange);
@@ -201,6 +213,16 @@ export function PixiPreview({
       app.stage.addChild(viewport);
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
+      const enqueueBrushSelection = (regionNumber: number) => {
+        pendingBrushRegionsRef.current.add(regionNumber);
+        if (brushFrameRef.current) return;
+        brushFrameRef.current = window.requestAnimationFrame(() => {
+          brushFrameRef.current = 0;
+          const regionNumbers = [...pendingBrushRegionsRef.current];
+          pendingBrushRegionsRef.current.clear();
+          if (regionNumbers.length) onSelectRegionRef.current?.(regionNumbers, "add");
+        });
+      };
 
       app.stage.on("pointerdown", (event) => {
         if (!isPrimaryPointerButton(event.button)) return;
@@ -210,7 +232,7 @@ export function PixiPreview({
           const imageX = Math.floor((event.global.x - viewport.x) / viewport.scale.x);
           const imageY = Math.floor((event.global.y - viewport.y) / viewport.scale.y);
           const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
-          if (regionNumber) onSelectRegionRef.current?.(regionNumber, "add");
+          if (regionNumber) enqueueBrushSelection(regionNumber);
           app.canvas.style.cursor = "crosshair";
         } else app.canvas.style.cursor = "grabbing";
       });
@@ -221,7 +243,7 @@ export function PixiPreview({
           const imageX = Math.floor((event.global.x - viewport.x) / viewport.scale.x);
           const imageY = Math.floor((event.global.y - viewport.y) / viewport.scale.y);
           const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
-          if (regionNumber) onSelectRegionRef.current?.(regionNumber, "add");
+          if (regionNumber) enqueueBrushSelection(regionNumber);
           return;
         }
         const deltaX = event.global.x - drag.x;
@@ -338,6 +360,7 @@ export function PixiPreview({
       pixelTextureCacheRef.current = new WeakMap<Uint8ClampedArray, Texture>();
       observer?.disconnect();
       window.cancelAnimationFrame(reportFrame);
+      window.cancelAnimationFrame(brushFrameRef.current);
       if (handleWheel) app.canvas.removeEventListener("wheel", handleWheel);
       if (handleContextMenu) app.canvas.removeEventListener("contextmenu", handleContextMenu);
       if (initialized) app.destroy({ removeView: true });
@@ -424,16 +447,7 @@ export function PixiPreview({
     display.alpha = selection.length ? 0.2 : 1;
     if (!selection.length) return;
 
-    selection.forEach(({ path, fill, opacity }) => {
-      selectionLayer.addChild(selectedRegionGraphic(
-        path,
-        fill,
-        opacity,
-        width,
-        height,
-        selectionScale,
-      ));
-    });
+    selectionLayer.addChild(selectedRegionsGraphic(selection, width, height, selectionScale));
   }, [
     contentRevision,
     height,

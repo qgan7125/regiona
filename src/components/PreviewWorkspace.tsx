@@ -262,16 +262,17 @@ export function PreviewWorkspace({
                   onZoomChange={setZoom}
                   onCameraChange={handleCameraChange}
                   brushSelect={brushSelect}
-                  onSelectRegion={(regionNumber, mode = "replace") => {
-                    const region = result.regions[regionNumber - 1];
-                    if (!region) return;
-                    if (mode === "replace") onSelectRegions([region.id]);
-                    else if (mode === "toggle") onSelectRegions((current) => current.includes(region.id)
-                      ? current.filter((id) => id !== region.id)
-                      : [...current, region.id]);
-                    else onSelectRegions((current) => current.includes(region.id)
-                      ? current
-                      : [...current, region.id]);
+                  onSelectRegion={(regionNumbers, mode = "replace") => {
+                    const numbers = Array.isArray(regionNumbers) ? regionNumbers : [regionNumbers];
+                    const regionIds = numbers
+                      .map((regionNumber) => result.regions[regionNumber - 1]?.id)
+                      .filter((id): id is string => Boolean(id));
+                    if (!regionIds.length) return;
+                    if (mode === "replace") onSelectRegions(regionIds);
+                    else if (mode === "toggle") onSelectRegions((current) => current.some((id) => regionIds.includes(id))
+                      ? current.filter((id) => !regionIds.includes(id))
+                      : [...current, ...regionIds.filter((id) => !current.includes(id))]);
+                    else onSelectRegions((current) => [...current, ...regionIds.filter((id) => !current.includes(id))]);
                   }}
                   onContextMenuRegion={(regionNumber, anchorPosition) => {
                     const region = result.regions[regionNumber - 1];
