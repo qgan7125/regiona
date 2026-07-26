@@ -11,8 +11,9 @@ shared curve fitting and topology validation in the Regiona design document.
 1. Define stable, serializable shared-boundary types.
 2. Extract every interior and outer grid edge exactly once from the region label
    map.
-3. Include the boundary collection in `ReconstructionResult`.
-4. Prove the model with focused unit and reconstruction-pipeline tests.
+3. Build a bidirectional region adjacency graph from those boundaries.
+4. Include the boundary and adjacency collections in `ReconstructionResult`.
+5. Prove the model with focused unit and reconstruction-pipeline tests.
 
 ## Deliberate non-goals
 
@@ -26,4 +27,5 @@ shared curve fitting and topology validation in the Regiona design document.
 - Two adjacent regions share a single boundary record, not two copies.
 - Every outer canvas edge is represented once for its owning region.
 - Boundary identifiers are deterministic and use region identifiers.
+- Every interior boundary is reflected bidirectionally in the adjacency graph.
 - Existing reconstruction and color-editing behaviour remains unchanged.

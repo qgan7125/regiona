@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { extractSharedBoundaries } from "../src/engine/regions/shared-boundaries";
+import { buildRegionAdjacency } from "../src/engine/regions/build-adjacency";
 import type { VisualRegion } from "../src/types/project";
 
 const regions: VisualRegion[] = [
@@ -54,5 +55,24 @@ describe("extractSharedBoundaries", () => {
       start: { x: 0, y: 0 },
       end: { x: 1, y: 0 },
     });
+  });
+});
+
+describe("buildRegionAdjacency", () => {
+  it("connects both regions through their one shared boundary", () => {
+    const boundaries = extractSharedBoundaries(new Uint32Array([1, 2]), 2, 1, regions);
+
+    expect(buildRegionAdjacency(regions, boundaries)).toEqual([
+      {
+        regionId: "region-00001",
+        adjacentRegionIds: ["region-00002"],
+        boundaryIds: ["boundary-region-00001-region-00002"],
+      },
+      {
+        regionId: "region-00002",
+        adjacentRegionIds: ["region-00001"],
+        boundaryIds: ["boundary-region-00001-region-00002"],
+      },
+    ]);
   });
 });

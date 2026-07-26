@@ -46,6 +46,13 @@ export interface SharedBoundary {
   rasterEdges: RasterEdge[];
 }
 
+/** A serializable view of the region adjacency graph. */
+export interface RegionAdjacency {
+  regionId: string;
+  adjacentRegionIds: string[];
+  boundaryIds: string[];
+}
+
 export interface RegionBuildResult {
   labelMap: Uint32Array;
   regions: VisualRegion[];
@@ -62,5 +69,6 @@ export interface ReconstructionResult extends EditableSvgInput {
   palette: PaletteColor[];
   labelMap: Uint32Array;
   boundaries: SharedBoundary[];
+  adjacency: RegionAdjacency[];
   quantizedPixels: Uint8ClampedArray;
 }

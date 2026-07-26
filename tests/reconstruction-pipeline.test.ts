@@ -39,6 +39,7 @@ describe("reconstructImage", () => {
         (boundary) => boundary.regionBId !== undefined && boundary.rasterEdges.length > 0,
       ),
     ).toBe(true);
+    expect(result.adjacency).toHaveLength(result.regions.length);
   });
 
   it("carries source alpha into the reconstructed region model", () => {

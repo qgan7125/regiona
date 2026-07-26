@@ -3,6 +3,7 @@ import type {
   VisualRegion,
 } from "../types/project";
 import { quantizeImage } from "./color/quantize";
+import { buildRegionAdjacency } from "./regions/build-adjacency";
 import { buildRegions } from "./regions/build-regions";
 import { removeTinyPaletteRegions } from "./regions/remove-tiny-regions";
 import { extractSharedBoundaries } from "./regions/shared-boundaries";
@@ -110,6 +111,7 @@ export function reconstructImage(
     input.height,
     tracedRegions,
   );
+  const adjacency = buildRegionAdjacency(tracedRegions, boundaries);
 
   return {
     width: input.width,
@@ -119,6 +121,7 @@ export function reconstructImage(
     labelMap,
     regions: tracedRegions,
     boundaries,
+    adjacency,
     quantizedPixels: renderRegionPixels(labelMap, tracedRegions),
   };
 }
