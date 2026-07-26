@@ -83,8 +83,18 @@ export function PreviewWorkspace({
     [pickedColors, result?.palette],
   );
 
-  const zoomOut = () => setZoom((current) => Math.max(50, current - 25));
-  const zoomIn = () => setZoom((current) => Math.min(1000, current + 25));
+  const zoomOut = () => {
+    setPickedColor(undefined);
+    setZoom((current) => Math.max(50, current - 25));
+  };
+  const zoomIn = () => {
+    setPickedColor(undefined);
+    setZoom((current) => Math.min(1000, current + 25));
+  };
+  const handleCameraChange = (camera: Camera) => {
+    setPickedColor(undefined);
+    if (linkViews) setLinkedCamera(camera);
+  };
   const handleViewChange = (_event: SyntheticEvent, nextView: PreviewView) => {
     if (nextView === view) return;
     setIsChangingView(true);
@@ -118,7 +128,10 @@ export function PreviewWorkspace({
             <Button onClick={zoomOut} disabled={!result || zoom <= 50}>−</Button>
             <Button
               className="zoom-value"
-              onClick={() => setZoom(100)}
+              onClick={() => {
+                setPickedColor(undefined);
+                setZoom(100);
+              }}
               disabled={!result || zoom === 100}
               aria-label="Reset preview zoom to 100 percent"
             >
@@ -196,7 +209,7 @@ export function PreviewWorkspace({
                     isViewLinked={linkViews}
                     linkedCamera={linkViews ? linkedCamera : undefined}
                     onZoomChange={setZoom}
-                    onCameraChange={linkViews ? setLinkedCamera : undefined}
+                    onCameraChange={handleCameraChange}
                     onPickColor={(sample, anchorPosition) => {
                       setPickedColor({ sample, anchorPosition });
                       onPickColor(sample);
@@ -235,7 +248,7 @@ export function PreviewWorkspace({
                   isViewLinked={linkViews}
                   linkedCamera={linkViews ? linkedCamera : undefined}
                   onZoomChange={setZoom}
-                  onCameraChange={linkViews ? setLinkedCamera : undefined}
+                  onCameraChange={handleCameraChange}
                   onSelectRegion={(regionNumber) => {
                     const region = result.regions[regionNumber - 1];
                     if (region) onSelectRegion(region.id);
