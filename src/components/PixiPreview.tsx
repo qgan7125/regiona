@@ -58,9 +58,12 @@ function selectedRegionGraphic(
   opacity: number,
   width: number,
   height: number,
+  viewportScale: number,
 ) {
+  const whiteStroke = 3 / viewportScale;
+  const accentStroke = 1.5 / viewportScale;
   return new Graphics().svg(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><path d="${pathData}" fill="${fill}" fill-opacity="${opacity}" /><path d="${pathData}" fill="none" stroke="#ffffff" stroke-width="3" /><path d="${pathData}" fill="none" stroke="#f25c35" stroke-width="1.5" /></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><path d="${pathData}" fill="${fill}" fill-opacity="${opacity}" /><path d="${pathData}" fill="none" stroke="#ffffff" stroke-width="${whiteStroke}" /><path d="${pathData}" fill="none" stroke="#f25c35" stroke-width="${accentStroke}" /></svg>`,
   );
 }
 
@@ -89,6 +92,7 @@ export function PixiPreview({
   const hostRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [contentRevision, setContentRevision] = useState(0);
+  const [selectionScale, setSelectionScale] = useState(1);
   const appRef = useRef<Application | null>(null);
   const viewportRef = useRef<Container | null>(null);
   const baseLayerRef = useRef<Container | null>(null);
@@ -130,6 +134,7 @@ export function PixiPreview({
     const camera = fitCamera(contentSizeRef.current, app.screen, zoomRef.current);
     viewport.scale.set(camera.scale);
     viewport.position.set(camera.x, camera.y);
+    setSelectionScale(camera.scale);
     hasFittedViewportRef.current = true;
   }, []);
 
@@ -299,6 +304,7 @@ export function PixiPreview({
         );
         viewport.scale.set(camera.scale);
         viewport.position.set(camera.x, camera.y);
+        setSelectionScale(camera.scale);
         zoomRef.current = nextZoom;
         reportedZoomRef.current = nextZoom;
         onCameraChangeRef.current?.(camera);
@@ -351,6 +357,7 @@ export function PixiPreview({
     if (!linkedCamera || !viewport) return;
     viewport.scale.set(linkedCamera.scale);
     viewport.position.set(linkedCamera.x, linkedCamera.y);
+    setSelectionScale(linkedCamera.scale);
   }, [linkedCamera]);
 
   useEffect(() => {
@@ -418,7 +425,14 @@ export function PixiPreview({
     if (!selection.length) return;
 
     selection.forEach(({ path, fill, opacity }) => {
-      selectionLayer.addChild(selectedRegionGraphic(path, fill, opacity, width, height));
+      selectionLayer.addChild(selectedRegionGraphic(
+        path,
+        fill,
+        opacity,
+        width,
+        height,
+        selectionScale,
+      ));
     });
   }, [
     contentRevision,
@@ -428,6 +442,7 @@ export function PixiPreview({
     selectedOpacity,
     selectedPath,
     selectedRegions,
+    selectionScale,
     width,
   ]);
 
