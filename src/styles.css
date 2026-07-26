@@ -345,19 +345,21 @@ h3 {
   padding: 12px 0 18px;
 }
 
-.source-summary div,
 .inspector-grid div {
   display: flex;
   justify-content: space-between;
   gap: 10px;
 }
 
-.source-summary dt {
-  flex: 0 0 auto;
+.source-summary div {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
 }
 
 .source-summary dd {
-  flex: 1 1 0;
+  width: 100%;
   text-align: right;
 }
 
