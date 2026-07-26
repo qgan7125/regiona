@@ -31,5 +31,30 @@ describe("quantizeImage", () => {
     expect(second.palette).toEqual(first.palette);
     expect(second.paletteIndexes).toEqual(first.paletteIndexes);
   });
-});
 
+  it("keeps substantial colors when a few noisy pixels expand the source gamut", () => {
+    const pixels = new Uint8ClampedArray([
+      ...Array.from({ length: 30 }, () => [25, 45, 105, 255]).flat(),
+      ...Array.from({ length: 15 }, () => [215, 65, 45, 255]).flat(),
+      0, 255, 0, 255,
+      255, 255, 0, 255,
+      0, 255, 255, 255,
+      255, 0, 255, 255,
+      255, 255, 255, 255,
+    ]);
+
+    const result = quantizeImage(pixels, 3);
+
+    expect(result.palette.every((color) => color.pixelCount > 0)).toBe(true);
+    expect(
+      result.palette.some(
+        (color) => color.rgba[2] > color.rgba[0] && color.rgba[2] > color.rgba[1],
+      ),
+    ).toBe(true);
+    expect(
+      result.palette.some(
+        (color) => color.rgba[0] > color.rgba[1] && color.rgba[0] > color.rgba[2],
+      ),
+    ).toBe(true);
+  });
+});

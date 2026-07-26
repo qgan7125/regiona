@@ -9,10 +9,6 @@ interface HistogramColor {
   a: number;
 }
 
-interface ColorBox {
-  colors: HistogramColor[];
-}
-
 export interface QuantizeResult {
   palette: PaletteColor[];
   paletteIndexes: Uint8Array;
@@ -64,67 +60,6 @@ function buildHistogram(pixels: Uint8ClampedArray): HistogramColor[] {
     }));
 }
 
-function channelRange(colors: HistogramColor[], channel: "r" | "g" | "b" | "a") {
-  let minimum = 255;
-  let maximum = 0;
-
-  for (const color of colors) {
-    minimum = Math.min(minimum, color[channel]);
-    maximum = Math.max(maximum, color[channel]);
-  }
-
-  return maximum - minimum;
-}
-
-function splitBox(box: ColorBox): [ColorBox, ColorBox] | undefined {
-  if (box.colors.length < 2) return undefined;
-
-  const channels = ["r", "g", "b", "a"] as const;
-  const channel = channels.reduce((widest, candidate) =>
-    channelRange(box.colors, candidate) > channelRange(box.colors, widest)
-      ? candidate
-      : widest,
-  );
-  const sorted = [...box.colors].sort(
-    (left, right) => left[channel] - right[channel] || left.key - right.key,
-  );
-  const total = sorted.reduce((sum, color) => sum + color.count, 0);
-  let running = 0;
-  let splitIndex = 1;
-
-  for (let index = 0; index < sorted.length - 1; index += 1) {
-    running += sorted[index]?.count ?? 0;
-    if (running >= total / 2) {
-      splitIndex = index + 1;
-      break;
-    }
-  }
-
-  return [
-    { colors: sorted.slice(0, splitIndex) },
-    { colors: sorted.slice(splitIndex) },
-  ];
-}
-
-function averageBox(box: ColorBox): [number, number, number, number] {
-  const total = box.colors.reduce((sum, color) => sum + color.count, 0);
-  const sum: [number, number, number, number] = [0, 0, 0, 0];
-
-  for (const color of box.colors) {
-    sum[0] += color.r * color.count;
-    sum[1] += color.g * color.count;
-    sum[2] += color.b * color.count;
-    sum[3] += color.a * color.count;
-  }
-
-  return sum.map((value) => Math.round(value / total)) as [
-    number,
-    number,
-    number,
-    number,
-  ];
-}
-
 function colorDistance(
   r: number,
   g: number,
@@ -139,6 +74,117 @@ function colorDistance(
   return red * red + green * green + blue * blue + alpha * alpha * 2;
 }
 
+type Rgba = [number, number, number, number];
+
+function nearestPaletteIndex(color: HistogramColor, palette: Rgba[]) {
+  let nearestIndex = 0;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < palette.length; index += 1) {
+    const distance = colorDistance(color.r, color.g, color.b, color.a, palette[index] ?? [0, 0, 0, 255]);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  }
+
+  return nearestIndex;
+}
+
+function chooseSeeds(histogram: HistogramColor[], targetColors: number): Rgba[] {
+  const remaining = [...histogram].sort(
+    (left, right) => right.count - left.count || left.key - right.key,
+  );
+  const first = remaining.shift();
+  if (!first) return [];
+
+  const seeds: Rgba[] = [[first.r, first.g, first.b, first.a]];
+  while (seeds.length < targetColors && remaining.length) {
+    const candidateIndex = remaining.reduce((bestIndex, color, index) => {
+      const nearestDistance = Math.min(
+        ...seeds.map((seed) => colorDistance(color.r, color.g, color.b, color.a, seed)),
+      );
+      const best = remaining[bestIndex];
+      const bestDistance = best
+        ? Math.min(
+            ...seeds.map((seed) => colorDistance(best.r, best.g, best.b, best.a, seed)),
+          )
+        : -1;
+      const score = color.count * nearestDistance;
+      const bestScore = (best?.count ?? 0) * bestDistance;
+      return score > bestScore || (score === bestScore && color.key < (best?.key ?? Infinity))
+        ? index
+        : bestIndex;
+    }, 0);
+    const [candidate] = remaining.splice(candidateIndex, 1);
+    if (candidate) seeds.push([candidate.r, candidate.g, candidate.b, candidate.a]);
+  }
+
+  return seeds;
+}
+
+function clusterHistogram(histogram: HistogramColor[], seeds: Rgba[]): Rgba[] {
+  let palette = seeds;
+
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    const sums = palette.map(() => ({ count: 0, r: 0, g: 0, b: 0, a: 0 }));
+    for (const color of histogram) {
+      const cluster = sums[nearestPaletteIndex(color, palette)];
+      if (!cluster) continue;
+      cluster.count += color.count;
+      cluster.r += color.r * color.count;
+      cluster.g += color.g * color.count;
+      cluster.b += color.b * color.count;
+      cluster.a += color.a * color.count;
+    }
+
+    const nextPalette = sums
+      .map((sum): Rgba | undefined => {
+        if (!sum.count) return undefined;
+        return [
+          Math.round(sum.r / sum.count),
+          Math.round(sum.g / sum.count),
+          Math.round(sum.b / sum.count),
+          Math.round(sum.a / sum.count),
+        ];
+      })
+      .filter((color): color is Rgba => Boolean(color));
+
+    if (nextPalette.length === palette.length && nextPalette.every(
+      (color, index) => color.every((channel, channelIndex) => channel === palette[index]?.[channelIndex]),
+    )) {
+      return nextPalette;
+    }
+    palette = nextPalette;
+  }
+
+  return palette;
+}
+
+function mapPixelsToPalette(pixels: Uint8ClampedArray, palette: Rgba[]) {
+  const paletteIndexes = new Uint8Array(pixels.length / 4);
+  const counts = new Uint32Array(palette.length);
+
+  for (let pixelIndex = 0; pixelIndex < paletteIndexes.length; pixelIndex += 1) {
+    const offset = pixelIndex * 4;
+    const nearestIndex = nearestPaletteIndex(
+      {
+        key: pixelIndex,
+        count: 1,
+        r: pixels[offset] ?? 0,
+        g: pixels[offset + 1] ?? 0,
+        b: pixels[offset + 2] ?? 0,
+        a: pixels[offset + 3] ?? 255,
+      },
+      palette,
+    );
+    paletteIndexes[pixelIndex] = nearestIndex;
+    counts[nearestIndex] = (counts[nearestIndex] ?? 0) + 1;
+  }
+
+  return { paletteIndexes, counts };
+}
+
 export function quantizeImage(
   pixels: Uint8ClampedArray,
   requestedColors: number,
@@ -149,60 +195,14 @@ export function quantizeImage(
 
   const targetColors = clampTarget(requestedColors);
   const histogram = buildHistogram(pixels);
-  const boxes: ColorBox[] = [{ colors: histogram }];
+  const seeds = chooseSeeds(histogram, Math.min(targetColors, histogram.length));
+  let rgbaPalette = clusterHistogram(histogram, seeds);
+  let { paletteIndexes, counts } = mapPixelsToPalette(pixels, rgbaPalette);
 
-  while (boxes.length < targetColors) {
-    const candidates = boxes
-      .map((box, index) => ({
-        box,
-        index,
-        score:
-          Math.max(
-            channelRange(box.colors, "r"),
-            channelRange(box.colors, "g"),
-            channelRange(box.colors, "b"),
-            channelRange(box.colors, "a"),
-          ) * box.colors.reduce((sum, color) => sum + color.count, 0),
-      }))
-      .filter(({ box }) => box.colors.length > 1)
-      .sort((left, right) => right.score - left.score || left.index - right.index);
-    const candidate = candidates[0];
-
-    if (!candidate) break;
-    const split = splitBox(candidate.box);
-    if (!split) break;
-    boxes.splice(candidate.index, 1, ...split);
-  }
-
-  const rgbaPalette = boxes.map(averageBox);
-  const paletteIndexes = new Uint8Array(pixels.length / 4);
-  const counts = new Uint32Array(rgbaPalette.length);
-
-  for (let pixelIndex = 0; pixelIndex < paletteIndexes.length; pixelIndex += 1) {
-    const offset = pixelIndex * 4;
-    const r = pixels[offset] ?? 0;
-    const g = pixels[offset + 1] ?? 0;
-    const b = pixels[offset + 2] ?? 0;
-    const a = pixels[offset + 3] ?? 255;
-    let nearestIndex = 0;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-
-    for (let paletteIndex = 0; paletteIndex < rgbaPalette.length; paletteIndex += 1) {
-      const distance = colorDistance(
-        r,
-        g,
-        b,
-        a,
-        rgbaPalette[paletteIndex] ?? [0, 0, 0, 255],
-      );
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = paletteIndex;
-      }
-    }
-
-    paletteIndexes[pixelIndex] = nearestIndex;
-    counts[nearestIndex] = (counts[nearestIndex] ?? 0) + 1;
+  const populatedPalette = rgbaPalette.filter((_, index) => (counts[index] ?? 0) > 0);
+  if (populatedPalette.length !== rgbaPalette.length) {
+    rgbaPalette = populatedPalette;
+    ({ paletteIndexes, counts } = mapPixelsToPalette(pixels, rgbaPalette));
   }
 
   const palette = rgbaPalette.map((rgba, index): PaletteColor => ({
