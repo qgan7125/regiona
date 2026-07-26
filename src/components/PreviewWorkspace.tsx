@@ -1,14 +1,18 @@
-import { type SyntheticEvent, useMemo, useState } from "react";
+import { Fragment, type SyntheticEvent, useMemo, useState } from "react";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import CircularProgress from "@mui/material/CircularProgress";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import ListSubheader from "@mui/material/ListSubheader";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import Popover from "@mui/material/Popover";
 import Switch from "@mui/material/Switch";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 
 import { renderRegionPixels } from "../engine/reconstruct";
+import { getPaletteSuggestions } from "../app/palette-suggestions";
 import type { Camera } from "../preview/camera";
 import type { ColorSample } from "../preview/color-sample";
 import type { ReconstructionResult } from "../types/project";
@@ -21,12 +25,20 @@ interface PickedColor {
   sample: ColorSample;
 }
 
+interface RegionColorMenu {
+  anchorPosition: { left: number; top: number };
+  regionId: string;
+}
+
 interface PreviewWorkspaceProps {
   originalPixels?: Uint8ClampedArray;
   result?: ReconstructionResult;
   busy: boolean;
+  pickedColors: ColorSample[];
   selectedRegionId?: string;
   onSelectRegion: (regionId?: string) => void;
+  onPickColor: (color: ColorSample) => void;
+  onRecolorRegion: (regionId: string, fill: string) => void;
 }
 
 function vectorSvg(result: ReconstructionResult) {
@@ -43,8 +55,11 @@ export function PreviewWorkspace({
   originalPixels,
   result,
   busy,
+  pickedColors,
   selectedRegionId,
   onSelectRegion,
+  onPickColor,
+  onRecolorRegion,
 }: PreviewWorkspaceProps) {
   const [view, setView] = useState<PreviewView>("regions");
   const [zoom, setZoom] = useState(100);
@@ -52,6 +67,7 @@ export function PreviewWorkspace({
   const [linkedCamera, setLinkedCamera] = useState<Camera>();
   const [isChangingView, setIsChangingView] = useState(false);
   const [pickedColor, setPickedColor] = useState<PickedColor>();
+  const [regionColorMenu, setRegionColorMenu] = useState<RegionColorMenu>();
   const regionPixels = useMemo(
     () =>
       result ? renderRegionPixels(result.labelMap, result.regions) : undefined,
@@ -61,6 +77,10 @@ export function PreviewWorkspace({
   const selectedRegion = useMemo(
     () => result?.regions.find((region) => region.id === selectedRegionId),
     [result, selectedRegionId],
+  );
+  const paletteSuggestions = useMemo(
+    () => getPaletteSuggestions(pickedColors, result?.palette ?? []),
+    [pickedColors, result?.palette],
   );
 
   const zoomOut = () => setZoom((current) => Math.max(50, current - 25));
@@ -145,7 +165,27 @@ export function PreviewWorkspace({
         {result ? (
           <div className="comparison-grid">
             <section className="preview-pane" aria-labelledby="original-preview-title">
-              <header><h2 id="original-preview-title">Original</h2></header>
+              <header>
+                <h2 id="original-preview-title">Original</h2>
+                {pickedColors.length ? (
+                  <div className="picked-color-list" aria-label="Recently picked colors">
+                    <span>Picked</span>
+                    {pickedColors.slice(0, 4).map((color) => (
+                      <span
+                        key={color.hex}
+                        className="picked-color-chip"
+                        style={{ "--swatch": color.hex } as React.CSSProperties}
+                        title={`${color.hex} · ${color.rgb}`}
+                      >
+                        <i aria-hidden="true" />
+                        <code>{color.hex}</code>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="preview-pane-hint">Click to pick a color</span>
+                )}
+              </header>
               <div className="preview-pane-media">
                 {originalPixels ? (
                   <PixiPreview
@@ -159,6 +199,7 @@ export function PreviewWorkspace({
                     onCameraChange={linkViews ? setLinkedCamera : undefined}
                     onPickColor={(sample, anchorPosition) => {
                       setPickedColor({ sample, anchorPosition });
+                      onPickColor(sample);
                     }}
                     ariaLabel="Original uploaded artwork. Click a pixel to sample its color, drag to pan, and use the mouse wheel to zoom."
                   />
@@ -199,8 +240,14 @@ export function PreviewWorkspace({
                     const region = result.regions[regionNumber - 1];
                     if (region) onSelectRegion(region.id);
                   }}
+                  onContextMenuRegion={(regionNumber, anchorPosition) => {
+                    const region = result.regions[regionNumber - 1];
+                    if (!region) return;
+                    onSelectRegion(region.id);
+                    setRegionColorMenu({ anchorPosition, regionId: region.id });
+                  }}
                   onClearSelection={() => onSelectRegion(undefined)}
-                  ariaLabel="Reconstruction preview. Drag to pan and use the mouse wheel to zoom."
+                  ariaLabel="Reconstruction preview. Click to select a region, right-click to choose a similar palette color, drag to pan, and use the mouse wheel to zoom."
                 />
               </div>
             </section>
@@ -230,6 +277,43 @@ export function PreviewWorkspace({
           </div>
         ) : null}
       </Popover>
+
+      <Menu
+        open={Boolean(regionColorMenu)}
+        anchorReference="anchorPosition"
+        anchorPosition={regionColorMenu?.anchorPosition}
+        onClose={() => setRegionColorMenu(undefined)}
+        slotProps={{
+          list: { "aria-label": "Similar palette colors" },
+          paper: { className: "similar-color-menu" },
+        }}
+      >
+        {paletteSuggestions.length ? paletteSuggestions.map((group) => (
+          <Fragment key={group.picked.hex}>
+            <ListSubheader disableSticky>
+              Similar to {group.picked.hex}
+            </ListSubheader>
+            {group.colors.map((fill) => (
+              <MenuItem
+                key={`${group.picked.hex}-${fill}`}
+                onClick={() => {
+                  if (regionColorMenu) onRecolorRegion(regionColorMenu.regionId, fill);
+                  setRegionColorMenu(undefined);
+                }}
+              >
+                <span
+                  className="dialog-palette-swatch"
+                  style={{ "--swatch": fill } as React.CSSProperties}
+                  aria-hidden="true"
+                />
+                <code>{fill}</code>
+              </MenuItem>
+            ))}
+          </Fragment>
+        )) : (
+          <MenuItem disabled>Pick a color from Original first.</MenuItem>
+        )}
+      </Menu>
 
       <footer className="workspace-footer">
         <span>Local processing</span>

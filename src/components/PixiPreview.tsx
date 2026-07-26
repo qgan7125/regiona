@@ -28,6 +28,10 @@ interface PixiPreviewProps {
   onZoomChange: (zoom: number) => void;
   onCameraChange?: (camera: Camera) => void;
   onSelectRegion?: (regionNumber: number) => void;
+  onContextMenuRegion?: (
+    regionNumber: number,
+    anchorPosition: { left: number; top: number },
+  ) => void;
   onClearSelection?: () => void;
   onPickColor?: (sample: ColorSample, anchorPosition: { left: number; top: number }) => void;
   ariaLabel: string;
@@ -72,6 +76,7 @@ export function PixiPreview({
   onZoomChange,
   onCameraChange,
   onSelectRegion,
+  onContextMenuRegion,
   onClearSelection,
   onPickColor,
   ariaLabel,
@@ -92,6 +97,7 @@ export function PixiPreview({
   const onZoomChangeRef = useRef(onZoomChange);
   const onCameraChangeRef = useRef(onCameraChange);
   const onSelectRegionRef = useRef(onSelectRegion);
+  const onContextMenuRegionRef = useRef(onContextMenuRegion);
   const onClearSelectionRef = useRef(onClearSelection);
   const onPickColorRef = useRef(onPickColor);
   const labelMapRef = useRef(labelMap);
@@ -125,6 +131,7 @@ export function PixiPreview({
     onZoomChangeRef.current = onZoomChange;
     onCameraChangeRef.current = onCameraChange;
     onSelectRegionRef.current = onSelectRegion;
+    onContextMenuRegionRef.current = onContextMenuRegion;
     onClearSelectionRef.current = onClearSelection;
     onPickColorRef.current = onPickColor;
     labelMapRef.current = labelMap;
@@ -135,6 +142,7 @@ export function PixiPreview({
     labelMap,
     onCameraChange,
     onClearSelection,
+    onContextMenuRegion,
     onPickColor,
     onSelectRegion,
     onZoomChange,
@@ -150,6 +158,7 @@ export function PixiPreview({
     let reportFrame = 0;
     let observer: ResizeObserver | undefined;
     let handleWheel: ((event: WheelEvent) => void) | undefined;
+    let handleContextMenu: ((event: MouseEvent) => void) | undefined;
     const app = new Application();
     void (async () => {
       await app.init({
@@ -181,6 +190,7 @@ export function PixiPreview({
       app.stage.hitArea = app.screen;
 
       app.stage.on("pointerdown", (event) => {
+        if (event.button === 2) return;
         dragRef.current = { x: event.global.x, y: event.global.y, moved: false };
         app.canvas.style.cursor = "grabbing";
       });
@@ -239,6 +249,24 @@ export function PixiPreview({
       app.stage.on("pointerup", endPointer);
       app.stage.on("pointerupoutside", endPointer);
 
+      handleContextMenu = (event: MouseEvent) => {
+        if (!onContextMenuRegionRef.current) return;
+        event.preventDefault();
+        const bounds = app.canvas.getBoundingClientRect();
+        const imageX = Math.floor((event.clientX - bounds.left - viewport.x) / viewport.scale.x);
+        const imageY = Math.floor((event.clientY - bounds.top - viewport.y) / viewport.scale.y);
+        const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
+        if (regionNumber) {
+          onContextMenuRegionRef.current(regionNumber, {
+            left: event.clientX,
+            top: event.clientY,
+          });
+        } else {
+          onClearSelectionRef.current?.();
+        }
+      };
+      app.canvas.addEventListener("contextmenu", handleContextMenu);
+
       handleWheel = (event: WheelEvent) => {
         event.preventDefault();
         const bounds = app.canvas.getBoundingClientRect();
@@ -286,6 +314,7 @@ export function PixiPreview({
       observer?.disconnect();
       window.cancelAnimationFrame(reportFrame);
       if (handleWheel) app.canvas.removeEventListener("wheel", handleWheel);
+      if (handleContextMenu) app.canvas.removeEventListener("contextmenu", handleContextMenu);
       if (initialized) app.destroy({ removeView: true });
     };
   }, [height, width]);
@@ -326,7 +355,6 @@ export function PixiPreview({
       baseLayer.addChild(display);
       baseDisplayRef.current = display;
       contentSizeRef.current = { width, height };
-      fitRef.current();
       setContentRevision((current) => current + 1);
     };
 

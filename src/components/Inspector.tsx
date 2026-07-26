@@ -103,12 +103,12 @@ export function Inspector({
               variant="outlined"
               disabled={busy || !paletteFillChoices.length}
             >
-              Choose from palette
+              Search full palette
             </Button>
           </div>
           <p className="helper-text">
-            This changes appearance only. Geometry and neighboring regions remain
-            independent.
+            Right-click a region to apply a close palette color from Original.
+            Geometry and neighboring regions remain independent.
           </p>
         </section>
       ) : (
