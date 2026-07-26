@@ -23,6 +23,7 @@ interface PixiPreviewProps {
   selectedPath?: string;
   selectedFill?: string;
   selectedOpacity?: number;
+  selectedRegions?: Array<{ path: string; fill: string; opacity: number }>;
   labelMap?: Uint32Array;
   isViewLinked?: boolean;
   linkedCamera?: Camera;
@@ -39,7 +40,7 @@ interface PixiPreviewProps {
   ariaLabel: string;
 }
 
-const clampZoom = (zoom: number) => Math.max(50, Math.min(1000, zoom));
+const clampZoom = (zoom: number) => Math.max(50, Math.min(2000, zoom));
 
 function canvasTexture(pixels: Uint8ClampedArray, width: number, height: number) {
   const canvas = document.createElement("canvas");
@@ -72,6 +73,7 @@ export function PixiPreview({
   selectedPath,
   selectedFill,
   selectedOpacity = 1,
+  selectedRegions,
   labelMap,
   isViewLinked = false,
   linkedCamera,
@@ -409,17 +411,15 @@ export function PixiPreview({
 
     clearRenderLayer(selectionLayer);
 
-    display.alpha = selectedPath ? 0.2 : 1;
-    if (!selectedPath || !selectedFill) return;
+    const selection = selectedRegions ?? (selectedPath && selectedFill
+      ? [{ path: selectedPath, fill: selectedFill, opacity: selectedOpacity }]
+      : []);
+    display.alpha = selection.length ? 0.2 : 1;
+    if (!selection.length) return;
 
-    const overlay = selectedRegionGraphic(
-      selectedPath,
-      selectedFill,
-      selectedOpacity,
-      width,
-      height,
-    );
-    selectionLayer.addChild(overlay);
+    selection.forEach(({ path, fill, opacity }) => {
+      selectionLayer.addChild(selectedRegionGraphic(path, fill, opacity, width, height));
+    });
   }, [
     contentRevision,
     height,
@@ -427,6 +427,7 @@ export function PixiPreview({
     selectedFill,
     selectedOpacity,
     selectedPath,
+    selectedRegions,
     width,
   ]);
 

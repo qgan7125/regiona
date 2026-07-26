@@ -87,7 +87,7 @@ export function PreviewWorkspace({
   };
   const zoomIn = () => {
     setPickedColor(undefined);
-    setZoom((current) => Math.min(1000, current + 25));
+    setZoom((current) => Math.min(2000, current + 25));
   };
   const handleCameraChange = (camera: Camera) => {
     setPickedColor(undefined);
@@ -135,7 +135,7 @@ export function PreviewWorkspace({
             >
               {Math.round(zoom)}%
             </Button>
-            <Button onClick={zoomIn} disabled={!result || zoom >= 1000}>+</Button>
+            <Button onClick={zoomIn} disabled={!result || zoom >= 2000}>+</Button>
           </ButtonGroup>
           <FormControlLabel
             className="link-views-toggle"
@@ -250,12 +250,13 @@ export function PreviewWorkspace({
                   pixels={view === "quantized" ? result.quantizedPixels : view === "regions" ? regionPixels : undefined}
                   svgMarkup={view === "vector" ? svgMarkup : undefined}
                   labelMap={result.labelMap}
-                  selectedPath={result.regions
+                  selectedRegions={result.regions
                     .filter((region) => selectedRegionIds.includes(region.id))
-                    .flatMap((region) => region.pathData)
-                    .join(" ") || undefined}
-                  selectedFill={selectedRegionIds.length ? "transparent" : undefined}
-                  selectedOpacity={0}
+                    .map((region) => ({
+                      path: region.pathData.join(" "),
+                      fill: region.fill,
+                      opacity: region.opacity,
+                    }))}
                   isViewLinked={linkViews}
                   linkedCamera={linkViews ? linkedCamera : undefined}
                   onZoomChange={setZoom}
