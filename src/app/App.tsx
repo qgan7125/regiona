@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 
 import { AppHeader } from "../components/AppHeader";
 import { Inspector } from "../components/Inspector";
@@ -6,6 +6,11 @@ import { PreviewWorkspace } from "../components/PreviewWorkspace";
 import { UploadPanel } from "../components/UploadPanel";
 import { appendColorHistory, redoColorEdit, undoColorEdit } from "./editor-state";
 import { appendPickedColor } from "./palette-suggestions";
+import {
+  appendSelectionHistory,
+  redoSelectionEdit,
+  undoSelectionEdit,
+} from "./selection-state";
 import { recolorRegions } from "../engine/reconstruct";
 import type { ColorSample } from "../preview/color-sample";
 import type { ReconstructionResult } from "../types/project";
@@ -47,6 +52,9 @@ export function App() {
   const [pickedColors, setPickedColors] = useState<ColorSample[]>([]);
   const [isRecoloring, setIsRecoloring] = useState(false);
   const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([]);
+  const selectedRegionIdsRef = useRef<string[]>([]);
+  const [selectionHistory, setSelectionHistory] = useState<string[][]>([]);
+  const [selectionFuture, setSelectionFuture] = useState<string[][]>([]);
   const [status, setStatus] = useState<WorkStatus>("idle");
   const [statusText, setStatusText] = useState("Ready for a source image");
   const [error, setError] = useState<string>();
@@ -67,6 +75,30 @@ export function App() {
   );
 
   const busy = status === "decoding" || status === "processing";
+
+  const resetSelectionHistory = useCallback(() => {
+    selectedRegionIdsRef.current = [];
+    setSelectedRegionIds([]);
+    setSelectionHistory([]);
+    setSelectionFuture([]);
+  }, []);
+
+  const updateSelectedRegions = useCallback((nextSelection: SetStateAction<string[]>) => {
+    const previousSelection = selectedRegionIdsRef.current;
+    const resolvedSelection = typeof nextSelection === "function"
+      ? nextSelection(previousSelection)
+      : nextSelection;
+    if (!appendSelectionHistory([], previousSelection, resolvedSelection).length) return;
+
+    selectedRegionIdsRef.current = resolvedSelection;
+    setSelectedRegionIds(resolvedSelection);
+    setSelectionHistory((history) => appendSelectionHistory(
+      history,
+      previousSelection,
+      resolvedSelection,
+    ));
+    setSelectionFuture([]);
+  }, []);
 
   useEffect(() => {
     if (!source) return;
@@ -106,7 +138,7 @@ export function App() {
           if (!isCurrent || processingRequestRef.current !== requestId) return;
 
           setResult(reconstruction);
-          setSelectedRegionIds([]);
+          resetSelectionHistory();
           setStatus("ready");
           setStatusText(
             `${reconstruction.regions.length.toLocaleString()} regions ready`,
@@ -126,7 +158,7 @@ export function App() {
       isCurrent = false;
       window.clearTimeout(timer);
     };
-  }, [appliedTargetColors, appliedTinyRegionMaximumArea, generation, source]);
+  }, [appliedTargetColors, appliedTinyRegionMaximumArea, generation, resetSelectionHistory, source]);
 
   const handleFile = async (file: File) => {
     setError(undefined);
@@ -152,7 +184,7 @@ export function App() {
       setColorHistory([]);
       setColorFuture([]);
       setPickedColors([]);
-      setSelectedRegionIds([]);
+      resetSelectionHistory();
     } catch (cause) {
       setStatus("error");
       setStatusText("Import failed");
@@ -204,13 +236,37 @@ export function App() {
     setResult({ ...result, regions: next.regions });
   }, [colorFuture, result]);
 
+  const handleUndoSelection = useCallback(() => {
+    const previous = undoSelectionEdit(selectedRegionIdsRef.current, selectionHistory);
+    if (previous.selection === selectedRegionIdsRef.current) return;
+
+    setSelectionHistory(previous.history);
+    setSelectionFuture((current) => [selectedRegionIdsRef.current, ...current].slice(0, 50));
+    selectedRegionIdsRef.current = previous.selection;
+    setSelectedRegionIds(previous.selection);
+  }, [selectionHistory]);
+
+  const handleRedoSelection = useCallback(() => {
+    const next = redoSelectionEdit(selectedRegionIdsRef.current, selectionFuture);
+    if (next.selection === selectedRegionIdsRef.current) return;
+
+    setSelectionHistory((current) => appendSelectionHistory(
+      current,
+      selectedRegionIdsRef.current,
+      next.selection,
+    ));
+    setSelectionFuture(next.future);
+    selectedRegionIdsRef.current = next.selection;
+    setSelectedRegionIds(next.selection);
+  }, [selectionFuture]);
+
   const handleRegenerate = () => {
     if (!source || busy) return;
     setResult(undefined);
     setColorHistory([]);
     setColorFuture([]);
     setPickedColors([]);
-    setSelectedRegionIds([]);
+    resetSelectionHistory();
     setStatus("processing");
     setStatusText(
       `Rebuilding ${targetColors}-color visual regions${tinyRegionMaximumArea ? ` · cleaning regions ≤ ${tinyRegionMaximumArea}px` : ""}`,
@@ -222,10 +278,16 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey)) {
+      const key = event.key.toLowerCase();
+      if (event.altKey && !(event.metaKey || event.ctrlKey) && (key === "z" || key === "y")) {
+        const shouldRedoSelection = key === "y" || (key === "z" && event.shiftKey);
+        if (shouldRedoSelection ? !selectionFuture.length : !selectionHistory.length) return;
+        event.preventDefault();
+        if (shouldRedoSelection) handleRedoSelection();
+        else handleUndoSelection();
         return;
       }
-      const key = event.key.toLowerCase();
+      if (!(event.metaKey || event.ctrlKey)) return;
       const shouldRedo = key === "y" || (key === "z" && event.shiftKey);
       if (key !== "z" && key !== "y") {
         return;
@@ -238,7 +300,16 @@ export function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [colorFuture.length, colorHistory.length, handleRedoColor, handleUndoColor]);
+  }, [
+    colorFuture.length,
+    colorHistory.length,
+    handleRedoColor,
+    handleRedoSelection,
+    handleUndoColor,
+    handleUndoSelection,
+    selectionFuture.length,
+    selectionHistory.length,
+  ]);
 
   return (
     <div className="app-shell">
@@ -295,9 +366,13 @@ export function App() {
           selectedRegionIds={selectedRegionIds}
           canUndo={Boolean(result && colorHistory.length)}
           canRedo={Boolean(result && colorFuture.length)}
-          onSelectRegions={setSelectedRegionIds}
+          canUndoSelection={Boolean(result && selectionHistory.length)}
+          canRedoSelection={Boolean(result && selectionFuture.length)}
+          onSelectRegions={updateSelectedRegions}
           onUndoColor={handleUndoColor}
           onRedoColor={handleRedoColor}
+          onUndoSelection={handleUndoSelection}
+          onRedoSelection={handleRedoSelection}
           onPickColor={(color) => {
             setPickedColors((current) => appendPickedColor(current, color));
           }}
@@ -308,7 +383,7 @@ export function App() {
           palette={result?.palette ?? []}
           busy={busy || isRecoloring}
           selectedRegionIds={selectedRegionIds}
-          onSelectRegions={setSelectedRegionIds}
+          onSelectRegions={updateSelectedRegions}
           onRecolor={handleRecolor}
         />
       </div>

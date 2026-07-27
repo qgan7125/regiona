@@ -43,9 +43,13 @@ interface PreviewWorkspaceProps {
   selectedRegionIds: string[];
   canUndo: boolean;
   canRedo: boolean;
+  canUndoSelection: boolean;
+  canRedoSelection: boolean;
   onSelectRegions: Dispatch<SetStateAction<string[]>>;
   onUndoColor: () => void;
   onRedoColor: () => void;
+  onUndoSelection: () => void;
+  onRedoSelection: () => void;
   onPickColor: (color: ColorSample) => void;
   onRecolorRegions: (regionIds: string[], fill: string) => void;
 }
@@ -68,9 +72,13 @@ export function PreviewWorkspace({
   selectedRegionIds,
   canUndo,
   canRedo,
+  canUndoSelection,
+  canRedoSelection,
   onSelectRegions,
   onUndoColor,
   onRedoColor,
+  onUndoSelection,
+  onRedoSelection,
   onPickColor,
   onRecolorRegions,
 }: PreviewWorkspaceProps) {
@@ -303,6 +311,30 @@ export function PreviewWorkspace({
                       </Button>
                     </span>
                   </Tooltip>
+                  <Tooltip title="Undo selection — Alt/Option + Z" placement="top">
+                    <span>
+                      <Button
+                        className="canvas-tool-action"
+                        size="small"
+                        disabled={!canUndoSelection}
+                        onClick={onUndoSelection}
+                      >
+                        Undo select
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Redo selection — Alt/Option + Shift + Z or Y" placement="top">
+                    <span>
+                      <Button
+                        className="canvas-tool-action"
+                        size="small"
+                        disabled={!canRedoSelection}
+                        onClick={onRedoSelection}
+                      >
+                        Redo select
+                      </Button>
+                    </span>
+                  </Tooltip>
                   <Tooltip title="Undo color change — Ctrl/Cmd + Z" placement="top">
                     <span>
                       <Button
@@ -311,7 +343,7 @@ export function PreviewWorkspace({
                         disabled={!canUndo}
                         onClick={onUndoColor}
                       >
-                        Undo
+                        Undo color
                       </Button>
                     </span>
                   </Tooltip>
@@ -323,7 +355,7 @@ export function PreviewWorkspace({
                         disabled={!canRedo}
                         onClick={onRedoColor}
                       >
-                        Redo
+                        Redo color
                       </Button>
                     </span>
                   </Tooltip>
