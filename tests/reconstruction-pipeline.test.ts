@@ -33,13 +33,6 @@ describe("reconstructImage", () => {
 
     expect(darkRegions).toHaveLength(4);
     expect(darkRegions.every((region) => region.pathData.length > 0)).toBe(true);
-    expect(result.boundaries.length).toBeGreaterThan(0);
-    expect(
-      result.boundaries.some(
-        (boundary) => boundary.regionBId !== undefined && boundary.rasterEdges.length > 0,
-      ),
-    ).toBe(true);
-    expect(result.adjacency).toHaveLength(result.regions.length);
   });
 
   it("carries source alpha into the reconstructed region model", () => {

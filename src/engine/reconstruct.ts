@@ -3,10 +3,8 @@ import type {
   VisualRegion,
 } from "../types/project";
 import { quantizeImage } from "./color/quantize";
-import { buildRegionAdjacency } from "./regions/build-adjacency";
 import { buildRegions } from "./regions/build-regions";
 import { removeTinyPaletteRegions } from "./regions/remove-tiny-regions";
-import { extractSharedBoundaries } from "./regions/shared-boundaries";
 import { traceAllRegionPaths } from "./regions/trace-regions";
 
 export interface ReconstructImageInput {
@@ -15,7 +13,6 @@ export interface ReconstructImageInput {
   height: number;
   targetColors: number;
   tinyRegionMaximumArea?: number;
-  curveFitTolerancePx?: number;
   sourceFilename: string;
 }
 
@@ -106,14 +103,6 @@ export function reconstructImage(
     ...region,
     pathData: paths[index] ?? [],
   }));
-  const boundaries = extractSharedBoundaries(
-    labelMap,
-    input.width,
-    input.height,
-    tracedRegions,
-    input.curveFitTolerancePx ?? 1,
-  );
-  const adjacency = buildRegionAdjacency(tracedRegions, boundaries);
 
   return {
     width: input.width,
@@ -122,8 +111,6 @@ export function reconstructImage(
     palette,
     labelMap,
     regions: tracedRegions,
-    boundaries,
-    adjacency,
     quantizedPixels: renderRegionPixels(labelMap, tracedRegions),
   };
 }

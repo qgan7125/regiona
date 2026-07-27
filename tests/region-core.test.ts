@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { buildRegions } from "../src/engine/regions/build-regions";
-import { reconstructImage } from "../src/engine/reconstruct";
 import { traceRegionPaths } from "../src/engine/regions/trace-regions";
 import { exportEditableSvg } from "../src/engine/svg/export-svg";
 
@@ -96,21 +95,6 @@ describe("traceRegionPaths", () => {
 });
 
 describe("exportEditableSvg", () => {
-  it("uses shared boundary curves when the reconstruction provides valid geometry", () => {
-    const result = reconstructImage({
-      pixels: new Uint8ClampedArray([
-        0, 0, 0, 255,
-        255, 255, 255, 255,
-      ]),
-      width: 2,
-      height: 1,
-      targetColors: 2,
-      sourceFilename: "two-regions.png",
-    });
-
-    expect(exportEditableSvg(result)).toContain(" C ");
-  });
-
   it("exports stable metadata and separate elements for same-color regions", () => {
     const svg = exportEditableSvg({
       width: 3,

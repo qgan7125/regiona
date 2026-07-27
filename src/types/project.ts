@@ -25,65 +25,6 @@ export interface VisualRegion {
   pathData: string[];
 }
 
-export interface RasterPoint {
-  x: number;
-  y: number;
-}
-
-export interface RasterEdge {
-  start: RasterPoint;
-  end: RasterPoint;
-}
-
-export interface LineSegment {
-  type: "line";
-  start: RasterPoint;
-  end: RasterPoint;
-}
-
-export interface CubicBezierSegment {
-  type: "cubic-bezier";
-  start: RasterPoint;
-  control1: RasterPoint;
-  control2: RasterPoint;
-  end: RasterPoint;
-}
-
-export type VectorSegment = LineSegment | CubicBezierSegment;
-
-export interface BoundaryTopology {
-  contourCount: number;
-  isContinuous: boolean;
-  isClosed: boolean;
-  hasSelfIntersection: boolean;
-  isValid: boolean;
-}
-
-/**
- * A canonical collection of raster edges shared by two regions, or by one
- * region and the outside of the source image when `regionBId` is omitted.
- */
-export interface SharedBoundary {
-  id: string;
-  regionAId: string;
-  regionBId?: string;
-  rasterEdges: RasterEdge[];
-  /** Contour grouping matches `vectorContours` by index when present. */
-  rasterContours?: RasterPoint[][];
-  vectorContours: VectorSegment[][];
-  vectorSegments: VectorSegment[];
-  maximumFitErrorPx: number;
-  averageFitErrorPx: number;
-  topology: BoundaryTopology;
-}
-
-/** A serializable view of the region adjacency graph. */
-export interface RegionAdjacency {
-  regionId: string;
-  adjacentRegionIds: string[];
-  boundaryIds: string[];
-}
-
 export interface RegionBuildResult {
   labelMap: Uint32Array;
   regions: VisualRegion[];
@@ -94,15 +35,10 @@ export interface EditableSvgInput {
   height: number;
   sourceFilename: string;
   regions: VisualRegion[];
-  /** Optional canonical geometry used by the SVG exporter when available. */
-  labelMap?: Uint32Array;
-  boundaries?: SharedBoundary[];
 }
 
 export interface ReconstructionResult extends EditableSvgInput {
   palette: PaletteColor[];
   labelMap: Uint32Array;
-  boundaries: SharedBoundary[];
-  adjacency: RegionAdjacency[];
   quantizedPixels: Uint8ClampedArray;
 }
