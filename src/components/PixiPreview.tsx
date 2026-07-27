@@ -16,7 +16,6 @@ import { regionNumbersInBrush } from "../preview/brush-selection";
 import {
   selectionGraphicCacheKey,
   shouldUseSelectionTexture,
-  type SelectionTile,
 } from "../preview/selection-rendering";
 
 interface PixiPreviewProps {
@@ -37,7 +36,6 @@ interface PixiPreviewProps {
     regionNumber: number;
   }>;
   labelMap?: Uint32Array;
-  regionBounds?: Uint32Array;
   isViewLinked?: boolean;
   linkedCamera?: Camera;
   onZoomChange: (zoom: number) => void;
@@ -59,21 +57,16 @@ interface PixiPreviewProps {
 
 interface SelectionRaster {
   selectionKey: string;
-  tiles: Array<SelectionTile & { fillBitmap: ImageBitmap; outlineBitmap: ImageBitmap }>;
+  fillBitmap: ImageBitmap;
+  outlineBitmap: ImageBitmap;
 }
 
 interface SelectionWorkerResponse {
-  type: "READY" | "TILES_RENDERED";
+  type: "READY" | "RENDERED";
   requestId?: number;
   selectionKey?: string;
-  tiles?: Array<SelectionTile & { fillBitmap: ImageBitmap; outlineBitmap: ImageBitmap }>;
-}
-
-interface SelectionTileSprites {
-  fillSprite: Sprite;
-  outlineSprite: Sprite;
-  fillTexture: Texture;
-  outlineTexture: Texture;
+  fillBitmap?: ImageBitmap;
+  outlineBitmap?: ImageBitmap;
 }
 
 const clampZoom = (zoom: number) => Math.max(50, Math.min(2000, zoom));
@@ -149,7 +142,6 @@ export function PixiPreview({
   selectedOpacity = 1,
   selectedRegions,
   labelMap,
-  regionBounds,
   isViewLinked = false,
   linkedCamera,
   onZoomChange,
@@ -206,7 +198,7 @@ export function PixiPreview({
     { markup: string; graphic: Graphics } | undefined
   >(undefined);
   const selectionGraphicCacheRef = useRef(new Map<string, Graphics>());
-  const selectionTileSpritesRef = useRef(new Map<string, SelectionTileSprites>());
+  const selectionTexturesRef = useRef<Texture[]>([]);
   const selectionWorkerRef = useRef<Worker | null>(null);
   const selectionWorkerReadyRef = useRef(false);
   const selectionWorkerInFlightRef = useRef<{ requestId: number; selectionKey: string } | undefined>(undefined);
@@ -214,20 +206,7 @@ export function PixiPreview({
   const selectionRequestIdRef = useRef(0);
   const selectionWorkerGenerationRef = useRef(0);
   const selectionCurrentKeyRef = useRef<string | undefined>(undefined);
-  const selectionWorkerSyncedKeyRef = useRef<string | undefined>(undefined);
-  const appliedSelectionRasterRef = useRef<SelectionRaster | undefined>(undefined);
   const [selectionRaster, setSelectionRaster] = useState<SelectionRaster>();
-
-  const destroySelectionTileSprites = useCallback(() => {
-    selectionTileSpritesRef.current.forEach((sprites) => {
-      sprites.fillSprite.destroy();
-      sprites.outlineSprite.destroy();
-      sprites.fillTexture.destroy(true);
-      sprites.outlineTexture.destroy(true);
-    });
-    selectionTileSpritesRef.current.clear();
-    appliedSelectionRasterRef.current = undefined;
-  }, []);
 
   const textureForPixels = useCallback((imagePixels: Uint8ClampedArray) => {
     const cached = pixelTextureCacheRef.current.get(imagePixels);
@@ -266,23 +245,8 @@ export function PixiPreview({
     dispatchPendingSelectionWorkerRender();
   }, [dispatchPendingSelectionWorkerRender]);
 
-  const syncSelectionWorker = useCallback((selectionKey: string, regionNumbers: number[]) => {
-    if (selectionWorkerSyncedKeyRef.current === selectionKey) return;
-    const worker = selectionWorkerRef.current;
-    if (!worker) return;
-    const selectedRegionNumbers = new Uint32Array(regionNumbers);
-    selectionWorkerSyncedKeyRef.current = selectionKey;
-    worker.postMessage(
-      {
-        type: "SYNC_SELECTION",
-        selectedRegionNumbers: selectedRegionNumbers.buffer,
-      },
-      [selectedRegionNumbers.buffer],
-    );
-  }, []);
-
   useEffect(() => {
-    if (!labelMap || !selectionPixels || !regionBounds) return;
+    if (!labelMap || !selectionPixels) return;
     const worker = new Worker(new URL("../workers/selection.worker.ts", import.meta.url), {
       type: "module",
     });
@@ -290,7 +254,6 @@ export function PixiPreview({
     selectionWorkerReadyRef.current = false;
     selectionWorkerInFlightRef.current = undefined;
     selectionWorkerPendingRef.current = undefined;
-    selectionWorkerSyncedKeyRef.current = undefined;
     selectionWorkerGenerationRef.current += 1;
     worker.onmessage = (event: MessageEvent<SelectionWorkerResponse>) => {
       const response = event.data;
@@ -299,25 +262,23 @@ export function PixiPreview({
         dispatchPendingSelectionWorkerRender();
         return;
       }
-      if (!response.tiles || !response.selectionKey) return;
+      if (!response.fillBitmap || !response.outlineBitmap || !response.selectionKey) return;
       selectionWorkerInFlightRef.current = undefined;
       if (response.selectionKey !== selectionCurrentKeyRef.current) {
-        response.tiles.forEach(({ fillBitmap, outlineBitmap }) => {
-          fillBitmap.close();
-          outlineBitmap.close();
-        });
+        response.fillBitmap.close();
+        response.outlineBitmap.close();
         dispatchPendingSelectionWorkerRender();
         return;
       }
       setSelectionRaster({
         selectionKey: response.selectionKey,
-        tiles: response.tiles,
+        fillBitmap: response.fillBitmap,
+        outlineBitmap: response.outlineBitmap,
       });
       dispatchPendingSelectionWorkerRender();
     };
     const initialLabelMap = new Uint32Array(labelMap);
     const initialPixels = new Uint8ClampedArray(selectionPixels);
-    const initialRegionBounds = new Uint32Array(regionBounds);
     worker.postMessage(
       {
         type: "INITIALIZE",
@@ -325,15 +286,14 @@ export function PixiPreview({
         height,
         labelMap: initialLabelMap.buffer,
         pixels: initialPixels.buffer,
-        regionBounds: initialRegionBounds.buffer,
       },
-      [initialLabelMap.buffer, initialPixels.buffer, initialRegionBounds.buffer],
+      [initialLabelMap.buffer, initialPixels.buffer],
     );
     return () => {
       if (selectionWorkerRef.current === worker) selectionWorkerRef.current = null;
       worker.terminate();
     };
-  }, [dispatchPendingSelectionWorkerRender, height, labelMap, regionBounds, selectionPixels, width]);
+  }, [dispatchPendingSelectionWorkerRender, height, labelMap, selectionPixels, width]);
 
   const fitViewport = useCallback(() => {
     const app = appRef.current;
@@ -653,7 +613,8 @@ export function PixiPreview({
       vectorGraphicCacheRef.current = undefined;
       selectionGraphicCache.forEach((graphic) => graphic.destroy());
       selectionGraphicCache.clear();
-      destroySelectionTileSprites();
+      selectionTexturesRef.current.forEach((texture) => texture.destroy(true));
+      selectionTexturesRef.current = [];
       clearBrushPreview?.();
       pixelTextureCacheRef.current = new WeakMap<Uint8ClampedArray, Texture>();
       observer?.disconnect();
@@ -667,7 +628,7 @@ export function PixiPreview({
       if (handleWindowBlur) window.removeEventListener("blur", handleWindowBlur);
       if (initialized) app.destroy({ removeView: true });
     };
-  }, [destroySelectionTileSprites, height, width]);
+  }, [height, width]);
 
   useEffect(() => {
     if (zoom === reportedZoomRef.current) return;
@@ -709,7 +670,8 @@ export function PixiPreview({
     selectionLayerRef.current?.removeChildren();
     selectionGraphicCacheRef.current.forEach((graphic) => graphic.destroy());
     selectionGraphicCacheRef.current.clear();
-    destroySelectionTileSprites();
+    selectionTexturesRef.current.forEach((texture) => texture.destroy(true));
+    selectionTexturesRef.current = [];
     baseLayer.removeChildren().forEach((child) => {
       if (child !== vectorGraphicCacheRef.current?.graphic) child.destroy();
     });
@@ -744,7 +706,6 @@ export function PixiPreview({
     }
 
   }, [
-    destroySelectionTileSprites,
     height,
     pixels,
     ready,
@@ -761,7 +722,8 @@ export function PixiPreview({
 
     const clearSelectionOverlay = () => {
       selectionLayer.removeChildren();
-      destroySelectionTileSprites();
+      selectionTexturesRef.current.forEach((texture) => texture.destroy(true));
+      selectionTexturesRef.current = [];
     };
 
     const selection = selectedRegions ?? (selectedPath && selectedFill
@@ -771,47 +733,25 @@ export function PixiPreview({
     display.alpha = selection.length ? 0.2 : 1;
     if (!selection.length) {
       selectionCurrentKeyRef.current = undefined;
-      syncSelectionWorker("", []);
       clearSelectionOverlay();
       return;
     }
 
-    if (useSelectionTexture && selectionPixels && labelMap && regionBounds) {
+    if (useSelectionTexture && selectionPixels && labelMap) {
       const regionNumbers = selection.map(({ regionNumber }) => regionNumber);
       const selectionKey = `${selectionWorkerGenerationRef.current}:${regionNumbers.join(",")}`;
       selectionCurrentKeyRef.current = selectionKey;
       queueSelectionWorkerRender(selectionKey, regionNumbers);
       if (selectionRaster?.selectionKey !== selectionKey) return;
-      if (appliedSelectionRasterRef.current === selectionRaster) return;
-      selectionRaster.tiles.forEach((tile) => {
-        const tileKey = `${tile.x}:${tile.y}`;
-        const previousSprites = selectionTileSpritesRef.current.get(tileKey);
-        if (previousSprites) {
-          previousSprites.fillSprite.destroy();
-          previousSprites.outlineSprite.destroy();
-          previousSprites.fillTexture.destroy(true);
-          previousSprites.outlineTexture.destroy(true);
-        }
-        const fillTexture = bitmapTexture(tile.fillBitmap);
-        const outlineTexture = bitmapTexture(tile.outlineBitmap, "nearest");
-        const fillSprite = new Sprite(fillTexture);
-        const outlineSprite = new Sprite(outlineTexture);
-        fillSprite.position.set(tile.x, tile.y);
-        outlineSprite.position.set(tile.x, tile.y);
-        selectionLayer.addChild(fillSprite, outlineSprite);
-        selectionTileSpritesRef.current.set(tileKey, {
-          fillSprite,
-          outlineSprite,
-          fillTexture,
-          outlineTexture,
-        });
-      });
-      appliedSelectionRasterRef.current = selectionRaster;
+      clearSelectionOverlay();
+      const fillTexture = bitmapTexture(selectionRaster.fillBitmap);
+      const outlineTexture = bitmapTexture(selectionRaster.outlineBitmap, "nearest");
+      selectionTexturesRef.current = [fillTexture, outlineTexture];
+      selectionLayer.addChild(new Sprite(fillTexture), new Sprite(outlineTexture));
       return;
     }
 
     selectionCurrentKeyRef.current = undefined;
-    syncSelectionWorker(`fallback:${selection.map(({ regionNumber }) => regionNumber).join(",")}`, selection.map(({ regionNumber }) => regionNumber));
     clearSelectionOverlay();
     selection.forEach((region) => {
       const cacheKey = selectionGraphicCacheKey(region, selectionScale);
@@ -840,12 +780,9 @@ export function PixiPreview({
     selectionScale,
     selectionPixels,
     labelMap,
-    regionBounds,
     queueSelectionWorkerRender,
-    syncSelectionWorker,
     selectionRaster,
     width,
-    destroySelectionTileSprites,
   ]);
 
   return <div ref={hostRef} className="pixi-preview" role="img" aria-label={ariaLabel} />;
