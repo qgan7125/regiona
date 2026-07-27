@@ -13,6 +13,11 @@ import {
   undoSelectionEdit,
 } from "./selection-state";
 import { recolorRegions } from "../engine/reconstruct";
+import {
+  maximumAreaForSimplification,
+  simplificationLabel,
+  type RegionSimplification,
+} from "../engine/regions/simplification";
 import type { ColorSample } from "../preview/color-sample";
 import type { ReconstructionResult } from "../types/project";
 import { decodeImage } from "../utils/image-file";
@@ -37,10 +42,11 @@ interface SourceState {
 export function App() {
   const workerRef = useRef<ReconstructionWorkerClient | null>(null);
   const processingRequestRef = useRef(0);
+  const processingStartedAtRef = useRef(0);
   const [targetColors, setTargetColors] = useState(12);
   const [appliedTargetColors, setAppliedTargetColors] = useState(12);
-  const [tinyRegionMaximumArea, setTinyRegionMaximumArea] = useState(0);
-  const [appliedTinyRegionMaximumArea, setAppliedTinyRegionMaximumArea] = useState(0);
+  const [regionSimplification, setRegionSimplification] = useState<RegionSimplification>("balanced");
+  const [appliedRegionSimplification, setAppliedRegionSimplification] = useState<RegionSimplification>("balanced");
   const [generation, setGeneration] = useState(0);
   const [source, setSource] = useState<SourceState>();
   const [result, setResult] = useState<ReconstructionResult>();
@@ -104,14 +110,21 @@ export function App() {
   useEffect(() => {
     if (!source) return;
 
+    const tinyRegionMaximumArea = maximumAreaForSimplification(
+      appliedRegionSimplification,
+      source.processedWidth,
+      source.processedHeight,
+    );
+
     let isCurrent = true;
     const requestId = processingRequestRef.current + 1;
     processingRequestRef.current = requestId;
 
     const timer = window.setTimeout(() => {
+      processingStartedAtRef.current = performance.now();
       setStatus("processing");
       setStatusText(
-        `Building ${appliedTargetColors}-color visual regions${appliedTinyRegionMaximumArea ? ` · cleaning regions ≤ ${appliedTinyRegionMaximumArea}px` : ""}`,
+        `Building ${appliedTargetColors}-color visual regions${tinyRegionMaximumArea ? ` · ${simplificationLabel(appliedRegionSimplification).toLowerCase()} simplification` : ""}`,
       );
       void (async () => {
         try {
@@ -129,7 +142,7 @@ export function App() {
               width: source.processedWidth,
               height: source.processedHeight,
               targetColors: appliedTargetColors,
-              tinyRegionMaximumArea: appliedTinyRegionMaximumArea,
+              tinyRegionMaximumArea,
               sourceFilename: source.filename,
             },
             (_progress, stage) => {
@@ -141,8 +154,12 @@ export function App() {
           setResult(reconstruction);
           resetSelectionHistory();
           setStatus("ready");
+          const processingDuration = performance.now() - processingStartedAtRef.current;
+          const processingTime = processingDuration >= 1000
+            ? `${(processingDuration / 1000).toFixed(1)}s`
+            : `${Math.round(processingDuration)}ms`;
           setStatusText(
-            `${reconstruction.regions.length.toLocaleString()} regions ready`,
+            `${reconstruction.regions.length.toLocaleString()} regions ready · ${processingTime}`,
           );
         } catch (cause) {
           if (!isCurrent || processingRequestRef.current !== requestId) return;
@@ -159,7 +176,7 @@ export function App() {
       isCurrent = false;
       window.clearTimeout(timer);
     };
-  }, [appliedTargetColors, appliedTinyRegionMaximumArea, generation, resetSelectionHistory, source]);
+  }, [appliedRegionSimplification, appliedTargetColors, generation, resetSelectionHistory, source]);
 
   const handleFile = async (file: File) => {
     setError(undefined);
@@ -179,7 +196,7 @@ export function App() {
         pixels: decoded.pixels,
       });
       setAppliedTargetColors(targetColors);
-      setAppliedTinyRegionMaximumArea(tinyRegionMaximumArea);
+      setAppliedRegionSimplification(regionSimplification);
       setGeneration((current) => current + 1);
       setResult(undefined);
       setColorHistory([]);
@@ -271,11 +288,16 @@ export function App() {
     setPickedColors([]);
     resetSelectionHistory();
     setStatus("processing");
+    const tinyRegionMaximumArea = maximumAreaForSimplification(
+      regionSimplification,
+      source.processedWidth,
+      source.processedHeight,
+    );
     setStatusText(
-      `Rebuilding ${targetColors}-color visual regions${tinyRegionMaximumArea ? ` · cleaning regions ≤ ${tinyRegionMaximumArea}px` : ""}`,
+      `Rebuilding ${targetColors}-color visual regions${tinyRegionMaximumArea ? ` · ${simplificationLabel(regionSimplification).toLowerCase()} simplification` : ""}`,
     );
     setAppliedTargetColors(targetColors);
-    setAppliedTinyRegionMaximumArea(tinyRegionMaximumArea);
+    setAppliedRegionSimplification(regionSimplification);
     setGeneration((current) => current + 1);
   };
 
@@ -352,12 +374,19 @@ export function App() {
               : undefined
           }
           targetColors={targetColors}
-          tinyRegionMaximumArea={tinyRegionMaximumArea}
+          regionSimplification={regionSimplification}
+          tinyRegionMaximumArea={source
+            ? maximumAreaForSimplification(
+                regionSimplification,
+                source.processedWidth,
+                source.processedHeight,
+              )
+            : 0}
           palette={result?.palette ?? []}
           regionCount={result?.regions.length ?? 0}
           busy={busy}
           onTargetColorsChange={setTargetColors}
-          onTinyRegionMaximumAreaChange={setTinyRegionMaximumArea}
+          onRegionSimplificationChange={setRegionSimplification}
           onRegenerate={handleRegenerate}
           onFile={handleFile}
         />

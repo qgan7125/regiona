@@ -1,7 +1,10 @@
 import type { ChangeEvent } from "react";
 import Button from "@mui/material/Button";
 import Slider from "@mui/material/Slider";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 
+import { simplificationLabel, type RegionSimplification } from "../engine/regions/simplification";
 import type { PaletteColor } from "../types/project";
 
 interface SourceSummary {
@@ -15,12 +18,13 @@ interface SourceSummary {
 interface UploadPanelProps {
   source?: SourceSummary;
   targetColors: number;
+  regionSimplification: RegionSimplification;
   tinyRegionMaximumArea: number;
   palette: PaletteColor[];
   regionCount: number;
   busy: boolean;
   onTargetColorsChange: (value: number) => void;
-  onTinyRegionMaximumAreaChange: (value: number) => void;
+  onRegionSimplificationChange: (value: RegionSimplification) => void;
   onRegenerate: () => void;
   onFile: (file: File) => void;
 }
@@ -33,12 +37,13 @@ function formatPalettePercentage(percentage: number) {
 export function UploadPanel({
   source,
   targetColors,
+  regionSimplification,
   tinyRegionMaximumArea,
   palette,
   regionCount,
   busy,
   onTargetColorsChange,
-  onTinyRegionMaximumAreaChange,
+  onRegionSimplificationChange,
   onRegenerate,
   onFile,
 }: UploadPanelProps) {
@@ -117,25 +122,33 @@ export function UploadPanel({
           merges region identity.
         </p>
         <div className="control-label">
-          <label htmlFor="tiny-region-cleanup">Remove tiny regions</label>
-          <output htmlFor="tiny-region-cleanup">
-            {tinyRegionMaximumArea ? `≤ ${tinyRegionMaximumArea}px` : "Off"}
+          <label id="region-simplification-label">Simplify regions</label>
+          <output aria-labelledby="region-simplification-label">
+            {regionSimplification === "off"
+              ? "Off"
+              : tinyRegionMaximumArea
+                ? `${simplificationLabel(regionSimplification)} · ≤ ${tinyRegionMaximumArea}px`
+                : simplificationLabel(regionSimplification)}
           </output>
         </div>
-        <Slider
-          id="tiny-region-cleanup"
-          min={0}
-          max={16}
-          step={1}
-          value={tinyRegionMaximumArea}
+        <ToggleButtonGroup
+          aria-labelledby="region-simplification-label"
+          exclusive
+          fullWidth
+          size="small"
+          value={regionSimplification}
           disabled={busy}
-          onChange={(_event, value) => onTinyRegionMaximumAreaChange(Number(value))}
-          valueLabelDisplay="auto"
-          valueLabelFormat={(value) => value ? `≤ ${value}px` : "Off"}
-          aria-label="Remove tiny regions by pixel area"
-        />
+          onChange={(_event, value: RegionSimplification | null) => {
+            if (value) onRegionSimplificationChange(value);
+          }}
+        >
+          <ToggleButton value="off">Off</ToggleButton>
+          <ToggleButton value="subtle">Subtle</ToggleButton>
+          <ToggleButton value="balanced">Balanced</ToggleButton>
+          <ToggleButton value="strong">Strong</ToggleButton>
+        </ToggleButtonGroup>
         <p className="helper-text">
-          Merge isolated regions into the neighboring color with the longest shared edge.
+          Merge low-contrast fragments while protecting strong original-image edges.
         </p>
         <Button
           className="regenerate-button"
@@ -144,7 +157,7 @@ export function UploadPanel({
           variant="contained"
           fullWidth
         >
-          Regenerate with {targetColors} colors{tinyRegionMaximumArea ? " + cleanup" : ""}
+          Regenerate with {targetColors} colors
         </Button>
       </div>
 
