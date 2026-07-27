@@ -48,6 +48,22 @@ describe("reconstructImage", () => {
     expect(result.quantizedPixels[3]).toBe(0);
   });
 
+  it("despeckles low-contrast quantization noise even when Simplify Regions is off", () => {
+    const dark: [number, number, number, number] = [10, 10, 10, 255];
+    const nearDark: [number, number, number, number] = [14, 14, 14, 255];
+    const result = reconstructImage({
+      pixels: new Uint8ClampedArray(
+        [dark, dark, dark, dark, nearDark, dark, dark, dark, dark].flat(),
+      ),
+      width: 3,
+      height: 3,
+      targetColors: 3,
+      sourceFilename: "noise.png",
+    });
+
+    expect(result.regions).toHaveLength(1);
+  });
+
   it("keeps isolated high-contrast details when tiny-region cleanup is enabled", () => {
     const red: [number, number, number, number] = [255, 0, 0, 255];
     const blue: [number, number, number, number] = [0, 0, 255, 255];

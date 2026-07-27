@@ -4,6 +4,7 @@ import type {
 } from "../types/project";
 import { quantizeImage } from "./color/quantize";
 import { buildRegions } from "./regions/build-regions";
+import { despecklePaletteIndexes } from "./regions/despeckle";
 import { removeTinyPaletteRegions } from "./regions/remove-tiny-regions";
 import { traceAllRegionPaths } from "./regions/trace-regions";
 
@@ -81,8 +82,14 @@ export function reconstructImage(
     input.pixels,
     input.targetColors,
   );
-  const cleanedPaletteIndexes = removeTinyPaletteRegions(
+  const despeckledPaletteIndexes = despecklePaletteIndexes(
     paletteIndexes,
+    input.width,
+    input.height,
+    input.pixels,
+  );
+  const cleanedPaletteIndexes = removeTinyPaletteRegions(
+    despeckledPaletteIndexes,
     input.width,
     input.height,
     input.tinyRegionMaximumArea ?? 0,

@@ -10,9 +10,9 @@ interface NeighborScore {
 }
 
 const DEFAULT_MAXIMUM_PASSES = 3;
-const SOURCE_EDGE_THRESHOLD = 64;
+export const SOURCE_EDGE_THRESHOLD = 64;
 
-function sourceEdgeDifference(
+export function sourceEdgeDifference(
   pixels: Uint8ClampedArray | undefined,
   index: number,
   neighbor: number,
