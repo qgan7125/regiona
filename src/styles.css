@@ -751,6 +751,18 @@ input[type="range"] {
   white-space: nowrap;
 }
 
+.inspector-history-actions {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.inspector-history-actions .MuiButton-root {
+  flex: 1;
+  font-size: 11px;
+  text-transform: none;
+}
+
 .canvas-brush-size {
   position: absolute;
   top: 54px;

@@ -41,13 +41,9 @@ interface PreviewWorkspaceProps {
   busy: boolean;
   pickedColors: ColorSample[];
   selectedRegionIds: string[];
-  canUndo: boolean;
-  canRedo: boolean;
   canUndoSelection: boolean;
   canRedoSelection: boolean;
   onSelectRegions: Dispatch<SetStateAction<string[]>>;
-  onUndoColor: () => void;
-  onRedoColor: () => void;
   onUndoSelection: () => void;
   onRedoSelection: () => void;
   onPickColor: (color: ColorSample) => void;
@@ -70,13 +66,9 @@ export function PreviewWorkspace({
   busy,
   pickedColors,
   selectedRegionIds,
-  canUndo,
-  canRedo,
   canUndoSelection,
   canRedoSelection,
   onSelectRegions,
-  onUndoColor,
-  onRedoColor,
   onUndoSelection,
   onRedoSelection,
   onPickColor,
@@ -332,30 +324,6 @@ export function PreviewWorkspace({
                         onClick={onRedoSelection}
                       >
                         Redo select
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title="Undo color change — Ctrl/Cmd + Z" placement="top">
-                    <span>
-                      <Button
-                        className="canvas-tool-action"
-                        size="small"
-                        disabled={!canUndo}
-                        onClick={onUndoColor}
-                      >
-                        Undo color
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title="Redo color change — Ctrl/Cmd + Shift + Z or Ctrl + Y" placement="top">
-                    <span>
-                      <Button
-                        className="canvas-tool-action"
-                        size="small"
-                        disabled={!canRedo}
-                        onClick={onRedoColor}
-                      >
-                        Redo color
                       </Button>
                     </span>
                   </Tooltip>

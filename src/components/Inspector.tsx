@@ -5,6 +5,7 @@ import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 
 import { getPaletteFillChoices } from "../app/editor-state";
 import type { PaletteColor, VisualRegion } from "../types/project";
@@ -14,8 +15,12 @@ interface InspectorProps {
   palette: PaletteColor[];
   busy: boolean;
   selectedRegionIds: string[];
+  canUndoColor: boolean;
+  canRedoColor: boolean;
   onSelectRegions: (regionIds: string[]) => void;
   onRecolor: (hex: string) => void;
+  onUndoColor: () => void;
+  onRedoColor: () => void;
 }
 
 export function Inspector({
@@ -23,8 +28,12 @@ export function Inspector({
   palette,
   busy,
   selectedRegionIds,
+  canUndoColor,
+  canRedoColor,
   onSelectRegions,
   onRecolor,
+  onUndoColor,
+  onRedoColor,
 }: InspectorProps) {
   const selected = regions.filter((region) => selectedRegionIds.includes(region.id));
   const primarySelected = selected.at(-1);
@@ -43,6 +52,23 @@ export function Inspector({
       <div className="panel-heading">
         <p className="eyebrow">Inspector</p>
         <h2 id="inspector-title">Region details</h2>
+      </div>
+
+      <div className="inspector-history-actions" role="toolbar" aria-label="Color edit history">
+        <Tooltip title="Undo color change — Ctrl/Cmd + Z" placement="top">
+          <span>
+            <Button size="small" variant="outlined" disabled={!canUndoColor} onClick={onUndoColor}>
+              Undo color
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip title="Redo color change — Ctrl/Cmd + Shift + Z or Ctrl + Y" placement="top">
+          <span>
+            <Button size="small" variant="outlined" disabled={!canRedoColor} onClick={onRedoColor}>
+              Redo color
+            </Button>
+          </span>
+        </Tooltip>
       </div>
 
       {primarySelected ? (

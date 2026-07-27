@@ -8,6 +8,7 @@ import { appendColorHistory, redoColorEdit, undoColorEdit } from "./editor-state
 import { appendPickedColor } from "./palette-suggestions";
 import {
   appendSelectionHistory,
+  prependSelectionFuture,
   redoSelectionEdit,
   undoSelectionEdit,
 } from "./selection-state";
@@ -237,22 +238,24 @@ export function App() {
   }, [colorFuture, result]);
 
   const handleUndoSelection = useCallback(() => {
-    const previous = undoSelectionEdit(selectedRegionIdsRef.current, selectionHistory);
-    if (previous.selection === selectedRegionIdsRef.current) return;
+    const currentSelection = selectedRegionIdsRef.current;
+    const previous = undoSelectionEdit(currentSelection, selectionHistory);
+    if (previous.selection === currentSelection) return;
 
     setSelectionHistory(previous.history);
-    setSelectionFuture((current) => [selectedRegionIdsRef.current, ...current].slice(0, 50));
+    setSelectionFuture((future) => prependSelectionFuture(future, currentSelection));
     selectedRegionIdsRef.current = previous.selection;
     setSelectedRegionIds(previous.selection);
   }, [selectionHistory]);
 
   const handleRedoSelection = useCallback(() => {
-    const next = redoSelectionEdit(selectedRegionIdsRef.current, selectionFuture);
-    if (next.selection === selectedRegionIdsRef.current) return;
+    const currentSelection = selectedRegionIdsRef.current;
+    const next = redoSelectionEdit(currentSelection, selectionFuture);
+    if (next.selection === currentSelection) return;
 
     setSelectionHistory((current) => appendSelectionHistory(
       current,
-      selectedRegionIdsRef.current,
+      currentSelection,
       next.selection,
     ));
     setSelectionFuture(next.future);
@@ -364,13 +367,9 @@ export function App() {
           busy={busy || isRecoloring}
           pickedColors={pickedColors}
           selectedRegionIds={selectedRegionIds}
-          canUndo={Boolean(result && colorHistory.length)}
-          canRedo={Boolean(result && colorFuture.length)}
           canUndoSelection={Boolean(result && selectionHistory.length)}
           canRedoSelection={Boolean(result && selectionFuture.length)}
           onSelectRegions={updateSelectedRegions}
-          onUndoColor={handleUndoColor}
-          onRedoColor={handleRedoColor}
           onUndoSelection={handleUndoSelection}
           onRedoSelection={handleRedoSelection}
           onPickColor={(color) => {
@@ -383,8 +382,12 @@ export function App() {
           palette={result?.palette ?? []}
           busy={busy || isRecoloring}
           selectedRegionIds={selectedRegionIds}
+          canUndoColor={Boolean(result && colorHistory.length)}
+          canRedoColor={Boolean(result && colorFuture.length)}
           onSelectRegions={updateSelectedRegions}
           onRecolor={handleRecolor}
+          onUndoColor={handleUndoColor}
+          onRedoColor={handleRedoColor}
         />
       </div>
     </div>

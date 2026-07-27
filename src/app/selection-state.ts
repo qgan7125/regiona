@@ -14,6 +14,10 @@ export function appendSelectionHistory(
   return [...history.slice(-(MAX_SELECTION_HISTORY_ENTRIES - 1)), previousSelection];
 }
 
+export function prependSelectionFuture(future: string[][], selection: string[]) {
+  return [selection, ...future].slice(0, MAX_SELECTION_HISTORY_ENTRIES);
+}
+
 export function undoSelectionEdit(selection: string[], history: string[][]) {
   const previousSelection = history.at(-1);
   if (!previousSelection) return { selection, history };

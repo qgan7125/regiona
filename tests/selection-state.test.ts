@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   appendSelectionHistory,
+  prependSelectionFuture,
   redoSelectionEdit,
   undoSelectionEdit,
 } from "../src/app/selection-state";
@@ -24,6 +25,19 @@ describe("selection state history", () => {
     const undone = undoSelectionEdit(after, appendSelectionHistory([], before, after));
 
     expect(redoSelectionEdit(undone.selection, [after])).toEqual({
+      selection: after,
+      future: [],
+    });
+  });
+
+  it("keeps the selection that was undone as the redo target", () => {
+    const before = ["region-00001"];
+    const after = ["region-00001", "region-00002"];
+    const undone = undoSelectionEdit(after, appendSelectionHistory([], before, after));
+
+    expect(
+      redoSelectionEdit(undone.selection, prependSelectionFuture([], after)),
+    ).toEqual({
       selection: after,
       future: [],
     });
