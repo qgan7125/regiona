@@ -2,6 +2,7 @@ import type {
   ReconstructionResult,
   VisualRegion,
 } from "../types/project";
+import { bilateralFilterPixels } from "./color/bilateral-filter";
 import { quantizeImage } from "./color/quantize";
 import { buildRegions } from "./regions/build-regions";
 import { despecklePaletteIndexes } from "./regions/despeckle";
@@ -78,8 +79,9 @@ export function reconstructImage(
     throw new Error("Image dimensions do not match the RGBA pixel buffer.");
   }
 
+  const smoothedPixels = bilateralFilterPixels(input.pixels, input.width, input.height);
   const { palette, paletteIndexes } = quantizeImage(
-    input.pixels,
+    smoothedPixels,
     input.targetColors,
   );
   const despeckledPaletteIndexes = despecklePaletteIndexes(
