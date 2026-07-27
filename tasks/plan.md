@@ -18,9 +18,11 @@ shared curve fitting and topology validation in the Regiona design document.
    limit; otherwise retain exact line segments.
 7. Validate contour continuity, closure state, and self-intersections before
    boundary geometry can be used for SVG.
-8. Include the boundary and adjacency collections in `ReconstructionResult`.
-9. Preserve those collections in exported Regiona project JSON.
-10. Prove the model with focused unit and reconstruction-pipeline tests.
+8. Assemble valid shared boundary contours into SVG region paths, with a safe
+   fallback to the deterministic raster paths.
+9. Include the boundary and adjacency collections in `ReconstructionResult`.
+10. Preserve those collections in exported Regiona project JSON.
+11. Prove the model with focused unit and reconstruction-pipeline tests.
 
 ## Deliberate non-goals
 
@@ -41,6 +43,8 @@ shared curve fitting and topology validation in the Regiona design document.
   configured tolerance; exact lines remain the fallback.
 - Boundary topology records whether every contour is continuous, closed, and
   free of self-intersections.
+- SVG region paths use approved shared line and cubic geometry; invalid
+  topology falls back to the deterministic region path.
 - Regiona project JSON preserves boundaries, their vector geometry, and
   adjacency data.
 - Existing reconstruction and color-editing behaviour remains unchanged.

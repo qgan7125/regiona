@@ -20,3 +20,9 @@
 
 - [x] Validate contour continuity and record closed-boundary state.
 - [x] Detect self-intersections before SVG geometry uses a boundary.
+
+## Next increment: shared SVG assembly
+
+- [x] Preserve raster-contour grouping alongside vector contours.
+- [x] Build SVG region paths from valid shared line and cubic geometry.
+- [x] Fall back to deterministic path data for invalid topology.

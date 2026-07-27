@@ -68,6 +68,8 @@ export interface SharedBoundary {
   regionAId: string;
   regionBId?: string;
   rasterEdges: RasterEdge[];
+  /** Contour grouping matches `vectorContours` by index when present. */
+  rasterContours?: RasterPoint[][];
   vectorContours: VectorSegment[][];
   vectorSegments: VectorSegment[];
   maximumFitErrorPx: number;
@@ -92,6 +94,9 @@ export interface EditableSvgInput {
   height: number;
   sourceFilename: string;
   regions: VisualRegion[];
+  /** Optional canonical geometry used by the SVG exporter when available. */
+  labelMap?: Uint32Array;
+  boundaries?: SharedBoundary[];
 }
 
 export interface ReconstructionResult extends EditableSvgInput {

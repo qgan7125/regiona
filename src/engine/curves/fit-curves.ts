@@ -14,6 +14,7 @@ interface CubicFitResult {
 }
 
 interface CurveFitResult {
+  rasterContours: RasterPoint[][];
   vectorContours: VectorSegment[][];
   vectorSegments: VectorSegment[];
   maximumFitErrorPx: number;
@@ -181,8 +182,9 @@ export function fitRasterEdgesToCurves(
   let sampleCount = 0;
   const vectorSegments: VectorSegment[] = [];
   const vectorContours: VectorSegment[][] = [];
+  const rasterContours = connectRasterEdges(edges);
 
-  for (const polyline of connectRasterEdges(edges)) {
+  for (const polyline of rasterContours) {
     const cubic = fitPolylineToCubicBezier(polyline, maximumErrorPx);
     if (!cubic) {
       const contour = fitPolylineToLines(polyline);
@@ -200,6 +202,7 @@ export function fitRasterEdgesToCurves(
   }
 
   return {
+    rasterContours,
     vectorContours,
     vectorSegments,
     maximumFitErrorPx,
