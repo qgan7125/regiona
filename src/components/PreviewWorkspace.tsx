@@ -9,6 +9,7 @@ import ListSubheader from "@mui/material/ListSubheader";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Popover from "@mui/material/Popover";
+import Slider from "@mui/material/Slider";
 import Switch from "@mui/material/Switch";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
@@ -81,12 +82,26 @@ export function PreviewWorkspace({
   const [pickedColor, setPickedColor] = useState<PickedColor>();
   const [regionColorMenu, setRegionColorMenu] = useState<RegionColorMenu>();
   const [brushTool, setBrushTool] = useState<BrushTool>("pan");
+  const [brushSize, setBrushSize] = useState(24);
   const regionPixels = useMemo(
     () =>
       result ? renderRegionPixels(result.labelMap, result.regions) : undefined,
     [result],
   );
   const svgMarkup = useMemo(() => (result ? vectorSvg(result) : undefined), [result]);
+  const selectedPreviewRegions = useMemo(() => {
+    if (!result) return [];
+    const selectedIds = new Set(selectedRegionIds);
+    return result.regions.flatMap((region, index) => (selectedIds.has(region.id)
+      ? [{
+        path: region.pathData.join(" "),
+        fill: region.fill,
+        opacity: region.opacity,
+        bounds: region.bounds,
+        regionNumber: index + 1,
+      }]
+      : []));
+  }, [result, selectedRegionIds]);
   const paletteSuggestions = useMemo(
     () => getPaletteSuggestions(pickedColors, result?.palette ?? []),
     [pickedColors, result?.palette],
@@ -314,26 +329,35 @@ export function PreviewWorkspace({
                   </Tooltip>
                   {brushTool !== "pan" ? <span className="canvas-tool-hint">Hold Space to pan</span> : null}
                 </div>
+                {brushTool !== "pan" ? (
+                  <label className="canvas-brush-size">
+                    <span>Brush size</span>
+                    <Slider
+                      aria-label="Brush size"
+                      value={brushSize}
+                      min={8}
+                      max={96}
+                      step={4}
+                      onChange={(_event, nextSize) => setBrushSize(nextSize as number)}
+                    />
+                    <output>{brushSize}px</output>
+                  </label>
+                ) : null}
                 <PixiPreview
                   width={result.width}
                   height={result.height}
                   zoom={zoom}
                   pixels={view === "quantized" ? result.quantizedPixels : view === "regions" ? regionPixels : undefined}
+                  selectionPixels={regionPixels}
                   svgMarkup={view === "vector" ? svgMarkup : undefined}
                   labelMap={result.labelMap}
-                  selectedRegions={result.regions
-                    .filter((region) => selectedRegionIds.includes(region.id))
-                    .map((region) => ({
-                      path: region.pathData.join(" "),
-                      fill: region.fill,
-                      opacity: region.opacity,
-                      bounds: region.bounds,
-                    }))}
+                  selectedRegions={selectedPreviewRegions}
                   isViewLinked={linkViews}
                   linkedCamera={linkViews ? linkedCamera : undefined}
                   onZoomChange={setZoom}
                   onCameraChange={handleCameraChange}
                   brushMode={brushTool === "pan" ? undefined : brushTool}
+                  brushSize={brushSize}
                   onSelectRegion={(regionNumbers, mode = "replace") => {
                     const numbers = Array.isArray(regionNumbers) ? regionNumbers : [regionNumbers];
                     const regionIds = numbers

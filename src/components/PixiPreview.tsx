@@ -12,13 +12,18 @@ import type { Camera } from "../preview/camera";
 import { colorSampleAt } from "../preview/color-sample";
 import type { ColorSample } from "../preview/color-sample";
 import { isPrimaryPointerButton } from "../preview/pointer-button";
-import { clearRenderLayer } from "../preview/render-layers";
+import { regionNumbersInBrush } from "../preview/brush-selection";
+import {
+  selectionGraphicCacheKey,
+  shouldUseSelectionTexture,
+} from "../preview/selection-rendering";
 
 interface PixiPreviewProps {
   width: number;
   height: number;
   zoom: number;
   pixels?: Uint8ClampedArray;
+  selectionPixels?: Uint8ClampedArray;
   svgMarkup?: string;
   selectedPath?: string;
   selectedFill?: string;
@@ -28,6 +33,7 @@ interface PixiPreviewProps {
     fill: string;
     opacity: number;
     bounds: { x: number; y: number; width: number; height: number };
+    regionNumber: number;
   }>;
   labelMap?: Uint32Array;
   isViewLinked?: boolean;
@@ -39,6 +45,7 @@ interface PixiPreviewProps {
     mode?: "replace" | "toggle" | "add" | "remove",
   ) => void;
   brushMode?: "add" | "remove";
+  brushSize?: number;
   onContextMenuRegion?: (
     regionNumber: number,
     anchorPosition: { left: number; top: number },
@@ -48,62 +55,87 @@ interface PixiPreviewProps {
   ariaLabel: string;
 }
 
+interface SelectionRaster {
+  selectionKey: string;
+  fillBitmap: ImageBitmap;
+  outlineBitmap: ImageBitmap;
+}
+
+interface SelectionWorkerResponse {
+  type: "READY" | "RENDERED";
+  requestId?: number;
+  selectionKey?: string;
+  fillBitmap?: ImageBitmap;
+  outlineBitmap?: ImageBitmap;
+}
+
 const clampZoom = (zoom: number) => Math.max(50, Math.min(2000, zoom));
 
-function canvasTexture(pixels: Uint8ClampedArray, width: number, height: number) {
+function canvasTexture(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+  scaleMode?: "nearest",
+) {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Regiona could not create a preview canvas.");
   context.putImageData(new ImageData(new Uint8ClampedArray(pixels), width, height), 0, 0);
-  return Texture.from(canvas);
+  const texture = Texture.from(canvas);
+  if (scaleMode) texture.source.scaleMode = scaleMode;
+  return texture;
 }
 
-function selectedRegionsGraphic(
-  regions: Array<{ path: string; fill: string; opacity: number }>,
-  width: number,
-  height: number,
-  viewportScale: number,
-) {
-  const whiteStroke = 3 / viewportScale;
-  const accentStroke = 1.5 / viewportScale;
-  const fills = regions
-    .map(({ path, fill, opacity }) => `<path d="${path}" fill="${fill}" fill-opacity="${opacity}" />`)
-    .join("");
-  const whiteOutlines = regions
-    .map(({ path }) => `<path d="${path}" fill="none" stroke="#ffffff" stroke-width="${whiteStroke}" />`)
-    .join("");
-  const accentOutlines = regions
-    .map(({ path }) => `<path d="${path}" fill="none" stroke="#f25c35" stroke-width="${accentStroke}" />`)
-    .join("");
-  return new Graphics().svg(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${fills}${whiteOutlines}${accentOutlines}</svg>`,
-  );
+function bitmapTexture(bitmap: ImageBitmap, scaleMode?: "nearest") {
+  const texture = Texture.from(bitmap);
+  if (scaleMode) texture.source.scaleMode = scaleMode;
+  return texture;
 }
 
-function largeSelectionBoundsGraphic(
-  regions: Array<{ bounds: { x: number; y: number; width: number; height: number } }>,
+function selectedRegionGraphic(
+  region: { path: string; fill: string; opacity: number },
   width: number,
   height: number,
   viewportScale: number,
 ) {
   const strokeWidth = 2 / viewportScale;
-  const rectangles = regions.map(({ bounds }) => (
-    `<rect x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" fill="none" stroke="#f25c35" stroke-width="${strokeWidth}" />`
-  )).join("");
   return new Graphics().svg(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${rectangles}</svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><path d="${region.path}" fill="${region.fill}" fill-opacity="${region.opacity}" stroke="#f25c35" stroke-width="${strokeWidth}" /></svg>`,
   );
 }
 
-const MAX_COMPLEX_SELECTION_PATH_LENGTH = 12_000;
+function drawBrushCursor(cursor: Graphics, point: { x: number; y: number }, brushSize: number) {
+  cursor.clear()
+    .circle(0, 0, brushSize / 2)
+    .fill({ color: 0x2f80ed, alpha: 0.08 })
+    .stroke({ color: 0x2f80ed, alpha: 0.95, width: 1.5 });
+  cursor.position.set(point.x, point.y);
+  cursor.visible = true;
+}
+
+function brushPreviewStamp(
+  point: { x: number; y: number },
+  brushSize: number,
+  viewport: Container,
+) {
+  const imageX = (point.x - viewport.x) / viewport.scale.x;
+  const imageY = (point.y - viewport.y) / viewport.scale.y;
+  const imageRadius = brushSize / (2 * viewport.scale.x);
+  return new Graphics()
+    .circle(imageX, imageY, imageRadius)
+    .fill({ color: 0x2f80ed, alpha: 0.22 });
+}
+
+const MAX_CACHED_SELECTION_GRAPHICS = 96;
 
 export function PixiPreview({
   width,
   height,
   zoom,
   pixels,
+  selectionPixels,
   svgMarkup,
   selectedPath,
   selectedFill,
@@ -116,6 +148,7 @@ export function PixiPreview({
   onCameraChange,
   onSelectRegion,
   brushMode,
+  brushSize = 24,
   onContextMenuRegion,
   onClearSelection,
   onPickColor,
@@ -129,6 +162,9 @@ export function PixiPreview({
   const viewportRef = useRef<Container | null>(null);
   const baseLayerRef = useRef<Container | null>(null);
   const selectionLayerRef = useRef<Container | null>(null);
+  const brushPreviewRef = useRef<Container | null>(null);
+  const brushCursorRef = useRef<Graphics | null>(null);
+  const brushCursorPointerRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const hasFittedViewportRef = useRef(false);
   const contentSizeRef = useRef({ width, height });
   const contentVersionRef = useRef(0);
@@ -148,6 +184,7 @@ export function PixiPreview({
   const onCameraChangeRef = useRef(onCameraChange);
   const onSelectRegionRef = useRef(onSelectRegion);
   const brushModeRef = useRef(brushMode);
+  const brushSizeRef = useRef(brushSize);
   const spacePressedRef = useRef(false);
   const onContextMenuRegionRef = useRef(onContextMenuRegion);
   const onClearSelectionRef = useRef(onClearSelection);
@@ -160,6 +197,16 @@ export function PixiPreview({
   const vectorGraphicCacheRef = useRef<
     { markup: string; graphic: Graphics } | undefined
   >(undefined);
+  const selectionGraphicCacheRef = useRef(new Map<string, Graphics>());
+  const selectionTexturesRef = useRef<Texture[]>([]);
+  const selectionWorkerRef = useRef<Worker | null>(null);
+  const selectionWorkerReadyRef = useRef(false);
+  const selectionWorkerInFlightRef = useRef<{ requestId: number; selectionKey: string } | undefined>(undefined);
+  const selectionWorkerPendingRef = useRef<{ selectionKey: string; regionNumbers: Uint32Array } | undefined>(undefined);
+  const selectionRequestIdRef = useRef(0);
+  const selectionWorkerGenerationRef = useRef(0);
+  const selectionCurrentKeyRef = useRef<string | undefined>(undefined);
+  const [selectionRaster, setSelectionRaster] = useState<SelectionRaster>();
 
   const textureForPixels = useCallback((imagePixels: Uint8ClampedArray) => {
     const cached = pixelTextureCacheRef.current.get(imagePixels);
@@ -168,6 +215,85 @@ export function PixiPreview({
     pixelTextureCacheRef.current.set(imagePixels, texture);
     return texture;
   }, [height, width]);
+
+  const dispatchPendingSelectionWorkerRender = useCallback(() => {
+    const worker = selectionWorkerRef.current;
+    const pending = selectionWorkerPendingRef.current;
+    if (!worker || !pending || !selectionWorkerReadyRef.current || selectionWorkerInFlightRef.current) return;
+    selectionWorkerPendingRef.current = undefined;
+    const requestId = selectionRequestIdRef.current + 1;
+    selectionRequestIdRef.current = requestId;
+    selectionWorkerInFlightRef.current = { requestId, selectionKey: pending.selectionKey };
+    worker.postMessage(
+      {
+        type: "RENDER",
+        requestId,
+        selectionKey: pending.selectionKey,
+        selectedRegionNumbers: pending.regionNumbers.buffer,
+      },
+      [pending.regionNumbers.buffer],
+    );
+  }, []);
+
+  const queueSelectionWorkerRender = useCallback((selectionKey: string, regionNumbers: number[]) => {
+    if (selectionWorkerInFlightRef.current?.selectionKey === selectionKey
+      || selectionWorkerPendingRef.current?.selectionKey === selectionKey) return;
+    selectionWorkerPendingRef.current = {
+      selectionKey,
+      regionNumbers: new Uint32Array(regionNumbers),
+    };
+    dispatchPendingSelectionWorkerRender();
+  }, [dispatchPendingSelectionWorkerRender]);
+
+  useEffect(() => {
+    if (!labelMap || !selectionPixels) return;
+    const worker = new Worker(new URL("../workers/selection.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    selectionWorkerRef.current = worker;
+    selectionWorkerReadyRef.current = false;
+    selectionWorkerInFlightRef.current = undefined;
+    selectionWorkerPendingRef.current = undefined;
+    selectionWorkerGenerationRef.current += 1;
+    worker.onmessage = (event: MessageEvent<SelectionWorkerResponse>) => {
+      const response = event.data;
+      if (response.type === "READY") {
+        selectionWorkerReadyRef.current = true;
+        dispatchPendingSelectionWorkerRender();
+        return;
+      }
+      if (!response.fillBitmap || !response.outlineBitmap || !response.selectionKey) return;
+      selectionWorkerInFlightRef.current = undefined;
+      if (response.selectionKey !== selectionCurrentKeyRef.current) {
+        response.fillBitmap.close();
+        response.outlineBitmap.close();
+        dispatchPendingSelectionWorkerRender();
+        return;
+      }
+      setSelectionRaster({
+        selectionKey: response.selectionKey,
+        fillBitmap: response.fillBitmap,
+        outlineBitmap: response.outlineBitmap,
+      });
+      dispatchPendingSelectionWorkerRender();
+    };
+    const initialLabelMap = new Uint32Array(labelMap);
+    const initialPixels = new Uint8ClampedArray(selectionPixels);
+    worker.postMessage(
+      {
+        type: "INITIALIZE",
+        width,
+        height,
+        labelMap: initialLabelMap.buffer,
+        pixels: initialPixels.buffer,
+      },
+      [initialLabelMap.buffer, initialPixels.buffer],
+    );
+    return () => {
+      if (selectionWorkerRef.current === worker) selectionWorkerRef.current = null;
+      worker.terminate();
+    };
+  }, [dispatchPendingSelectionWorkerRender, height, labelMap, selectionPixels, width]);
 
   const fitViewport = useCallback(() => {
     const app = appRef.current;
@@ -185,6 +311,7 @@ export function PixiPreview({
     onCameraChangeRef.current = onCameraChange;
     onSelectRegionRef.current = onSelectRegion;
     brushModeRef.current = brushMode;
+    brushSizeRef.current = brushSize;
     onContextMenuRegionRef.current = onContextMenuRegion;
     onClearSelectionRef.current = onClearSelection;
     onPickColorRef.current = onPickColor;
@@ -200,6 +327,7 @@ export function PixiPreview({
     onPickColor,
     onSelectRegion,
     brushMode,
+    brushSize,
     onZoomChange,
     pixels,
   ]);
@@ -208,6 +336,7 @@ export function PixiPreview({
     const host = hostRef.current;
     if (!host) return;
 
+    const selectionGraphicCache = selectionGraphicCacheRef.current;
     let disposed = false;
     let initialized = false;
     let reportFrame = 0;
@@ -217,6 +346,8 @@ export function PixiPreview({
     let handleKeyDown: ((event: KeyboardEvent) => void) | undefined;
     let handleKeyUp: ((event: KeyboardEvent) => void) | undefined;
     let handleWindowBlur: (() => void) | undefined;
+    let handlePointerLeave: (() => void) | undefined;
+    let clearBrushPreview: (() => void) | undefined;
     const app = new Application();
     void (async () => {
       await app.init({
@@ -238,12 +369,23 @@ export function PixiPreview({
       const viewport = new Container();
       const baseLayer = new Container();
       const selectionLayer = new Container();
+      const brushPreview = new Container();
+      const brushPreviewTimers = new Map<Graphics, number>();
+      const brushCursor = new Graphics();
+      brushPreview.eventMode = "none";
+      brushCursor.eventMode = "none";
+      brushCursor.visible = false;
+      viewport.interactiveChildren = false;
       viewportRef.current = viewport;
       baseLayerRef.current = baseLayer;
       selectionLayerRef.current = selectionLayer;
+      brushPreviewRef.current = brushPreview;
+      brushCursorRef.current = brushCursor;
       viewport.addChild(baseLayer);
       viewport.addChild(selectionLayer);
+      viewport.addChild(brushPreview);
       app.stage.addChild(viewport);
+      app.stage.addChild(brushCursor);
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
       const updateCursor = () => {
@@ -251,46 +393,84 @@ export function PixiPreview({
         app.canvas.style.cursor = drag && !drag.brushing
           ? "grabbing"
           : brushModeRef.current && !spacePressedRef.current
-            ? "crosshair"
+            ? "none"
             : "grab";
+        if (!brushModeRef.current || spacePressedRef.current || (drag && !drag.brushing)) {
+          brushCursor.visible = false;
+        }
       };
-      const enqueueBrushSelection = (regionNumber: number, mode: "add" | "remove") => {
-        pendingBrushRegionsRef.current.add(regionNumber);
+      const updateBrushCursor = (point: { x: number; y: number }) => {
+        brushCursorPointerRef.current = { x: point.x, y: point.y };
+        if (!brushModeRef.current || spacePressedRef.current) {
+          brushCursor.visible = false;
+          return;
+        }
+        drawBrushCursor(brushCursor, point, brushSizeRef.current);
+      };
+      const addBrushPreview = (point: { x: number; y: number }) => {
+        const stamp = brushPreviewStamp(point, brushSizeRef.current, viewport);
+        brushPreview.addChild(stamp);
+        const timer = window.setTimeout(() => {
+          brushPreviewTimers.delete(stamp);
+          stamp.destroy();
+        }, 350);
+        brushPreviewTimers.set(stamp, timer);
+      };
+      clearBrushPreview = () => {
+        brushPreviewTimers.forEach((timer) => window.clearTimeout(timer));
+        brushPreviewTimers.clear();
+        brushPreview.removeChildren().forEach((child) => child.destroy());
+      };
+      const enqueueBrushSelection = (
+        regionNumbers: number | number[],
+        mode: "add" | "remove",
+      ) => {
+        const numbers = Array.isArray(regionNumbers) ? regionNumbers : [regionNumbers];
+        numbers.forEach((regionNumber) => pendingBrushRegionsRef.current.add(regionNumber));
         pendingBrushModeRef.current ??= mode;
         if (brushFrameRef.current) return;
         brushFrameRef.current = window.requestAnimationFrame(() => {
           brushFrameRef.current = 0;
-          const regionNumbers = [...pendingBrushRegionsRef.current];
+          const pendingRegionNumbers = [...pendingBrushRegionsRef.current];
           const pendingMode = pendingBrushModeRef.current;
           pendingBrushRegionsRef.current.clear();
           pendingBrushModeRef.current = undefined;
-          if (regionNumbers.length && pendingMode) {
-            onSelectRegionRef.current?.(regionNumbers, pendingMode);
+          if (pendingRegionNumbers.length && pendingMode) {
+            onSelectRegionRef.current?.(pendingRegionNumbers, pendingMode);
           }
         });
+      };
+      const brushRegionNumbersAt = (point: { x: number; y: number }) => {
+        const imageX = Math.floor((point.x - viewport.x) / viewport.scale.x);
+        const imageY = Math.floor((point.y - viewport.y) / viewport.scale.y);
+        const radius = brushSizeRef.current / (2 * Math.max(viewport.scale.x, 0.001));
+        const labels = labelMapRef.current;
+        return labels
+          ? regionNumbersInBrush(labels, width, height, imageX, imageY, radius)
+          : [];
       };
 
       app.stage.on("pointerdown", (event) => {
         if (!isPrimaryPointerButton(event.button)) return;
+        updateBrushCursor(event.global);
         const activeBrushMode = brushModeRef.current;
         const brushing = Boolean(activeBrushMode) && !spacePressedRef.current && Boolean(onSelectRegionRef.current);
         dragRef.current = { x: event.global.x, y: event.global.y, moved: false, brushing, brushMode: activeBrushMode };
         if (brushing) {
-          const imageX = Math.floor((event.global.x - viewport.x) / viewport.scale.x);
-          const imageY = Math.floor((event.global.y - viewport.y) / viewport.scale.y);
-          const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
-          if (regionNumber && activeBrushMode) enqueueBrushSelection(regionNumber, activeBrushMode);
-          app.canvas.style.cursor = "crosshair";
+          addBrushPreview(event.global);
+          const regionNumbers = brushRegionNumbersAt(event.global);
+          if (regionNumbers.length && activeBrushMode) enqueueBrushSelection(regionNumbers, activeBrushMode);
+          app.canvas.style.cursor = "none";
         } else app.canvas.style.cursor = "grabbing";
       });
       app.stage.on("globalpointermove", (event) => {
+        updateBrushCursor(event.global);
         const drag = dragRef.current;
         if (!drag) return;
         if (drag.brushing) {
-          const imageX = Math.floor((event.global.x - viewport.x) / viewport.scale.x);
-          const imageY = Math.floor((event.global.y - viewport.y) / viewport.scale.y);
-          const regionNumber = labelMapRef.current?.[imageY * width + imageX] ?? 0;
-          if (regionNumber && drag.brushMode) enqueueBrushSelection(regionNumber, drag.brushMode);
+          addBrushPreview(event.global);
+          const regionNumbers = brushRegionNumbersAt(event.global);
+          if (regionNumbers.length && drag.brushMode) enqueueBrushSelection(regionNumbers, drag.brushMode);
           return;
         }
         const deltaX = event.global.x - drag.x;
@@ -359,6 +539,11 @@ export function PixiPreview({
         }
       };
       app.canvas.addEventListener("contextmenu", handleContextMenu);
+      handlePointerLeave = () => {
+        brushCursor.visible = false;
+        brushCursorPointerRef.current = undefined;
+      };
+      app.canvas.addEventListener("pointerleave", handlePointerLeave);
 
       handleWheel = (event: WheelEvent) => {
         event.preventDefault();
@@ -420,15 +605,24 @@ export function PixiPreview({
       viewportRef.current = null;
       baseLayerRef.current = null;
       selectionLayerRef.current = null;
+      brushPreviewRef.current = null;
+      brushCursorRef.current = null;
+      brushCursorPointerRef.current = undefined;
       baseDisplayRef.current = null;
       hasFittedViewportRef.current = false;
       vectorGraphicCacheRef.current = undefined;
+      selectionGraphicCache.forEach((graphic) => graphic.destroy());
+      selectionGraphicCache.clear();
+      selectionTexturesRef.current.forEach((texture) => texture.destroy(true));
+      selectionTexturesRef.current = [];
+      clearBrushPreview?.();
       pixelTextureCacheRef.current = new WeakMap<Uint8ClampedArray, Texture>();
       observer?.disconnect();
       window.cancelAnimationFrame(reportFrame);
       window.cancelAnimationFrame(brushFrameRef.current);
       if (handleWheel) app.canvas.removeEventListener("wheel", handleWheel);
       if (handleContextMenu) app.canvas.removeEventListener("contextmenu", handleContextMenu);
+      if (handlePointerLeave) app.canvas.removeEventListener("pointerleave", handlePointerLeave);
       if (handleKeyDown) window.removeEventListener("keydown", handleKeyDown);
       if (handleKeyUp) window.removeEventListener("keyup", handleKeyUp);
       if (handleWindowBlur) window.removeEventListener("blur", handleWindowBlur);
@@ -455,8 +649,15 @@ export function PixiPreview({
   useEffect(() => {
     const app = appRef.current;
     if (!app || dragRef.current) return;
-    app.canvas.style.cursor = brushMode && !spacePressedRef.current ? "crosshair" : "grab";
+    app.canvas.style.cursor = brushMode && !spacePressedRef.current ? "none" : "grab";
   }, [brushMode]);
+
+  useEffect(() => {
+    const cursor = brushCursorRef.current;
+    const pointer = brushCursorPointerRef.current;
+    if (!cursor || !pointer || !brushMode || spacePressedRef.current) return;
+    drawBrushCursor(cursor, pointer, brushSize);
+  }, [brushMode, brushSize]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -466,6 +667,11 @@ export function PixiPreview({
 
     const version = contentVersionRef.current + 1;
     contentVersionRef.current = version;
+    selectionLayerRef.current?.removeChildren();
+    selectionGraphicCacheRef.current.forEach((graphic) => graphic.destroy());
+    selectionGraphicCacheRef.current.clear();
+    selectionTexturesRef.current.forEach((texture) => texture.destroy(true));
+    selectionTexturesRef.current = [];
     baseLayer.removeChildren().forEach((child) => {
       if (child !== vectorGraphicCacheRef.current?.graphic) child.destroy();
     });
@@ -514,20 +720,55 @@ export function PixiPreview({
     const display = baseDisplayRef.current;
     if (!viewport || !selectionLayer || !display || !ready) return;
 
-    clearRenderLayer(selectionLayer);
+    const clearSelectionOverlay = () => {
+      selectionLayer.removeChildren();
+      selectionTexturesRef.current.forEach((texture) => texture.destroy(true));
+      selectionTexturesRef.current = [];
+    };
 
     const selection = selectedRegions ?? (selectedPath && selectedFill
-      ? [{ path: selectedPath, fill: selectedFill, opacity: selectedOpacity, bounds: { x: 0, y: 0, width, height } }]
+      ? [{ path: selectedPath, fill: selectedFill, opacity: selectedOpacity, bounds: { x: 0, y: 0, width, height }, regionNumber: 0 }]
       : []);
-    const hasComplexSelection = selection.some(
-      ({ path }) => path.length > MAX_COMPLEX_SELECTION_PATH_LENGTH,
-    );
-    display.alpha = selection.length && !hasComplexSelection ? 0.2 : 1;
-    if (!selection.length) return;
+    const useSelectionTexture = shouldUseSelectionTexture(selection);
+    display.alpha = selection.length ? 0.2 : 1;
+    if (!selection.length) {
+      selectionCurrentKeyRef.current = undefined;
+      clearSelectionOverlay();
+      return;
+    }
 
-    selectionLayer.addChild(hasComplexSelection
-      ? largeSelectionBoundsGraphic(selection, width, height, selectionScale)
-      : selectedRegionsGraphic(selection, width, height, selectionScale));
+    if (useSelectionTexture && selectionPixels && labelMap) {
+      const regionNumbers = selection.map(({ regionNumber }) => regionNumber);
+      const selectionKey = `${selectionWorkerGenerationRef.current}:${regionNumbers.join(",")}`;
+      selectionCurrentKeyRef.current = selectionKey;
+      queueSelectionWorkerRender(selectionKey, regionNumbers);
+      if (selectionRaster?.selectionKey !== selectionKey) return;
+      clearSelectionOverlay();
+      const fillTexture = bitmapTexture(selectionRaster.fillBitmap);
+      const outlineTexture = bitmapTexture(selectionRaster.outlineBitmap, "nearest");
+      selectionTexturesRef.current = [fillTexture, outlineTexture];
+      selectionLayer.addChild(new Sprite(fillTexture), new Sprite(outlineTexture));
+      return;
+    }
+
+    selectionCurrentKeyRef.current = undefined;
+    clearSelectionOverlay();
+    selection.forEach((region) => {
+      const cacheKey = selectionGraphicCacheKey(region, selectionScale);
+      let graphic = selectionGraphicCacheRef.current.get(cacheKey);
+      if (!graphic) {
+        if (selectionGraphicCacheRef.current.size >= MAX_CACHED_SELECTION_GRAPHICS) {
+          const oldestKey = selectionGraphicCacheRef.current.keys().next().value;
+          if (oldestKey) {
+            selectionGraphicCacheRef.current.get(oldestKey)?.destroy();
+            selectionGraphicCacheRef.current.delete(oldestKey);
+          }
+        }
+        graphic = selectedRegionGraphic(region, width, height, selectionScale);
+        selectionGraphicCacheRef.current.set(cacheKey, graphic);
+      }
+      selectionLayer.addChild(graphic);
+    });
   }, [
     contentRevision,
     height,
@@ -537,6 +778,10 @@ export function PixiPreview({
     selectedPath,
     selectedRegions,
     selectionScale,
+    selectionPixels,
+    labelMap,
+    queueSelectionWorkerRender,
+    selectionRaster,
     width,
   ]);
 
