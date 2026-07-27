@@ -1,5 +1,5 @@
 import type { EditableSvgInput } from "../../types/project";
-import { assembleSharedRegionPaths } from "./assemble-shared-paths";
+import { resolveRegionPathData } from "./resolve-region-paths";
 
 const escapeXml = (value: string) =>
   value
@@ -20,20 +20,7 @@ export function exportEditableSvg(input: EditableSvgInput) {
     }),
   );
   const paths = input.regions
-    .map((region) => ({
-      region,
-      pathData:
-        input.labelMap && input.boundaries
-          ? (assembleSharedRegionPaths({
-              width: input.width,
-              height: input.height,
-              labelMap: input.labelMap,
-              regions: input.regions,
-              regionId: region.id,
-              boundaries: input.boundaries,
-            }) ?? region.pathData)
-          : region.pathData,
-    }))
+    .map((region) => ({ region, pathData: resolveRegionPathData(input, region) }))
     .filter(({ pathData }) => pathData.length > 0)
     .map(({ region, pathData }) => {
       const opacity =

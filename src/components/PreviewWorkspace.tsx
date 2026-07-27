@@ -15,6 +15,8 @@ import Tabs from "@mui/material/Tabs";
 import Tooltip from "@mui/material/Tooltip";
 
 import { renderRegionPixels } from "../engine/reconstruct";
+import { resolveRegionPathData } from "../engine/svg/resolve-region-paths";
+import { buildVectorPreviewSvg } from "../engine/svg/vector-preview";
 import { getPaletteSuggestions } from "../app/palette-suggestions";
 import type { Camera } from "../preview/camera";
 import type { ColorSample } from "../preview/color-sample";
@@ -49,16 +51,6 @@ interface PreviewWorkspaceProps {
   onRecolorRegions: (regionIds: string[], fill: string) => void;
 }
 
-function vectorSvg(result: ReconstructionResult) {
-  const paths = result.regions
-    .map(
-      (region) =>
-        `<path d="${region.pathData.join(" ")}" fill="${region.fill}" fill-opacity="${region.opacity}" fill-rule="evenodd" />`,
-    )
-    .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${result.width}" height="${result.height}" viewBox="0 0 ${result.width} ${result.height}">${paths}</svg>`;
-}
-
 export function PreviewWorkspace({
   originalPixels,
   result,
@@ -86,7 +78,10 @@ export function PreviewWorkspace({
       result ? renderRegionPixels(result.labelMap, result.regions) : undefined,
     [result],
   );
-  const svgMarkup = useMemo(() => (result ? vectorSvg(result) : undefined), [result]);
+  const svgMarkup = useMemo(
+    () => (result ? buildVectorPreviewSvg(result) : undefined),
+    [result],
+  );
   const paletteSuggestions = useMemo(
     () => getPaletteSuggestions(pickedColors, result?.palette ?? []),
     [pickedColors, result?.palette],
@@ -324,7 +319,7 @@ export function PreviewWorkspace({
                   selectedRegions={result.regions
                     .filter((region) => selectedRegionIds.includes(region.id))
                     .map((region) => ({
-                      path: region.pathData.join(" "),
+                      path: resolveRegionPathData(result, region).join(" "),
                       fill: region.fill,
                       opacity: region.opacity,
                       bounds: region.bounds,
