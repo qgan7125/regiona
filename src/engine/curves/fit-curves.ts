@@ -173,6 +173,66 @@ export function fitPolylineToCubicBezier(
   };
 }
 
+interface ContourFitResult {
+  segments: VectorSegment[];
+  maximumFitErrorPx: number;
+  accumulatedError: number;
+  sampleCount: number;
+}
+
+const exactLineFit = (points: RasterPoint[]): ContourFitResult => ({
+  segments: fitPolylineToLines(points),
+  maximumFitErrorPx: 0,
+  accumulatedError: 0,
+  sampleCount: 0,
+});
+
+/**
+ * Recursively splits a boundary when one cubic exceeds the allowed error.
+ * This keeps each accepted Bézier within tolerance instead of throwing the
+ * complete boundary away and reverting it to its pixel staircase.
+ */
+function fitPolylineToCubicSegments(
+  points: RasterPoint[],
+  maximumErrorPx: number,
+): ContourFitResult {
+  if (allCollinear(points)) return exactLineFit(points);
+
+  const cubic = fitPolylineToCubicBezier(points, maximumErrorPx);
+  if (cubic) {
+    return {
+      segments: [cubic.segment],
+      maximumFitErrorPx: cubic.maximumFitErrorPx,
+      accumulatedError: cubic.averageFitErrorPx * cubic.sampleCount,
+      sampleCount: cubic.sampleCount,
+    };
+  }
+
+  // A split needs at least three source segments on each side for a cubic.
+  // Smaller runs remain exact straight lines rather than inventing geometry.
+  if (points.length < 7) return exactLineFit(points);
+
+  const splitIndex = Math.floor((points.length - 1) / 2);
+  const left = fitPolylineToCubicSegments(
+    points.slice(0, splitIndex + 1),
+    maximumErrorPx,
+  );
+  const right = fitPolylineToCubicSegments(
+    points.slice(splitIndex),
+    maximumErrorPx,
+  );
+
+  return {
+    segments: [...left.segments, ...right.segments],
+    maximumFitErrorPx: Math.max(
+      left.maximumFitErrorPx,
+      right.maximumFitErrorPx,
+    ),
+    accumulatedError: left.accumulatedError + right.accumulatedError,
+    sampleCount: left.sampleCount + right.sampleCount,
+  };
+}
+
 export function fitRasterEdgesToCurves(
   edges: RasterEdge[],
   maximumErrorPx: number,
@@ -185,20 +245,12 @@ export function fitRasterEdgesToCurves(
   const rasterContours = connectRasterEdges(edges);
 
   for (const polyline of rasterContours) {
-    const cubic = fitPolylineToCubicBezier(polyline, maximumErrorPx);
-    if (!cubic) {
-      const contour = fitPolylineToLines(polyline);
-      vectorContours.push(contour);
-      vectorSegments.push(...contour);
-      continue;
-    }
-
-    maximumFitErrorPx = Math.max(maximumFitErrorPx, cubic.maximumFitErrorPx);
-    accumulatedError += cubic.averageFitErrorPx * cubic.sampleCount;
-    sampleCount += cubic.sampleCount;
-    const contour = [cubic.segment];
-    vectorContours.push(contour);
-    vectorSegments.push(...contour);
+    const fitted = fitPolylineToCubicSegments(polyline, maximumErrorPx);
+    maximumFitErrorPx = Math.max(maximumFitErrorPx, fitted.maximumFitErrorPx);
+    accumulatedError += fitted.accumulatedError;
+    sampleCount += fitted.sampleCount;
+    vectorContours.push(fitted.segments);
+    vectorSegments.push(...fitted.segments);
   }
 
   return {
