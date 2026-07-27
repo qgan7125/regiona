@@ -88,6 +88,18 @@ export function PreviewWorkspace({
       result ? renderRegionPixels(result.labelMap, result.regions) : undefined,
     [result],
   );
+  const regionBounds = useMemo(() => {
+    if (!result) return undefined;
+    const bounds = new Uint32Array((result.regions.length + 1) * 4);
+    result.regions.forEach((region, index) => {
+      const offset = (index + 1) * 4;
+      bounds[offset] = Math.max(0, Math.floor(region.bounds.x));
+      bounds[offset + 1] = Math.max(0, Math.floor(region.bounds.y));
+      bounds[offset + 2] = Math.max(1, Math.ceil(region.bounds.width));
+      bounds[offset + 3] = Math.max(1, Math.ceil(region.bounds.height));
+    });
+    return bounds;
+  }, [result]);
   const svgMarkup = useMemo(() => (result ? vectorSvg(result) : undefined), [result]);
   const selectedPreviewRegions = useMemo(() => {
     if (!result) return [];
@@ -351,6 +363,7 @@ export function PreviewWorkspace({
                   selectionPixels={regionPixels}
                   svgMarkup={view === "vector" ? svgMarkup : undefined}
                   labelMap={result.labelMap}
+                  regionBounds={regionBounds}
                   selectedRegions={selectedPreviewRegions}
                   isViewLinked={linkViews}
                   linkedCamera={linkViews ? linkedCamera : undefined}
