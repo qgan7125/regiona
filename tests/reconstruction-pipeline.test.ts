@@ -48,7 +48,7 @@ describe("reconstructImage", () => {
     expect(result.quantizedPixels[3]).toBe(0);
   });
 
-  it("removes isolated palette regions when tiny-region cleanup is enabled", () => {
+  it("keeps isolated high-contrast details when tiny-region cleanup is enabled", () => {
     const red: [number, number, number, number] = [255, 0, 0, 255];
     const blue: [number, number, number, number] = [0, 0, 255, 255];
     const result = reconstructImage({
@@ -64,8 +64,8 @@ describe("reconstructImage", () => {
       sourceFilename: "speck.png",
     });
 
-    expect(result.regions).toHaveLength(1);
-    expect([...result.quantizedPixels.slice(16, 20)]).toEqual(
+    expect(result.regions).toHaveLength(2);
+    expect([...result.quantizedPixels.slice(16, 20)]).not.toEqual(
       [...result.quantizedPixels.slice(0, 4)],
     );
   });

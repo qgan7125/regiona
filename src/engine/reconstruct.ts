@@ -86,6 +86,7 @@ export function reconstructImage(
     input.width,
     input.height,
     input.tinyRegionMaximumArea ?? 0,
+    input.pixels,
   );
   const { labelMap, regions } = buildRegions(
     cleanedPaletteIndexes,
