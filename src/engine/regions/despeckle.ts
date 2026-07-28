@@ -48,7 +48,7 @@ export function despecklePaletteIndexes(
       let bestValue = -1;
       let bestVotes = currentVotes;
       for (let i = 0; i < neighborCount; i += 1) {
-        const value = neighborValues[i];
+        const value = neighborValues[i] ?? 0;
         if (value === current) continue;
         let votes = 0;
         for (let j = 0; j < neighborCount; j += 1) {
