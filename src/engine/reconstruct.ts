@@ -15,6 +15,7 @@ export interface ReconstructImageInput {
   height: number;
   targetColors: number;
   tinyRegionMaximumArea?: number;
+  despeckleEnabled?: boolean;
   sourceFilename: string;
 }
 
@@ -84,12 +85,9 @@ export function reconstructImage(
     smoothedPixels,
     input.targetColors,
   );
-  const despeckledPaletteIndexes = despecklePaletteIndexes(
-    paletteIndexes,
-    input.width,
-    input.height,
-    input.pixels,
-  );
+  const despeckledPaletteIndexes = input.despeckleEnabled ?? true
+    ? despecklePaletteIndexes(paletteIndexes, input.width, input.height, input.pixels)
+    : paletteIndexes;
   const cleanedPaletteIndexes = removeTinyPaletteRegions(
     despeckledPaletteIndexes,
     input.width,

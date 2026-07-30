@@ -45,8 +45,10 @@ export function App() {
   const processingStartedAtRef = useRef(0);
   const [targetColors, setTargetColors] = useState(12);
   const [appliedTargetColors, setAppliedTargetColors] = useState(12);
-  const [regionSimplification, setRegionSimplification] = useState<RegionSimplification>("balanced");
-  const [appliedRegionSimplification, setAppliedRegionSimplification] = useState<RegionSimplification>("balanced");
+  const [regionSimplification, setRegionSimplification] = useState<RegionSimplification>("off");
+  const [appliedRegionSimplification, setAppliedRegionSimplification] = useState<RegionSimplification>("off");
+  const [despeckleEnabled, setDespeckleEnabled] = useState(false);
+  const [appliedDespeckleEnabled, setAppliedDespeckleEnabled] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [source, setSource] = useState<SourceState>();
   const [result, setResult] = useState<ReconstructionResult>();
@@ -143,6 +145,7 @@ export function App() {
               height: source.processedHeight,
               targetColors: appliedTargetColors,
               tinyRegionMaximumArea,
+              despeckleEnabled: appliedDespeckleEnabled,
               sourceFilename: source.filename,
             },
             (_progress, stage) => {
@@ -176,7 +179,14 @@ export function App() {
       isCurrent = false;
       window.clearTimeout(timer);
     };
-  }, [appliedRegionSimplification, appliedTargetColors, generation, resetSelectionHistory, source]);
+  }, [
+    appliedDespeckleEnabled,
+    appliedRegionSimplification,
+    appliedTargetColors,
+    generation,
+    resetSelectionHistory,
+    source,
+  ]);
 
   const handleFile = async (file: File) => {
     setError(undefined);
@@ -197,6 +207,7 @@ export function App() {
       });
       setAppliedTargetColors(targetColors);
       setAppliedRegionSimplification(regionSimplification);
+      setAppliedDespeckleEnabled(despeckleEnabled);
       setGeneration((current) => current + 1);
       setResult(undefined);
       setColorHistory([]);
@@ -298,6 +309,7 @@ export function App() {
     );
     setAppliedTargetColors(targetColors);
     setAppliedRegionSimplification(regionSimplification);
+    setAppliedDespeckleEnabled(despeckleEnabled);
     setGeneration((current) => current + 1);
   };
 
@@ -382,11 +394,13 @@ export function App() {
                 source.processedHeight,
               )
             : 0}
+          despeckleEnabled={despeckleEnabled}
           palette={result?.palette ?? []}
           regionCount={result?.regions.length ?? 0}
           busy={busy}
           onTargetColorsChange={setTargetColors}
           onRegionSimplificationChange={setRegionSimplification}
+          onDespeckleEnabledChange={setDespeckleEnabled}
           onRegenerate={handleRegenerate}
           onFile={handleFile}
         />
