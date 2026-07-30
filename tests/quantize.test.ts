@@ -57,4 +57,27 @@ describe("quantizeImage", () => {
       ),
     ).toBe(true);
   });
+
+  it("clusters colors by perceptual distance, not raw RGB distance", () => {
+    // White is much closer to green than to blue perceptually (OKLab), even though raw
+    // RGB distance treats the two as exactly equidistant from white. Quantizing to 2
+    // colors should therefore group white with green and keep blue as the separate color.
+    const white: [number, number, number, number] = [255, 255, 255, 255];
+    const green: [number, number, number, number] = [0, 255, 0, 255];
+    const blue: [number, number, number, number] = [0, 0, 255, 255];
+    const pixels = new Uint8ClampedArray([
+      ...Array.from({ length: 40 }, () => white).flat(),
+      ...Array.from({ length: 20 }, () => green).flat(),
+      ...Array.from({ length: 20 }, () => blue).flat(),
+    ]);
+
+    const result = quantizeImage(pixels, 2);
+
+    const whiteCluster = result.paletteIndexes[0];
+    const greenCluster = result.paletteIndexes[40];
+    const blueCluster = result.paletteIndexes[60];
+
+    expect(greenCluster).toBe(whiteCluster);
+    expect(blueCluster).not.toBe(whiteCluster);
+  });
 });

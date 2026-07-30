@@ -1,6 +1,4 @@
-import { SOURCE_EDGE_THRESHOLD, sourceEdgeDifference } from "./remove-tiny-regions";
-
-const EDGE_THRESHOLD_SQUARED = SOURCE_EDGE_THRESHOLD * SOURCE_EDGE_THRESHOLD * 3;
+import { SOURCE_EDGE_THRESHOLD_SQUARED, sourceEdgeDifference } from "./remove-tiny-regions";
 
 // Replaces a pixel with its most common neighbor value unless the source image shows a strong edge there.
 export function despecklePaletteIndexes(
@@ -71,7 +69,7 @@ export function despecklePaletteIndexes(
           matchedCount += 1;
         }
         const averageDifference = matchedCount ? totalDifference / matchedCount : 0;
-        if (averageDifference > EDGE_THRESHOLD_SQUARED) continue;
+        if (averageDifference > SOURCE_EDGE_THRESHOLD_SQUARED) continue;
       }
 
       next[index] = bestValue;

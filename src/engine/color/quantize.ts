@@ -1,4 +1,5 @@
 import type { PaletteColor } from "../../types/project";
+import { oklabToRgb, rgbToOklab } from "./oklab";
 
 interface HistogramColor {
   key: number;
@@ -7,6 +8,9 @@ interface HistogramColor {
   g: number;
   b: number;
   a: number;
+  okL: number;
+  okA: number;
+  okB: number;
 }
 
 export interface QuantizeResult {
@@ -50,38 +54,52 @@ function buildHistogram(pixels: Uint8ClampedArray): HistogramColor[] {
 
   return [...buckets.entries()]
     .sort(([left], [right]) => left - right)
-    .map(([key, bucket]) => ({
-      key,
-      count: bucket.count,
-      r: Math.round(bucket.r / bucket.count),
-      g: Math.round(bucket.g / bucket.count),
-      b: Math.round(bucket.b / bucket.count),
-      a: Math.round(bucket.a / bucket.count),
-    }));
+    .map(([key, bucket]): HistogramColor => {
+      const r = Math.round(bucket.r / bucket.count);
+      const g = Math.round(bucket.g / bucket.count);
+      const b = Math.round(bucket.b / bucket.count);
+      const oklab = rgbToOklab(r, g, b);
+      return {
+        key,
+        count: bucket.count,
+        r,
+        g,
+        b,
+        a: Math.round(bucket.a / bucket.count),
+        okL: oklab.l,
+        okA: oklab.a,
+        okB: oklab.b,
+      };
+    });
 }
 
+// Perceptual OKLab distance for the color channels, plus a normalized alpha term (alpha
+// isn't part of OKLab, so it's folded in separately on a comparable 0-1 scale) so fully
+// transparent and opaque pixels never get quantized into the same palette entry.
 function colorDistance(
-  r: number,
-  g: number,
-  b: number,
-  a: number,
-  candidate: readonly number[],
+  color: { okL: number; okA: number; okB: number; a: number },
+  candidate: { okL: number; okA: number; okB: number; a: number },
 ) {
-  const red = r - (candidate[0] ?? 0);
-  const green = g - (candidate[1] ?? 0);
-  const blue = b - (candidate[2] ?? 0);
-  const alpha = a - (candidate[3] ?? 255);
-  return red * red + green * green + blue * blue + alpha * alpha * 2;
+  const dl = color.okL - candidate.okL;
+  const da = color.okA - candidate.okA;
+  const db = color.okB - candidate.okB;
+  const dAlpha = (color.a - candidate.a) / 255;
+  return dl * dl + da * da + db * db + dAlpha * dAlpha;
 }
 
-type Rgba = [number, number, number, number];
+interface PaletteCenter {
+  okL: number;
+  okA: number;
+  okB: number;
+  a: number;
+}
 
-function nearestPaletteIndex(color: HistogramColor, palette: Rgba[]) {
+function nearestPaletteIndex(color: HistogramColor, palette: PaletteCenter[]) {
   let nearestIndex = 0;
   let nearestDistance = Number.POSITIVE_INFINITY;
 
   for (let index = 0; index < palette.length; index += 1) {
-    const distance = colorDistance(color.r, color.g, color.b, color.a, palette[index] ?? [0, 0, 0, 255]);
+    const distance = colorDistance(color, palette[index] ?? { okL: 0, okA: 0, okB: 0, a: 255 });
     if (distance < nearestDistance) {
       nearestDistance = distance;
       nearestIndex = index;
@@ -91,24 +109,22 @@ function nearestPaletteIndex(color: HistogramColor, palette: Rgba[]) {
   return nearestIndex;
 }
 
-function chooseSeeds(histogram: HistogramColor[], targetColors: number): Rgba[] {
+function chooseSeeds(histogram: HistogramColor[], targetColors: number): PaletteCenter[] {
   const remaining = [...histogram].sort(
     (left, right) => right.count - left.count || left.key - right.key,
   );
   const first = remaining.shift();
   if (!first) return [];
 
-  const seeds: Rgba[] = [[first.r, first.g, first.b, first.a]];
+  const seeds: PaletteCenter[] = [{ okL: first.okL, okA: first.okA, okB: first.okB, a: first.a }];
   while (seeds.length < targetColors && remaining.length) {
     const candidateIndex = remaining.reduce((bestIndex, color, index) => {
       const nearestDistance = Math.min(
-        ...seeds.map((seed) => colorDistance(color.r, color.g, color.b, color.a, seed)),
+        ...seeds.map((seed) => colorDistance(color, seed)),
       );
       const best = remaining[bestIndex];
       const bestDistance = best
-        ? Math.min(
-            ...seeds.map((seed) => colorDistance(best.r, best.g, best.b, best.a, seed)),
-          )
+        ? Math.min(...seeds.map((seed) => colorDistance(best, seed)))
         : -1;
       const score = color.count * nearestDistance;
       const bestScore = (best?.count ?? 0) * bestDistance;
@@ -117,41 +133,50 @@ function chooseSeeds(histogram: HistogramColor[], targetColors: number): Rgba[] 
         : bestIndex;
     }, 0);
     const [candidate] = remaining.splice(candidateIndex, 1);
-    if (candidate) seeds.push([candidate.r, candidate.g, candidate.b, candidate.a]);
+    if (candidate) {
+      seeds.push({ okL: candidate.okL, okA: candidate.okA, okB: candidate.okB, a: candidate.a });
+    }
   }
 
   return seeds;
 }
 
-function clusterHistogram(histogram: HistogramColor[], seeds: Rgba[]): Rgba[] {
+function clusterHistogram(histogram: HistogramColor[], seeds: PaletteCenter[]): PaletteCenter[] {
   let palette = seeds;
 
   for (let iteration = 0; iteration < 8; iteration += 1) {
-    const sums = palette.map(() => ({ count: 0, r: 0, g: 0, b: 0, a: 0 }));
+    const sums = palette.map(() => ({ count: 0, okL: 0, okA: 0, okB: 0, a: 0 }));
     for (const color of histogram) {
       const cluster = sums[nearestPaletteIndex(color, palette)];
       if (!cluster) continue;
       cluster.count += color.count;
-      cluster.r += color.r * color.count;
-      cluster.g += color.g * color.count;
-      cluster.b += color.b * color.count;
+      cluster.okL += color.okL * color.count;
+      cluster.okA += color.okA * color.count;
+      cluster.okB += color.okB * color.count;
       cluster.a += color.a * color.count;
     }
 
     const nextPalette = sums
-      .map((sum): Rgba | undefined => {
+      .map((sum): PaletteCenter | undefined => {
         if (!sum.count) return undefined;
-        return [
-          Math.round(sum.r / sum.count),
-          Math.round(sum.g / sum.count),
-          Math.round(sum.b / sum.count),
-          Math.round(sum.a / sum.count),
-        ];
+        return {
+          okL: sum.okL / sum.count,
+          okA: sum.okA / sum.count,
+          okB: sum.okB / sum.count,
+          a: sum.a / sum.count,
+        };
       })
-      .filter((color): color is Rgba => Boolean(color));
+      .filter((color): color is PaletteCenter => Boolean(color));
 
     if (nextPalette.length === palette.length && nextPalette.every(
-      (color, index) => color.every((channel, channelIndex) => channel === palette[index]?.[channelIndex]),
+      (color, index) => {
+        const previous = palette[index];
+        return previous
+          && color.okL === previous.okL
+          && color.okA === previous.okA
+          && color.okB === previous.okB
+          && color.a === previous.a;
+      },
     )) {
       return nextPalette;
     }
@@ -161,20 +186,38 @@ function clusterHistogram(histogram: HistogramColor[], seeds: Rgba[]): Rgba[] {
   return palette;
 }
 
-function mapPixelsToPalette(pixels: Uint8ClampedArray, palette: Rgba[]) {
+function mapPixelsToPalette(pixels: Uint8ClampedArray, palette: PaletteCenter[]) {
   const paletteIndexes = new Uint8Array(pixels.length / 4);
   const counts = new Uint32Array(palette.length);
+  // Real photos repeat exact RGB values constantly (flat skies, backgrounds, gradients
+  // banding to the same 8-bit steps), so caching the OKLab conversion by packed RGB pays
+  // for itself well before the palette is exhausted; it stays a rare miss for adversarial
+  // pure-noise input, which is not representative of real usage anyway.
+  const oklabCache = new Map<number, { okL: number; okA: number; okB: number }>();
 
   for (let pixelIndex = 0; pixelIndex < paletteIndexes.length; pixelIndex += 1) {
     const offset = pixelIndex * 4;
+    const r = pixels[offset] ?? 0;
+    const g = pixels[offset + 1] ?? 0;
+    const b = pixels[offset + 2] ?? 0;
+    const rgbKey = (r << 16) | (g << 8) | b;
+    let oklab = oklabCache.get(rgbKey);
+    if (!oklab) {
+      const converted = rgbToOklab(r, g, b);
+      oklab = { okL: converted.l, okA: converted.a, okB: converted.b };
+      oklabCache.set(rgbKey, oklab);
+    }
     const nearestIndex = nearestPaletteIndex(
       {
         key: pixelIndex,
         count: 1,
-        r: pixels[offset] ?? 0,
-        g: pixels[offset + 1] ?? 0,
-        b: pixels[offset + 2] ?? 0,
+        r,
+        g,
+        b,
         a: pixels[offset + 3] ?? 255,
+        okL: oklab.okL,
+        okA: oklab.okA,
+        okB: oklab.okB,
       },
       palette,
     );
@@ -196,23 +239,27 @@ export function quantizeImage(
   const targetColors = clampTarget(requestedColors);
   const histogram = buildHistogram(pixels);
   const seeds = chooseSeeds(histogram, Math.min(targetColors, histogram.length));
-  let rgbaPalette = clusterHistogram(histogram, seeds);
-  let { paletteIndexes, counts } = mapPixelsToPalette(pixels, rgbaPalette);
+  let centers = clusterHistogram(histogram, seeds);
+  let { paletteIndexes, counts } = mapPixelsToPalette(pixels, centers);
 
-  const populatedPalette = rgbaPalette.filter((_, index) => (counts[index] ?? 0) > 0);
-  if (populatedPalette.length !== rgbaPalette.length) {
-    rgbaPalette = populatedPalette;
-    ({ paletteIndexes, counts } = mapPixelsToPalette(pixels, rgbaPalette));
+  const populatedCenters = centers.filter((_, index) => (counts[index] ?? 0) > 0);
+  if (populatedCenters.length !== centers.length) {
+    centers = populatedCenters;
+    ({ paletteIndexes, counts } = mapPixelsToPalette(pixels, centers));
   }
 
-  const palette = rgbaPalette.map((rgba, index): PaletteColor => ({
-    id: `color-${index.toString().padStart(3, "0")}`,
-    index,
-    hex: rgbaToHex(rgba),
-    rgba,
-    pixelCount: counts[index] ?? 0,
-    percentage: (counts[index] ?? 0) / paletteIndexes.length,
-  }));
+  const palette = centers.map((center, index): PaletteColor => {
+    const [r, g, b] = oklabToRgb({ l: center.okL, a: center.okA, b: center.okB });
+    const rgba: [number, number, number, number] = [r, g, b, Math.round(center.a)];
+    return {
+      id: `color-${index.toString().padStart(3, "0")}`,
+      index,
+      hex: rgbaToHex(rgba),
+      rgba,
+      pixelCount: counts[index] ?? 0,
+      percentage: (counts[index] ?? 0) / paletteIndexes.length,
+    };
+  });
 
   return { palette, paletteIndexes };
 }
