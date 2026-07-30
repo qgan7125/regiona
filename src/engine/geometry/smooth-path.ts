@@ -5,7 +5,6 @@ interface Point {
 
 const CORNER_ANGLE_DEGREES = 60;
 const CORNER_ANGLE_COSINE = Math.cos((CORNER_ANGLE_DEGREES * Math.PI) / 180);
-const CURVE_TENSION = 6;
 
 // A vertex reads as a hard corner (kept sharp, never smoothed) when its turn angle is
 // tighter than this threshold. Depends only on a vertex and its immediate neighbors, so
@@ -54,12 +53,24 @@ export function smoothClosedPolygonPath(points: Point[]): string {
       continue;
     }
 
+    // Chord-length-scaled (non-uniform) Catmull-Rom tangents: simplified vertices can sit
+    // at wildly different spacings (a short border-hugging edge next to a long collapsed
+    // staircase run), and the classic uniform-spacing tangent formula overshoots badly
+    // when neighboring segment lengths differ. Scaling by each segment's share of the two
+    // adjacent chord lengths keeps control points proportionate - and, since distances are
+    // symmetric, this stays exactly as reversal-symmetric as the uniform formula was.
+    const dBefore = Math.hypot(start.x - before.x, start.y - before.y);
+    const dHere = Math.hypot(end.x - start.x, end.y - start.y);
+    const dAfter = Math.hypot(after.x - end.x, after.y - end.y);
+    const leadingScale = dBefore + dHere ? dHere / (dBefore + dHere) / 3 : 0;
+    const trailingScale = dHere + dAfter ? dHere / (dHere + dAfter) / 3 : 0;
+
     const control1 = startIsCorner
       ? start
-      : { x: start.x + (end.x - before.x) / CURVE_TENSION, y: start.y + (end.y - before.y) / CURVE_TENSION };
+      : { x: start.x + (end.x - before.x) * leadingScale, y: start.y + (end.y - before.y) * leadingScale };
     const control2 = endIsCorner
       ? end
-      : { x: end.x - (after.x - start.x) / CURVE_TENSION, y: end.y - (after.y - start.y) / CURVE_TENSION };
+      : { x: end.x - (after.x - start.x) * trailingScale, y: end.y - (after.y - start.y) * trailingScale };
 
     commands.push(
       `C ${round(control1.x)} ${round(control1.y)} ${round(control2.x)} ${round(control2.y)} ${round(end.x)} ${round(end.y)}`,

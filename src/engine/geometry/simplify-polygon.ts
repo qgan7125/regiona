@@ -39,17 +39,41 @@ function douglasPeucker(points: Point[], tolerance: number): Point[] {
 // Reduces a closed pixel-traced boundary to its key vertices within a pixel tolerance,
 // collapsing staircase noise while leaving already-simple shapes (like a plain
 // rectangle, 5 points including the closing duplicate) untouched.
-export function simplifyClosedPolygon(points: Point[], tolerance = DEFAULT_TOLERANCE): Point[] {
+//
+// `isAnchor` marks points that must survive simplification unchanged - in practice,
+// junctions where this region's boundary meets two or more other regions. Douglas-Peucker
+// only runs on the stretches between anchors, so it never has to choose an arbitrary split
+// point along a boundary shared with another region: both regions independently detect the
+// same junctions (a purely local property of the label map) and therefore keep the exact
+// same anchor points, so a shared edge simplifies identically on both sides. Without any
+// anchors (an isolated region with no neighbor to disagree with), it falls back to two
+// opposite points so Douglas-Peucker still has bounded chains to work on.
+export function simplifyClosedPolygon(
+  points: Point[],
+  isAnchor: (point: Point) => boolean = () => false,
+  tolerance = DEFAULT_TOLERANCE,
+): Point[] {
   if (points.length <= 5) return points;
 
   const loop = points.slice(0, -1);
   const n = loop.length;
-  const anchor = Math.floor(n / 2);
-  const firstChain = loop.slice(0, anchor + 1);
-  const secondChain = [...loop.slice(anchor), loop[0]!];
-  const simplifiedFirst = douglasPeucker(firstChain, tolerance);
-  const simplifiedSecond = douglasPeucker(secondChain, tolerance);
-  const merged = [...simplifiedFirst.slice(0, -1), ...simplifiedSecond.slice(0, -1)];
+  const at = (index: number) => loop[((index % n) + n) % n]!;
+
+  let anchorIndexes = loop.reduce<number[]>((found, point, index) => {
+    if (isAnchor(point)) found.push(index);
+    return found;
+  }, []);
+  if (anchorIndexes.length < 2) anchorIndexes = [0, Math.floor(n / 2)];
+
+  const merged: Point[] = [];
+  for (let anchor = 0; anchor < anchorIndexes.length; anchor += 1) {
+    const startIndex = anchorIndexes[anchor]!;
+    const endIndex = anchorIndexes[(anchor + 1) % anchorIndexes.length]!;
+    const chainLength = ((endIndex - startIndex + n) % n) || n;
+    const chain = Array.from({ length: chainLength + 1 }, (_, offset) => at(startIndex + offset));
+    const simplified = douglasPeucker(chain, tolerance);
+    merged.push(...simplified.slice(0, -1));
+  }
 
   if (merged.length < 3) return points;
   return [...merged, merged[0]!];
