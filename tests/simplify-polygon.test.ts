@@ -116,4 +116,56 @@ describe("simplifyClosedPolygon", () => {
 
     expect(staircaseChainOf(simplifiedA)).toEqual(staircaseChainOf(simplifiedB));
   });
+
+  it("breaks an exact deviation tie the same way regardless of trace direction", () => {
+    // Captured from a real reconstruction that produced a visible gap: this 62-point
+    // staircase contains a recursive split where two candidate points sit at exactly the
+    // same perpendicular distance (2.0) from the chord. Scanning forward reaches one
+    // first; scanning the exact reverse reaches the other first. Without a
+    // direction-independent tie-break, that single differing choice cascaded through the
+    // rest of the recursion and produced a materially different final shape depending on
+    // which region traced the edge first.
+    const chain = [
+      { x: 120, y: 38 }, { x: 119, y: 38 }, { x: 119, y: 39 }, { x: 118, y: 39 }, { x: 118, y: 38 },
+      { x: 117, y: 38 }, { x: 117, y: 39 }, { x: 115, y: 39 }, { x: 115, y: 40 }, { x: 111, y: 40 },
+      { x: 111, y: 39 }, { x: 108, y: 39 }, { x: 108, y: 40 }, { x: 98, y: 40 }, { x: 98, y: 39 },
+      { x: 92, y: 39 }, { x: 92, y: 40 }, { x: 85, y: 40 }, { x: 85, y: 41 }, { x: 82, y: 41 },
+      { x: 82, y: 40 }, { x: 81, y: 40 }, { x: 81, y: 38 }, { x: 78, y: 38 }, { x: 78, y: 39 },
+      { x: 77, y: 39 }, { x: 77, y: 40 }, { x: 69, y: 40 }, { x: 69, y: 41 }, { x: 68, y: 41 },
+      { x: 68, y: 40 }, { x: 61, y: 40 }, { x: 61, y: 39 }, { x: 60, y: 39 }, { x: 60, y: 40 },
+      { x: 57, y: 40 }, { x: 57, y: 41 }, { x: 53, y: 41 }, { x: 53, y: 40 }, { x: 49, y: 40 },
+      { x: 49, y: 41 }, { x: 45, y: 41 }, { x: 45, y: 40 }, { x: 36, y: 40 }, { x: 36, y: 39 },
+      { x: 31, y: 39 }, { x: 31, y: 40 }, { x: 28, y: 40 }, { x: 28, y: 39 }, { x: 27, y: 39 },
+      { x: 27, y: 40 }, { x: 25, y: 40 }, { x: 25, y: 41 }, { x: 23, y: 41 }, { x: 23, y: 40 },
+      { x: 15, y: 40 }, { x: 15, y: 41 }, { x: 13, y: 41 }, { x: 13, y: 40 }, { x: 12, y: 40 },
+      { x: 12, y: 39 }, { x: 9, y: 39 },
+    ];
+
+    const isAnchor = (point: { x: number; y: number }) =>
+      (point.x === 120 && point.y === 38) || (point.x === 9 && point.y === 39);
+
+    const loopA = [...chain, { x: 120, y: 60 }, { x: 9, y: 60 }, { x: 120, y: 38 }];
+    const loopB = [...[...chain].reverse(), { x: 9, y: 20 }, { x: 120, y: 20 }, { x: 9, y: 39 }];
+
+    const simplifiedA = simplifyClosedPolygon(loopA, isAnchor);
+    const simplifiedB = simplifyClosedPolygon(loopB, isAnchor);
+
+    // Each simplified loop is made of exactly two chains between the two anchors: the
+    // real shared staircase and this test's own closing route. Extract whichever slice
+    // stays within the staircase's y-range, normalized to start at (120,38).
+    const sharedEdgeOf = (loop: Array<{ x: number; y: number }>) => {
+      const cyclic = loop.slice(0, -1);
+      const startIndex = cyclic.findIndex((point) => point.x === 120 && point.y === 38);
+      const endIndex = cyclic.findIndex((point) => point.x === 9 && point.y === 39);
+      const lo = Math.min(startIndex, endIndex);
+      const hi = Math.max(startIndex, endIndex);
+      const forwardSlice = cyclic.slice(lo, hi + 1);
+      const wrapSlice = [...cyclic.slice(hi), ...cyclic.slice(0, lo + 1)];
+      const withinStaircaseRange = (point: { x: number; y: number }) => point.y >= 38 && point.y <= 41;
+      const chain = forwardSlice.every(withinStaircaseRange) ? forwardSlice : wrapSlice;
+      return chain[0]!.x === 120 && chain[0]!.y === 38 ? chain : chain.slice().reverse();
+    };
+
+    expect(sharedEdgeOf(simplifiedA)).toEqual(sharedEdgeOf(simplifiedB));
+  });
 });

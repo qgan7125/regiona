@@ -14,6 +14,17 @@ function perpendicularDistance(point: Point, start: Point, end: Point) {
   return cross / Math.sqrt(lengthSquared);
 }
 
+// Ties in perpendicular distance are common on regular staircases (several steps can sit
+// at the exact same deviation from the chord), and picking "whichever the scan reaches
+// first" is not symmetric under reversal - a chain and its exact mirror can then pick
+// different split points and recurse into different shapes entirely, even though the
+// physical boundary is identical. Breaking ties by point coordinates instead of scan order
+// keeps the split choice - and everything downstream of it - the same regardless of which
+// direction a shared edge happens to be traced from.
+function isEarlierTiebreak(candidate: Point, current: Point) {
+  return candidate.x < current.x || (candidate.x === current.x && candidate.y < current.y);
+}
+
 function douglasPeucker(points: Point[], tolerance: number): Point[] {
   if (points.length < 3) return points;
   const start = points[0]!;
@@ -22,8 +33,12 @@ function douglasPeucker(points: Point[], tolerance: number): Point[] {
   let maxDistance = 0;
   let splitIndex = 0;
   for (let index = 1; index < points.length - 1; index += 1) {
-    const distance = perpendicularDistance(points[index]!, start, end);
-    if (distance > maxDistance) {
+    const point = points[index]!;
+    const distance = perpendicularDistance(point, start, end);
+    if (
+      distance > maxDistance
+      || (distance === maxDistance && isEarlierTiebreak(point, points[splitIndex]!))
+    ) {
       maxDistance = distance;
       splitIndex = index;
     }
