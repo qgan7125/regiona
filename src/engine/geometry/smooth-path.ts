@@ -26,14 +26,25 @@ const round = (value: number) => Math.round(value * 100) / 100;
 // Fits a smooth closed curve through a simplified polygon using Catmull-Rom-derived
 // Bezier segments. Hard corners stay as straight line commands so genuine right angles
 // are not rounded off; gentler turns become curves.
-export function smoothClosedPolygonPath(points: Point[]): string {
+//
+// `isAnchor` marks points that must always be treated as hard corners - junctions shared
+// with other regions. The plain geometric angle test alone isn't enough there: two regions
+// meeting at the same junction usually approach it from different directions on their own
+// side, so the angle test can call it a corner on one side and a smooth point on the other,
+// making one side draw a straight line into the junction and the other a curve - an instant
+// gap right at the point both sides otherwise agree on. Forcing every anchor to be a hard
+// corner keeps that agreement extending to how the curve touches it, not just where.
+export function smoothClosedPolygonPath(
+  points: Point[],
+  isAnchor: (point: Point) => boolean = () => false,
+): string {
   const loop = points.slice(0, -1);
   const n = loop.length;
   if (n < 3) return "";
 
   const at = (index: number) => loop[((index % n) + n) % n]!;
   const corner = Array.from({ length: n }, (_, index) =>
-    isHardCorner(at(index - 1), at(index), at(index + 1)));
+    isAnchor(at(index)) || isHardCorner(at(index - 1), at(index), at(index + 1)));
 
   const commands = [`M ${round(at(0).x)} ${round(at(0).y)}`];
   for (let index = 0; index < n; index += 1) {

@@ -58,4 +58,25 @@ describe("smoothClosedPolygonPath", () => {
   it("returns an empty string for a degenerate (too-small) loop", () => {
     expect(smoothClosedPolygonPath([{ x: 0, y: 0 }, { x: 1, y: 1 }])).toBe("");
   });
+
+  it("forces anchor points to stay hard corners even when their angle reads as smooth", () => {
+    // Every vertex of this ring has a gentle 22.5 degree turn (see the test above), so
+    // without isAnchor every edge becomes a curve. Marking two adjacent vertices as
+    // anchors - as if they were junctions shared with another region - must make the edge
+    // between them straight, regardless of what the geometric angle test alone would decide.
+    const ring = regularPolygon(16, 10);
+    const anchorA = ring[0]!;
+    const anchorB = ring[1]!;
+    const isAnchor = (point: { x: number; y: number }) =>
+      (point.x === anchorA.x && point.y === anchorA.y)
+      || (point.x === anchorB.x && point.y === anchorB.y);
+
+    const path = smoothClosedPolygonPath(ring, isAnchor);
+    const commands = path.match(/[A-Z][^A-Z]*/g) ?? [];
+
+    // the edge from vertex 0 to vertex 1 is the first drawn command after "M"
+    expect(commands[1]?.startsWith("L")).toBe(true);
+    // every other edge is still a curve, unaffected by the two forced anchors
+    expect((path.match(/C /g) ?? []).length).toBe(15);
+  });
 });

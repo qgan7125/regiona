@@ -54,7 +54,7 @@ function simplifyLoop(points: Point[]) {
 function pointsToPath(points: Point[], isAnchor: (point: Point) => boolean) {
   const collinearSimplified = simplifyLoop(points);
   const polygon = simplifyClosedPolygon(collinearSimplified, isAnchor);
-  return smoothClosedPolygonPath(polygon);
+  return smoothClosedPolygonPath(polygon, isAnchor);
 }
 
 function traceEdges(edges: Edge[], isAnchor: (point: Point) => boolean) {

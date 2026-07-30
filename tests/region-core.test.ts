@@ -150,6 +150,32 @@ describe("traceRegionPaths", () => {
     const allNumbers = [regionOnePath!, regionTwoPath!].flatMap(extractNumbers);
     expect(allNumbers.every((value) => value >= -1 && value <= size + 1)).toBe(true);
   });
+
+  it("classifies a shared junction as a hard corner identically on both sides", () => {
+    // Three regions: 1 and 2 share the long diagonal used above, but 2 also borders a
+    // third region 3 tucked into its far corner. Region 2's own neighbor context at the
+    // junction (0,1)/(11,12)-style endpoint is therefore very different from region 1's -
+    // exactly the setup that exposed a corner-classification mismatch (one side drawing a
+    // straight line into the junction, the other a curve that bulges away from it).
+    const size = 20;
+    const labelMap = new Uint32Array(size * size);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        if (x + y < size - 1) labelMap[y * size + x] = 1;
+        else if (x > size - 4 && y > size - 4) labelMap[y * size + x] = 3;
+        else labelMap[y * size + x] = 2;
+      }
+    }
+
+    const allPaths = traceAllRegionPaths(labelMap, size, size, 3);
+    const [regionOnePath] = allPaths[0] ?? [];
+    const [regionTwoPath] = allPaths[1] ?? [];
+
+    // The shared diagonal is a straight run between two hard-corner junctions, so both
+    // regions should trace it as a plain straight edge - never a curve on either side.
+    expect(regionOnePath).not.toContain("C ");
+    expect(regionTwoPath).not.toContain("C ");
+  });
 });
 
 describe("exportEditableSvg", () => {
