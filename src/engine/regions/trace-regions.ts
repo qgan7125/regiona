@@ -1,3 +1,6 @@
+import { simplifyClosedPolygon } from "../geometry/simplify-polygon";
+import { smoothClosedPolygonPath } from "../geometry/smooth-path";
+
 interface Point {
   x: number;
   y: number;
@@ -49,21 +52,9 @@ function simplifyLoop(points: Point[]) {
 }
 
 function pointsToPath(points: Point[]) {
-  const simplified = simplifyLoop(points);
-  const start = simplified[0];
-  if (!start) return "";
-  const commands = [`M ${start.x} ${start.y}`];
-
-  for (let index = 1; index < simplified.length - 1; index += 1) {
-    const previous = simplified[index - 1]!;
-    const point = simplified[index]!;
-    if (point.y === previous.y) commands.push(`H ${point.x}`);
-    else if (point.x === previous.x) commands.push(`V ${point.y}`);
-    else commands.push(`L ${point.x} ${point.y}`);
-  }
-
-  commands.push("Z");
-  return commands.join(" ");
+  const collinearSimplified = simplifyLoop(points);
+  const polygon = simplifyClosedPolygon(collinearSimplified);
+  return smoothClosedPolygonPath(polygon);
 }
 
 function traceEdges(edges: Edge[]) {
