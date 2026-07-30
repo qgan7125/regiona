@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildRegions } from "../src/engine/regions/build-regions";
-import { traceRegionPaths } from "../src/engine/regions/trace-regions";
+import { traceAllRegionPaths, traceRegionPaths } from "../src/engine/regions/trace-regions";
 import { exportEditableSvg } from "../src/engine/svg/export-svg";
 
 describe("buildRegions", () => {
@@ -91,6 +91,90 @@ describe("traceRegionPaths", () => {
 
     expect(traced).toHaveLength(2);
     expect(traced.every((path) => path.endsWith("Z"))).toBe(true);
+  });
+
+  it("simplifies a diagonal split between two regions without leaving a gap", () => {
+    // A 12x12 grid split diagonally into exactly two regions - no third region anywhere,
+    // so the shared boundary's only anchors are the two points where it meets the image
+    // border (here (0,1) and (11,12), not the exact image corners).
+    const size = 12;
+    const labelMap = new Uint32Array(size * size);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        labelMap[y * size + x] = x < y ? 1 : 2;
+      }
+    }
+
+    const allPaths = traceAllRegionPaths(labelMap, size, size, 2);
+    const extractNumbers = (path: string) =>
+      (path.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+    const extractVertices = (path: string) => {
+      const tokens = path.match(/[A-Z][^A-Z]*/g) ?? [];
+      let x = 0;
+      let y = 0;
+      const points: Array<{ x: number; y: number }> = [];
+      for (const token of tokens) {
+        const numbers = token.slice(1).trim().split(/\s+/).filter(Boolean).map(Number);
+        if (token[0] === "M" || token[0] === "L") {
+          x = numbers[0] ?? x;
+          y = numbers[1] ?? y;
+        } else if (token[0] === "H") {
+          x = numbers[0] ?? x;
+        } else if (token[0] === "V") {
+          y = numbers[0] ?? y;
+        } else if (token[0] === "C") {
+          x = numbers[4] ?? x;
+          y = numbers[5] ?? y;
+        } else continue;
+        points.push({ x, y });
+      }
+      return points;
+    };
+
+    const [regionOnePath] = allPaths[0] ?? [];
+    const [regionTwoPath] = allPaths[1] ?? [];
+    const junctionA = { x: 0, y: 1 };
+    const junctionB = { x: 11, y: 12 };
+    const hasVertex = (path: string, point: { x: number; y: number }) =>
+      extractVertices(path).some((vertex) => vertex.x === point.x && vertex.y === point.y);
+
+    // Both regions independently detected and kept the exact same shared-boundary
+    // endpoints - the invariant that prevents the two sides from drifting apart.
+    expect(hasVertex(regionOnePath!, junctionA)).toBe(true);
+    expect(hasVertex(regionOnePath!, junctionB)).toBe(true);
+    expect(hasVertex(regionTwoPath!, junctionA)).toBe(true);
+    expect(hasVertex(regionTwoPath!, junctionB)).toBe(true);
+
+    // Regression guard for a non-uniform Catmull-Rom tangent bug where mismatched
+    // segment lengths sent control points wildly outside the image bounds.
+    const allNumbers = [regionOnePath!, regionTwoPath!].flatMap(extractNumbers);
+    expect(allNumbers.every((value) => value >= -1 && value <= size + 1)).toBe(true);
+  });
+
+  it("classifies a shared junction as a hard corner identically on both sides", () => {
+    // Three regions: 1 and 2 share the long diagonal used above, but 2 also borders a
+    // third region 3 tucked into its far corner. Region 2's own neighbor context at the
+    // junction (0,1)/(11,12)-style endpoint is therefore very different from region 1's -
+    // exactly the setup that exposed a corner-classification mismatch (one side drawing a
+    // straight line into the junction, the other a curve that bulges away from it).
+    const size = 20;
+    const labelMap = new Uint32Array(size * size);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        if (x + y < size - 1) labelMap[y * size + x] = 1;
+        else if (x > size - 4 && y > size - 4) labelMap[y * size + x] = 3;
+        else labelMap[y * size + x] = 2;
+      }
+    }
+
+    const allPaths = traceAllRegionPaths(labelMap, size, size, 3);
+    const [regionOnePath] = allPaths[0] ?? [];
+    const [regionTwoPath] = allPaths[1] ?? [];
+
+    // The shared diagonal is a straight run between two hard-corner junctions, so both
+    // regions should trace it as a plain straight edge - never a curve on either side.
+    expect(regionOnePath).not.toContain("C ");
+    expect(regionTwoPath).not.toContain("C ");
   });
 });
 

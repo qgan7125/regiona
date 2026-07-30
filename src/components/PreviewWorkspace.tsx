@@ -53,8 +53,9 @@ interface PreviewWorkspaceProps {
 function vectorSvg(result: ReconstructionResult) {
   const paths = result.regions
     .map(
+      // Same-color stroke papers over the WebGL anti-aliasing seam between adjacent shapes; preview-only, export stays stroke-free.
       (region) =>
-        `<path d="${region.pathData.join(" ")}" fill="${region.fill}" fill-opacity="${region.opacity}" fill-rule="evenodd" />`,
+        `<path d="${region.pathData.join(" ")}" fill="${region.fill}" fill-opacity="${region.opacity}" fill-rule="evenodd" stroke="${region.fill}" stroke-opacity="${region.opacity}" stroke-width="1" />`,
     )
     .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${result.width}" height="${result.height}" viewBox="0 0 ${result.width} ${result.height}">${paths}</svg>`;
