@@ -33,26 +33,41 @@ function chooseNextEdge(current: Edge, candidates: Edge[]) {
   })[0];
 }
 
-function simplifyLoop(points: Point[]) {
-  if (points.length <= 4) return points;
-  const simplified: Point[] = [points[0] ?? { x: 0, y: 0 }];
+// Junction points must survive this pass even when they happen to sit exactly on an
+// otherwise-straight run: this collinear check has no idea a point is a junction, so
+// without the isAnchor guard it could silently delete one before simplifyClosedPolygon
+// ever gets a chance to protect it, breaking the shared-edge guarantee it depends on.
+//
+// This treats the loop as truly cyclic: every point's keep/drop decision - including
+// whatever point happens to be first in the array - is checked against its own immediate
+// neighbors, with wraparound. A version that always pins points[0]/points[last] as
+// unconditionally kept would make that decision depend on wherever traceEdges happened to
+// start scanning, which is arbitrary and unrelated between two regions tracing the same
+// shared edge from opposite directions - each side would then exempt a different point
+// from simplification. Checking every point the same, uniform way keeps this symmetric.
+function simplifyLoop(points: Point[], isAnchor: (point: Point) => boolean) {
+  const loop = points.slice(0, -1);
+  const n = loop.length;
+  if (n <= 4) return points;
 
-  for (let index = 1; index < points.length - 1; index += 1) {
-    const previous = simplified[simplified.length - 1] ?? points[0]!;
-    const current = points[index]!;
-    const next = points[index + 1]!;
+  const at = (index: number) => loop[((index % n) + n) % n]!;
+  const kept: Point[] = [];
+  for (let index = 0; index < n; index += 1) {
+    const previous = at(index - 1);
+    const current = at(index);
+    const next = at(index + 1);
     const isCollinear =
       (previous.x === current.x && current.x === next.x) ||
       (previous.y === current.y && current.y === next.y);
-    if (!isCollinear) simplified.push(current);
+    if (!isCollinear || isAnchor(current)) kept.push(current);
   }
 
-  simplified.push(points[points.length - 1] ?? simplified[0]!);
-  return simplified;
+  if (kept.length < 3) return points;
+  return [...kept, kept[0]!];
 }
 
 function pointsToPath(points: Point[], isAnchor: (point: Point) => boolean) {
-  const collinearSimplified = simplifyLoop(points);
+  const collinearSimplified = simplifyLoop(points, isAnchor);
   const polygon = simplifyClosedPolygon(collinearSimplified, isAnchor);
   return smoothClosedPolygonPath(polygon, isAnchor);
 }

@@ -176,6 +176,58 @@ describe("traceRegionPaths", () => {
     expect(regionOnePath).not.toContain("C ");
     expect(regionTwoPath).not.toContain("C ");
   });
+
+  it("traces a tiny hole with no third neighbor identically from both sides", () => {
+    // A 3-pixel hole surrounded entirely by one other region: no junction exists anywhere
+    // on its boundary (only 2 labels ever meet there), so both sides fall back to picking
+    // their own arbitrary anchors. Regardless of that, the loop each side traces (a
+    // background region and the hole cut out of it) must still simplify to the exact same
+    // physical shape, just wound in opposite directions.
+    const size = 10;
+    const paletteIndexes = new Uint8Array(size * size).fill(0);
+    paletteIndexes[3 * size + 3] = 1;
+    paletteIndexes[3 * size + 4] = 1;
+    paletteIndexes[4 * size + 3] = 1;
+
+    const { labelMap, regions } = buildRegions(paletteIndexes, size, size, [
+      { id: "c0", hex: "#000000" },
+      { id: "c1", hex: "#ffffff" },
+    ]);
+
+    const allPaths = traceAllRegionPaths(labelMap, size, size, regions.length);
+    const holeSubpath = allPaths[0]?.[1];
+    const [holeRegionPath] = allPaths[1] ?? [];
+
+    const extractVertices = (path: string) => {
+      const tokens = path.match(/[A-Z][^A-Z]*/g) ?? [];
+      let x = 0;
+      let y = 0;
+      const points: Array<{ x: number; y: number }> = [];
+      for (const token of tokens) {
+        const numbers = token.slice(1).trim().split(/\s+/).filter(Boolean).map(Number);
+        if (token[0] === "M" || token[0] === "L") {
+          x = numbers[0] ?? x;
+          y = numbers[1] ?? y;
+        } else if (token[0] === "H") {
+          x = numbers[0] ?? x;
+        } else if (token[0] === "V") {
+          y = numbers[0] ?? y;
+        } else if (token[0] === "C") {
+          x = numbers[4] ?? x;
+          y = numbers[5] ?? y;
+        } else continue;
+        points.push({ x, y });
+      }
+      return points;
+    };
+
+    const holeVertices = extractVertices(holeSubpath ?? "");
+    const regionVertices = extractVertices(holeRegionPath ?? "");
+
+    expect(new Set(holeVertices.map((v) => `${v.x},${v.y}`)))
+      .toEqual(new Set(regionVertices.map((v) => `${v.x},${v.y}`)));
+    expect(holeVertices).toHaveLength(regionVertices.length);
+  });
 });
 
 describe("exportEditableSvg", () => {
