@@ -6,6 +6,7 @@ export interface ProcessImagePayload {
   height: number;
   targetColors: number;
   tinyRegionMaximumArea: number;
+  despeckleEnabled: boolean;
   sourceFilename: string;
 }
 

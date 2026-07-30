@@ -1,6 +1,8 @@
 import type { ChangeEvent } from "react";
 import Button from "@mui/material/Button";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Slider from "@mui/material/Slider";
+import Switch from "@mui/material/Switch";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 
@@ -20,11 +22,13 @@ interface UploadPanelProps {
   targetColors: number;
   regionSimplification: RegionSimplification;
   tinyRegionMaximumArea: number;
+  despeckleEnabled: boolean;
   palette: PaletteColor[];
   regionCount: number;
   busy: boolean;
   onTargetColorsChange: (value: number) => void;
   onRegionSimplificationChange: (value: RegionSimplification) => void;
+  onDespeckleEnabledChange: (value: boolean) => void;
   onRegenerate: () => void;
   onFile: (file: File) => void;
 }
@@ -39,11 +43,13 @@ export function UploadPanel({
   targetColors,
   regionSimplification,
   tinyRegionMaximumArea,
+  despeckleEnabled,
   palette,
   regionCount,
   busy,
   onTargetColorsChange,
   onRegionSimplificationChange,
+  onDespeckleEnabledChange,
   onRegenerate,
   onFile,
 }: UploadPanelProps) {
@@ -149,6 +155,19 @@ export function UploadPanel({
         </ToggleButtonGroup>
         <p className="helper-text">
           Merge low-contrast fragments while protecting strong original-image edges.
+        </p>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={despeckleEnabled}
+              disabled={busy}
+              onChange={(_event, checked) => onDespeckleEnabledChange(checked)}
+            />
+          }
+          label="Despeckle quantization noise"
+        />
+        <p className="helper-text">
+          Smooths away isolated single-pixel color noise before regions are built.
         </p>
         <Button
           className="regenerate-button"

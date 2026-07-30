@@ -64,6 +64,36 @@ describe("reconstructImage", () => {
     expect(result.regions).toHaveLength(1);
   });
 
+  it("leaves quantization noise alone when despeckle is explicitly disabled", () => {
+    const dark: [number, number, number, number] = [10, 10, 10, 255];
+    // Contrasty enough to survive the bilateral pre-filter and quantize into its
+    // own palette entry, but still below removeTinyPaletteRegions' edge threshold.
+    const speck: [number, number, number, number] = [30, 30, 30, 255];
+    const pixels = new Uint8ClampedArray(
+      [dark, dark, dark, dark, speck, dark, dark, dark, dark].flat(),
+    );
+
+    const withDespeckle = reconstructImage({
+      pixels,
+      width: 3,
+      height: 3,
+      targetColors: 3,
+      despeckleEnabled: true,
+      sourceFilename: "noise.png",
+    });
+    const withoutDespeckle = reconstructImage({
+      pixels,
+      width: 3,
+      height: 3,
+      targetColors: 3,
+      despeckleEnabled: false,
+      sourceFilename: "noise.png",
+    });
+
+    expect(withDespeckle.regions).toHaveLength(1);
+    expect(withoutDespeckle.regions).toHaveLength(2);
+  });
+
   it("keeps isolated high-contrast details when tiny-region cleanup is enabled", () => {
     const red: [number, number, number, number] = [255, 0, 0, 255];
     const blue: [number, number, number, number] = [0, 0, 255, 255];
