@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createOpenAiImageProvider,
   createOpenAiImageProviderWithClient,
+  createPngFileFromGeneratedImage,
   type OpenAiImageClient,
 } from "../src/ai/openai-image-provider";
 
@@ -75,5 +76,25 @@ describe("OpenAI image reconstruction provider", () => {
 
     await expect(provider.createCleanRedraw({ source: sourceImage }))
       .rejects.toThrow("OpenAI did not return a usable PNG image.");
+  });
+
+  it("converts a generated PNG into a safe file for the next edit stage", async () => {
+    const file = createPngFileFromGeneratedImage({
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      mimeType: "image/png",
+      model: "gpt-image-2",
+    }, "clean-redraw.png");
+
+    expect(file.name).toBe("clean-redraw.png");
+    expect(file.type).toBe("image/png");
+    await expect(file.text()).resolves.toBe("hello");
+  });
+
+  it("rejects a generated image with an invalid PNG data URL", () => {
+    expect(() => createPngFileFromGeneratedImage({
+      dataUrl: "data:text/html;base64,PHNjcmlwdD4=",
+      mimeType: "image/png",
+      model: "gpt-image-2",
+    }, "clean-redraw.png")).toThrow("usable PNG");
   });
 });

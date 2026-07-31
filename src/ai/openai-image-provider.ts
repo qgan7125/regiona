@@ -1,5 +1,3 @@
-import type OpenAI from "openai";
-
 const openAiImageModel = "gpt-image-2";
 const maximumSourceBytes = 20 * 1024 * 1024;
 const supportedImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -45,6 +43,21 @@ export interface OpenAiImageClient {
   images: {
     edit(request: OpenAiImageEditRequest): Promise<OpenAiImageEditResponse>;
   };
+}
+
+export function createPngFileFromGeneratedImage(
+  image: AiGeneratedImage,
+  filename: string,
+): File {
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/]*={0,2})$/.exec(image.dataUrl);
+  const base64 = match?.[1];
+  if (!base64 || !base64Pattern.test(base64)) {
+    throw new Error("The generated image does not contain a usable PNG.");
+  }
+
+  const decoded = atob(base64);
+  const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+  return new File([bytes], filename, { type: image.mimeType });
 }
 
 export async function createOpenAiImageProvider(apiKey: string): Promise<ImageReconstructionProvider> {

@@ -2,6 +2,7 @@ import { type SetStateAction, useCallback, useEffect, useRef, useState } from "r
 
 import {
   createOpenAiImageProvider,
+  createPngFileFromGeneratedImage,
   type AiGeneratedImage,
 } from "../ai/openai-image-provider";
 import { loadOpenAiApiKey } from "../ai/openai-key-store";
@@ -76,8 +77,9 @@ export function App() {
   const [error, setError] = useState<string>();
   const [isOpenAiSettingsOpen, setIsOpenAiSettingsOpen] = useState(false);
   const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
+  const [colorReconstruction, setColorReconstruction] = useState<AiGeneratedImage>();
   const [aiError, setAiError] = useState<string>();
-  const [isGeneratingCleanRedraw, setIsGeneratingCleanRedraw] = useState(false);
+  const [aiGenerationStage, setAiGenerationStage] = useState<"redraw" | "color">();
 
   useEffect(() => {
     const worker = new ReconstructionWorkerClient();
@@ -95,7 +97,7 @@ export function App() {
   );
 
   const localBusy = status === "decoding" || status === "processing";
-  const busy = localBusy || isGeneratingCleanRedraw;
+  const busy = localBusy || Boolean(aiGenerationStage);
 
   const resetSelectionHistory = useCallback(() => {
     selectedRegionIdsRef.current = [];
@@ -228,6 +230,7 @@ export function App() {
       setPickedColors([]);
       resetSelectionHistory();
       setCleanRedraw(undefined);
+      setColorReconstruction(undefined);
       setAiError(undefined);
     } catch (cause) {
       setStatus("error");
@@ -339,13 +342,14 @@ export function App() {
     }
 
     setAiError(undefined);
-    setIsGeneratingCleanRedraw(true);
+    setAiGenerationStage("redraw");
     try {
       const provider = await createOpenAiImageProvider(apiKey);
       const generated = await provider.createCleanRedraw({
         source: source.file,
       });
       setCleanRedraw(generated);
+      setColorReconstruction(undefined);
     } catch (cause) {
       setAiError(
         cause instanceof Error
@@ -353,7 +357,38 @@ export function App() {
           : "Could not generate a clean redraw. Please try again.",
       );
     } finally {
-      setIsGeneratingCleanRedraw(false);
+      setAiGenerationStage(undefined);
+    }
+  };
+
+  const handleReconstructColors = async () => {
+    if (!source || !cleanRedraw || busy) return;
+
+    const { apiKey } = loadOpenAiApiKey();
+    if (!apiKey) {
+      setAiError("Add your OpenAI API key in settings before reconstructing colors.");
+      setIsOpenAiSettingsOpen(true);
+      return;
+    }
+
+    setAiError(undefined);
+    setAiGenerationStage("color");
+    try {
+      const provider = await createOpenAiImageProvider(apiKey);
+      const generated = await provider.reconstructColors({
+        original: source.file,
+        cleanRedraw: createPngFileFromGeneratedImage(cleanRedraw, "regiona-clean-redraw.png"),
+        palette: result?.palette.map((color) => color.hex),
+      });
+      setColorReconstruction(generated);
+    } catch (cause) {
+      setAiError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not reconstruct colors. Please try again.",
+      );
+    } finally {
+      setAiGenerationStage(undefined);
     }
   };
 
@@ -395,8 +430,12 @@ export function App() {
   return (
     <div className="app-shell">
       <AppHeader
-        status={isGeneratingCleanRedraw ? "processing" : status}
-        statusText={isGeneratingCleanRedraw ? "Generating AI clean redraw" : statusText}
+        status={aiGenerationStage ? "processing" : status}
+        statusText={aiGenerationStage === "color"
+          ? "Applying original colors to AI redraw"
+          : aiGenerationStage === "redraw"
+            ? "Generating AI clean redraw"
+            : statusText}
         canExport={Boolean(result)}
         onOpenSettings={() => setIsOpenAiSettingsOpen(true)}
         onExportProject={() => {
@@ -450,6 +489,8 @@ export function App() {
           regionCount={result?.regions.length ?? 0}
           busy={busy}
           cleanRedraw={cleanRedraw}
+          colorReconstruction={colorReconstruction}
+          aiGenerationStage={aiGenerationStage}
           aiError={aiError}
           onTargetColorsChange={setTargetColors}
           onRegionSimplificationChange={setRegionSimplification}
@@ -457,6 +498,7 @@ export function App() {
           onRegenerate={handleRegenerate}
           onFile={handleFile}
           onGenerateCleanRedraw={() => void handleGenerateCleanRedraw()}
+          onReconstructColors={() => void handleReconstructColors()}
           onOpenAiSettings={() => setIsOpenAiSettingsOpen(true)}
         />
         <PreviewWorkspace

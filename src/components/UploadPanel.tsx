@@ -28,6 +28,8 @@ interface UploadPanelProps {
   regionCount: number;
   busy: boolean;
   cleanRedraw?: AiGeneratedImage;
+  colorReconstruction?: AiGeneratedImage;
+  aiGenerationStage?: "redraw" | "color";
   aiError?: string;
   onTargetColorsChange: (value: number) => void;
   onRegionSimplificationChange: (value: RegionSimplification) => void;
@@ -35,6 +37,7 @@ interface UploadPanelProps {
   onRegenerate: () => void;
   onFile: (file: File) => void;
   onGenerateCleanRedraw: () => void;
+  onReconstructColors: () => void;
   onOpenAiSettings: () => void;
 }
 
@@ -53,6 +56,8 @@ export function UploadPanel({
   regionCount,
   busy,
   cleanRedraw,
+  colorReconstruction,
+  aiGenerationStage,
   aiError,
   onTargetColorsChange,
   onRegionSimplificationChange,
@@ -60,6 +65,7 @@ export function UploadPanel({
   onRegenerate,
   onFile,
   onGenerateCleanRedraw,
+  onReconstructColors,
   onOpenAiSettings,
 }: UploadPanelProps) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -132,7 +138,16 @@ export function UploadPanel({
           onClick={onGenerateCleanRedraw}
           variant="outlined"
         >
-          {busy ? "Generating clean redrawâ€¦" : "Generate clean redraw"}
+          {aiGenerationStage === "redraw" ? "Generating clean redrawâ€¦" : "Generate clean redraw"}
+        </Button>
+        <Button
+          className="ai-redraw-button"
+          disabled={!cleanRedraw || busy}
+          fullWidth
+          onClick={onReconstructColors}
+          variant="outlined"
+        >
+          {aiGenerationStage === "color" ? "Applying original colorsâ€¦" : "Apply original colors"}
         </Button>
         <Button
           className="ai-settings-link"
@@ -150,6 +165,15 @@ export function UploadPanel({
             <figcaption>
               <span>Clean redraw ready</span>
               <a download="regiona-clean-redraw.png" href={cleanRedraw.dataUrl}>Download PNG</a>
+            </figcaption>
+          </figure>
+        ) : null}
+        {colorReconstruction ? (
+          <figure className="ai-redraw-preview">
+            <img alt="Generated color reconstruction preview" src={colorReconstruction.dataUrl} />
+            <figcaption>
+              <span>Color reconstruction ready</span>
+              <a download="regiona-color-reconstruction.png" href={colorReconstruction.dataUrl}>Download PNG</a>
             </figcaption>
           </figure>
         ) : null}
