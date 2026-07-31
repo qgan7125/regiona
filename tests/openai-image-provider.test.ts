@@ -80,6 +80,30 @@ describe("OpenAI image reconstruction provider", () => {
       .rejects.toThrow("OpenAI did not return a usable PNG image.");
   });
 
+  it("explains when the key lacks GPT Image access without exposing the provider response", async () => {
+    const { client } = createClient();
+    client.images.edit = vi.fn().mockRejectedValue({
+      status: 403,
+      message: "This must never reach the user interface.",
+    });
+    const provider = createOpenAiImageProviderWithClient(client);
+
+    await expect(provider.createCleanRedraw({ source: sourceImage }))
+      .rejects.toThrow("OpenAI denied GPT Image access (HTTP 403). Complete organization verification");
+  });
+
+  it("reports an image request rejection by status without leaking provider details", async () => {
+    const { client } = createClient();
+    client.images.edit = vi.fn().mockRejectedValue({
+      status: 400,
+      message: "This must never reach the user interface.",
+    });
+    const provider = createOpenAiImageProviderWithClient(client);
+
+    await expect(provider.createCleanRedraw({ source: sourceImage }))
+      .rejects.toThrow("OpenAI rejected this image request (HTTP 400).");
+  });
+
   it("converts a generated PNG into a safe file for the next edit stage", async () => {
     const file = createPngFileFromGeneratedImage({
       dataUrl: "data:image/png;base64,aGVsbG8=",

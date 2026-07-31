@@ -128,8 +128,8 @@ async function requestImageEdit(
       output_format: "png",
       quality: "low",
     });
-  } catch {
-    throw new Error("OpenAI could not generate a reconstruction. Check your API key, connection, and account access.");
+  } catch (cause) {
+    throw new Error(openAiImageErrorMessage(readHttpStatus(cause)), { cause });
   }
 
   const base64 = response.data?.[0]?.b64_json;
@@ -142,6 +142,27 @@ async function requestImageEdit(
     mimeType: "image/png",
     model: openAiImageModel,
   };
+}
+
+function readHttpStatus(cause: unknown): number | undefined {
+  if (!cause || typeof cause !== "object") return undefined;
+  const status = (cause as { status?: unknown }).status;
+  return typeof status === "number" && Number.isInteger(status) ? status : undefined;
+}
+
+function openAiImageErrorMessage(status: number | undefined): string {
+  switch (status) {
+    case 400:
+      return "OpenAI rejected this image request (HTTP 400). Confirm that the image is a valid PNG, JPEG, or WebP and try again.";
+    case 401:
+      return "OpenAI rejected this API key for image generation (HTTP 401). Save the key again and retry.";
+    case 403:
+      return "OpenAI denied GPT Image access (HTTP 403). Complete organization verification in the OpenAI developer console, then retry.";
+    case 429:
+      return "OpenAI is rate-limiting image generation (HTTP 429). Wait a moment, then retry.";
+    default:
+      return "OpenAI could not generate a reconstruction. Check your connection and account access.";
+  }
 }
 
 function assertSupportedSource(source: File) {
