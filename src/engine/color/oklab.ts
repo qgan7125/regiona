@@ -16,13 +16,21 @@ function linearToSrgbByte(linear: number) {
   return Math.max(0, Math.min(255, Math.round(c * 255)));
 }
 
+const toByte = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+
 // Perceptually uniform color space (Björn Ottosson, 2020): Euclidean distance here tracks
 // how different two colors look far better than raw RGB distance, which over-weights green
 // and under-weights blue relative to human perception.
+//
+// Channels are rounded/clamped to a byte before the lookup table read: SRGB_TO_LINEAR is a
+// fixed-size array indexed 0-255, and indexing a typed array with a non-integer or
+// out-of-range key silently returns undefined rather than throwing - a caller passing an
+// interpolated color (e.g. from bilinear sampling) would otherwise get {l:0,a:0,b:0} (pure
+// black) back with no error at all.
 export function rgbToOklab(r: number, g: number, b: number): Oklab {
-  const lr = SRGB_TO_LINEAR[r] ?? 0;
-  const lg = SRGB_TO_LINEAR[g] ?? 0;
-  const lb = SRGB_TO_LINEAR[b] ?? 0;
+  const lr = SRGB_TO_LINEAR[toByte(r)] ?? 0;
+  const lg = SRGB_TO_LINEAR[toByte(g)] ?? 0;
+  const lb = SRGB_TO_LINEAR[toByte(b)] ?? 0;
 
   const l = 0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb;
   const m = 0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb;

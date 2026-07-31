@@ -1,5 +1,6 @@
 import { simplifyClosedPolygon } from "../geometry/simplify-polygon";
 import { smoothClosedPolygonPath } from "../geometry/smooth-path";
+import { refineClosedPolygonSubpixel } from "../geometry/subpixel-refine";
 
 interface Point {
   x: number;
@@ -66,13 +67,26 @@ function simplifyLoop(points: Point[], isAnchor: (point: Point) => boolean) {
   return [...kept, kept[0]!];
 }
 
-function pointsToPath(points: Point[], isAnchor: (point: Point) => boolean) {
+function pointsToPath(
+  points: Point[],
+  isAnchor: (point: Point) => boolean,
+  sourcePixels: Uint8ClampedArray | undefined,
+  width: number,
+  height: number,
+) {
   const collinearSimplified = simplifyLoop(points, isAnchor);
   const polygon = simplifyClosedPolygon(collinearSimplified, isAnchor);
-  return smoothClosedPolygonPath(polygon, isAnchor);
+  const refined = refineClosedPolygonSubpixel(polygon, sourcePixels, width, height, isAnchor);
+  return smoothClosedPolygonPath(refined, isAnchor);
 }
 
-function traceEdges(edges: Edge[], isAnchor: (point: Point) => boolean) {
+function traceEdges(
+  edges: Edge[],
+  isAnchor: (point: Point) => boolean,
+  sourcePixels: Uint8ClampedArray | undefined,
+  width: number,
+  height: number,
+) {
   const outgoing = new Map<string, Edge[]>();
   for (const edge of edges) {
     const key = pointKey(edge.start);
@@ -104,7 +118,7 @@ function traceEdges(edges: Edge[], isAnchor: (point: Point) => boolean) {
       guard += 1;
     }
 
-    const path = pointsToPath(points, isAnchor);
+    const path = pointsToPath(points, isAnchor, sourcePixels, width, height);
     if (path) paths.push(path);
   }
 
@@ -154,6 +168,7 @@ export function traceAllRegionPaths(
   width: number,
   height: number,
   regionCount: number,
+  sourcePixels?: Uint8ClampedArray,
 ): string[][] {
   if (labelMap.length !== width * height) {
     throw new Error("Label map dimensions are invalid.");
@@ -184,7 +199,7 @@ export function traceAllRegionPaths(
   }
 
   const isAnchor = buildJunctionLookup(labelMap, width, height);
-  return regionEdges.map((edges) => traceEdges(edges, isAnchor));
+  return regionEdges.map((edges) => traceEdges(edges, isAnchor, sourcePixels, width, height));
 }
 
 export function traceRegionPaths(
@@ -192,6 +207,7 @@ export function traceRegionPaths(
   width: number,
   height: number,
   regionNumber: number,
+  sourcePixels?: Uint8ClampedArray,
 ): string[] {
   let maximumLabel = regionNumber;
   for (const label of labelMap) maximumLabel = Math.max(maximumLabel, label);
@@ -200,6 +216,7 @@ export function traceRegionPaths(
     width,
     height,
     maximumLabel,
+    sourcePixels,
   );
   return allPaths[regionNumber - 1] ?? [];
 }

@@ -106,6 +106,7 @@ export function reconstructImage(
     input.width,
     input.height,
     regions.length,
+    input.pixels,
   );
   const tracedRegions = regions.map((region, index) => ({
     ...region,

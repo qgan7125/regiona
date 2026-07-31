@@ -32,4 +32,20 @@ describe("oklab conversion", () => {
 
     expect(oklabDistanceSquared(white, green)).toBeLessThan(oklabDistanceSquared(white, blue));
   });
+
+  it("handles fractional and out-of-range channel values sanely instead of silently zeroing", () => {
+    // SRGB_TO_LINEAR is a fixed lookup table indexed 0-255; indexing it with a non-integer
+    // key (e.g. a bilinearly-interpolated sample) silently returns undefined rather than
+    // throwing, which previously fell through to {l:0,a:0,b:0} - pure black - for any
+    // fractional input, corrupting every caller that samples non-integer pixel positions.
+    const wholeNumber = rgbToOklab(181, 181, 181);
+    const fractional = rgbToOklab(181.4, 181.4, 181.4);
+
+    expect(fractional.l).toBeGreaterThan(0);
+    expect(Math.abs(fractional.l - wholeNumber.l)).toBeLessThan(0.01);
+
+    const outOfRange = rgbToOklab(-5, 260, 181.4);
+    expect(Number.isFinite(outOfRange.l)).toBe(true);
+    expect(outOfRange.l).toBeGreaterThan(0);
+  });
 });

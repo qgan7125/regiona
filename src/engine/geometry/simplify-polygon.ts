@@ -25,6 +25,47 @@ function isEarlierTiebreak(candidate: Point, current: Point) {
   return candidate.x < current.x || (candidate.x === current.x && candidate.y < current.y);
 }
 
+function comparePoints(a: Point, b: Point) {
+  return a.x - b.x || a.y - b.y;
+}
+
+// Finds the two points farthest apart in a loop - a purely geometric property of the point
+// set, independent of scan order or wherever in the array the loop happens to start. Used
+// as a fallback anchor pair when no junction-based anchors exist: a small region fully
+// enclosed by just one other region (a hole with no third region and no image-border
+// contact) has no natural junction anywhere on its boundary, so both sides tracing that
+// boundary would otherwise fall back to an arbitrary index-based split - which, same as
+// Douglas-Peucker's own tie-breaking, is not symmetric under reversal, since each side's
+// array happens to start at a different physical point. The two farthest-apart points are
+// the same regardless of where the array starts, so both sides agree on this fallback pair
+// too. Ties (common for symmetric shapes) are broken by comparing point coordinates, not
+// array position, for the same reason.
+function findFarthestIndexes(loop: Point[]): [number, number] {
+  let bestI = 0;
+  let bestJ = Math.min(1, loop.length - 1);
+  let bestDistance = -1;
+
+  for (let i = 0; i < loop.length; i += 1) {
+    for (let j = i + 1; j < loop.length; j += 1) {
+      const dx = loop[i]!.x - loop[j]!.x;
+      const dy = loop[i]!.y - loop[j]!.y;
+      const distance = dx * dx + dy * dy;
+      if (distance < bestDistance) continue;
+
+      const [a1, a2] = comparePoints(loop[i]!, loop[j]!) <= 0 ? [loop[i]!, loop[j]!] : [loop[j]!, loop[i]!];
+      const [b1, b2] = comparePoints(loop[bestI]!, loop[bestJ]!) <= 0 ? [loop[bestI]!, loop[bestJ]!] : [loop[bestJ]!, loop[bestI]!];
+      const tieOrder = comparePoints(a1, b1) || comparePoints(a2, b2);
+      if (distance > bestDistance || tieOrder < 0) {
+        bestDistance = distance;
+        bestI = i;
+        bestJ = j;
+      }
+    }
+  }
+
+  return [bestI, bestJ];
+}
+
 function douglasPeucker(points: Point[], tolerance: number): Point[] {
   if (points.length < 3) return points;
   const start = points[0]!;
@@ -78,7 +119,7 @@ export function simplifyClosedPolygon(
     if (isAnchor(point)) found.push(index);
     return found;
   }, []);
-  if (anchorIndexes.length < 2) anchorIndexes = [0, Math.floor(n / 2)];
+  if (anchorIndexes.length < 2) anchorIndexes = findFarthestIndexes(loop);
 
   const merged: Point[] = [];
   for (let anchor = 0; anchor < anchorIndexes.length; anchor += 1) {

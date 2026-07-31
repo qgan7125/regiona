@@ -2,6 +2,24 @@ import { describe, expect, it } from "vitest";
 
 import { simplifyClosedPolygon } from "../src/engine/geometry/simplify-polygon";
 
+// Rotates a closed loop (first point repeated at the end) so it starts at its
+// lexicographically smallest point, for order-independent shape comparisons - which
+// anchor pair simplification picks first is an implementation detail, not part of the
+// contract; what matters is the resulting shape.
+function normalizeRotation(loop: Array<{ x: number; y: number }>) {
+  const cyclic = loop.slice(0, -1);
+  let startIndex = 0;
+  for (let index = 1; index < cyclic.length; index += 1) {
+    const candidate = cyclic[index]!;
+    const current = cyclic[startIndex]!;
+    if (candidate.x < current.x || (candidate.x === current.x && candidate.y < current.y)) {
+      startIndex = index;
+    }
+  }
+  const rotated = [...cyclic.slice(startIndex), ...cyclic.slice(0, startIndex)];
+  return [...rotated, rotated[0]!];
+}
+
 describe("simplifyClosedPolygon", () => {
   it("leaves an already-simple rectangle untouched", () => {
     const rectangle = [
@@ -36,7 +54,7 @@ describe("simplifyClosedPolygon", () => {
     const simplified = simplifyClosedPolygon(points);
 
     expect(simplified.length).toBeLessThan(points.length / 2);
-    expect(simplified[0]).toEqual({ x: 0, y: 0 });
+    expect(simplified.some((point) => point.x === 0 && point.y === 0)).toBe(true);
     expect(simplified.some((point) => point.x === 10 && point.y === 0)).toBe(true);
     expect(simplified.some((point) => point.x === 0 && point.y === 10)).toBe(true);
     expect(simplified[simplified.length - 1]).toEqual(simplified[0]);
@@ -53,7 +71,7 @@ describe("simplifyClosedPolygon", () => {
       { x: 0, y: 0 },
     ];
 
-    expect(simplifyClosedPolygon(lShape)).toEqual(lShape);
+    expect(normalizeRotation(simplifyClosedPolygon(lShape))).toEqual(normalizeRotation(lShape));
   });
 
   it("simplifies a shared staircase edge identically for both regions that trace it", () => {
@@ -167,5 +185,40 @@ describe("simplifyClosedPolygon", () => {
     };
 
     expect(sharedEdgeOf(simplifiedA)).toEqual(sharedEdgeOf(simplifiedB));
+  });
+
+  it("agrees on a fallback anchor pair for a fully enclosed hole with no junction anywhere", () => {
+    // A small region entirely surrounded by just one other region (e.g. an eye inside a
+    // face) has no 3-way junction and no image-border contact anywhere on its boundary, so
+    // simplifyClosedPolygon must fall back to a scan-order-independent anchor choice. The
+    // outer region traces this hole's boundary starting from one arbitrary point (wherever
+    // its own pixel scan first touched it); the inner region traces its own outer boundary
+    // starting from a different arbitrary point. Both are the exact same physical loop,
+    // just rotated to a different starting index - simplification must agree regardless.
+    const radius = 12;
+    const loop: Array<{ x: number; y: number }> = [];
+    const steps = 40;
+    for (let index = 0; index < steps; index += 1) {
+      const angle = (index / steps) * 2 * Math.PI;
+      loop.push({
+        x: Math.round(radius + radius * Math.cos(angle)),
+        y: Math.round(radius + radius * Math.sin(angle)),
+      });
+    }
+    const closedLoop = [...loop, loop[0]!];
+
+    const rotate = (source: Array<{ x: number; y: number }>, offset: number) => {
+      const cyclic = source.slice(0, -1);
+      const n = cyclic.length;
+      const rotated = Array.from({ length: n }, (_, index) => cyclic[(index + offset) % n]!);
+      return [...rotated, rotated[0]!];
+    };
+
+    // No isAnchor function passed - this loop has zero real junctions, forcing the
+    // fallback path for both "regions".
+    const simplifiedFromStart = simplifyClosedPolygon(rotate(closedLoop, 0));
+    const simplifiedFromOffset = simplifyClosedPolygon(rotate(closedLoop, 17));
+
+    expect(normalizeRotation(simplifiedFromStart)).toEqual(normalizeRotation(simplifiedFromOffset));
   });
 });
