@@ -4,7 +4,7 @@ import type {
 } from "./openai-image-provider";
 
 const geminiImageModel = "gemini-3.1-flash-image";
-const geminiInteractionsUrl = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const geminiGenerateContentUrl = `https://generativelanguage.googleapis.com/v1/models/${geminiImageModel}:generateContent`;
 const maximumSourceBytes = 20 * 1024 * 1024;
 const supportedImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
 const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
@@ -12,22 +12,27 @@ const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
-interface GeminiImageInput {
-  type: "image";
+interface GeminiInlineData {
   data: string;
   mime_type: string;
 }
 
-interface GeminiTextInput {
-  type: "text";
-  text: string;
+interface GeminiContentPart {
+  text?: string;
+  inline_data?: GeminiInlineData;
 }
 
-interface GeminiInteractionResponse {
-  output_image?: {
-    data?: string;
-    mime_type?: string;
-  };
+interface GeminiGenerateContentResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        inlineData?: {
+          data?: string;
+          mimeType?: string;
+        };
+      }>;
+    };
+  }>;
 }
 
 export function createGeminiImageProvider(
@@ -43,8 +48,8 @@ export function createGeminiImageProvider(
       return requestGeminiImage({
         apiKey: normalizedKey,
         fetcher,
-        input: [
-          { type: "text", text: cleanRedrawPrompt },
+        parts: [
+          { text: cleanRedrawPrompt },
           await toGeminiImageInput(source),
         ],
       });
@@ -55,8 +60,8 @@ export function createGeminiImageProvider(
       return requestGeminiImage({
         apiKey: normalizedKey,
         fetcher,
-        input: [
-          { type: "text", text: colorReconstructionPrompt(normalizePalette(palette)) },
+        parts: [
+          { text: colorReconstructionPrompt(normalizePalette(palette)) },
           await toGeminiImageInput(cleanRedraw),
           await toGeminiImageInput(original),
         ],
@@ -89,24 +94,23 @@ function colorReconstructionPrompt(palette: readonly string[]) {
 async function requestGeminiImage({
   apiKey,
   fetcher,
-  input,
+  parts,
 }: {
   apiKey: string;
   fetcher: FetchLike;
-  input: Array<GeminiTextInput | GeminiImageInput>;
+  parts: GeminiContentPart[];
 }): Promise<AiGeneratedImage> {
   let response: Response;
   try {
-    response = await fetcher(geminiInteractionsUrl, {
+    response = await fetcher(geminiGenerateContentUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
-        model: geminiImageModel,
-        input,
-        response_format: { type: "image", mime_type: "image/png" },
+        contents: [{ parts }],
+        generationConfig: { responseModalities: ["IMAGE"] },
       }),
     });
   } catch (cause) {
@@ -117,14 +121,16 @@ async function requestGeminiImage({
     throw new Error(geminiImageErrorMessage(response.status));
   }
 
-  let body: GeminiInteractionResponse;
+  let body: GeminiGenerateContentResponse;
   try {
-    body = await response.json() as GeminiInteractionResponse;
+    body = await response.json() as GeminiGenerateContentResponse;
   } catch (cause) {
     throw new Error("Gemini did not return a usable PNG image.", { cause });
   }
 
-  const base64 = body.output_image?.data;
+  const base64 = body.candidates?.[0]?.content?.parts
+    ?.find((part) => part.inlineData?.mimeType === "image/png")
+    ?.inlineData?.data;
   if (!base64 || !base64Pattern.test(base64)) {
     throw new Error("Gemini did not return a usable PNG image.");
   }
@@ -136,11 +142,12 @@ async function requestGeminiImage({
   };
 }
 
-async function toGeminiImageInput(source: File): Promise<GeminiImageInput> {
+async function toGeminiImageInput(source: File): Promise<GeminiContentPart> {
   return {
-    type: "image",
-    data: bytesToBase64(new Uint8Array(await source.arrayBuffer())),
-    mime_type: source.type,
+    inline_data: {
+      data: bytesToBase64(new Uint8Array(await source.arrayBuffer())),
+      mime_type: source.type,
+    },
   };
 }
 

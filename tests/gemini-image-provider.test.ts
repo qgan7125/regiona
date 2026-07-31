@@ -7,10 +7,16 @@ const cleanRedraw = new File(["redraw"], "redraw.png", { type: "image/png" });
 
 function successfulGeminiResponse() {
   return new Response(JSON.stringify({
-    output_image: {
-      data: "aGVsbG8=",
-      mime_type: "image/png",
-    },
+    candidates: [{
+      content: {
+        parts: [{
+          inlineData: {
+            data: "aGVsbG8=",
+            mimeType: "image/png",
+          },
+        }],
+      },
+    }],
   }), { status: 200 });
 }
 
@@ -20,7 +26,7 @@ describe("Gemini image reconstruction provider", () => {
       .toThrow("A Gemini API key is required.");
   });
 
-  it("sends the source image to Gemini's native image editing endpoint", async () => {
+  it("sends the source image to Gemini's standard image editing endpoint", async () => {
     const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse());
     const provider = createGeminiImageProvider("gemini-user-key", fetcher);
 
@@ -31,7 +37,7 @@ describe("Gemini image reconstruction provider", () => {
     });
 
     expect(fetcher).toHaveBeenCalledWith(
-      "https://generativelanguage.googleapis.com/v1beta/interactions",
+      "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-image:generateContent",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -41,14 +47,12 @@ describe("Gemini image reconstruction provider", () => {
       }),
     );
     const request = JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string) as {
-      model: string;
-      input: Array<{ type: string; data?: string; mime_type?: string }>;
-      response_format: { type: string; mime_type: string };
+      contents: Array<{ parts: Array<{ inline_data?: { data: string; mime_type: string } }> }>;
+      generationConfig: { responseModalities: string[] };
     };
-    expect(request.model).toBe("gemini-3.1-flash-image");
-    expect(request.response_format).toEqual({ type: "image", mime_type: "image/png" });
-    expect(request.input).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "image", data: "c291cmNl", mime_type: "image/png" }),
+    expect(request.generationConfig).toEqual({ responseModalities: ["IMAGE"] });
+    expect(request.contents[0]?.parts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ inline_data: { data: "c291cmNl", mime_type: "image/png" } }),
     ]));
   });
 
@@ -63,11 +67,11 @@ describe("Gemini image reconstruction provider", () => {
     });
 
     const request = JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string) as {
-      input: Array<{ type: string; data?: string }>;
+      contents: Array<{ parts: Array<{ inline_data?: { data: string } }> }>;
     };
-    expect(request.input.filter((item) => item.type === "image")).toEqual([
-      expect.objectContaining({ data: "cmVkcmF3" }),
-      expect.objectContaining({ data: "c291cmNl" }),
+    expect(request.contents[0]?.parts.filter((part) => part.inline_data)).toEqual([
+      expect.objectContaining({ inline_data: expect.objectContaining({ data: "cmVkcmF3" }) }),
+      expect.objectContaining({ inline_data: expect.objectContaining({ data: "c291cmNl" }) }),
     ]);
   });
 
@@ -82,7 +86,7 @@ describe("Gemini image reconstruction provider", () => {
   });
 
   it("rejects an image response without usable PNG data", async () => {
-    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output_image: {} }), {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [] }), {
       status: 200,
     }));
     const provider = createGeminiImageProvider("gemini-user-key", fetcher);
