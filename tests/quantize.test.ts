@@ -58,6 +58,27 @@ describe("quantizeImage", () => {
     ).toBe(true);
   });
 
+  it("reserves palette entries for distinct colors instead of spending them on a dominant gradient", () => {
+    const blueGradient = Array.from({ length: 12 }, (_, index) => (
+      Array.from({ length: 40 }, () => [20, 50 + index * 8, 120 + index * 8, 255]).flat()
+    )).flat();
+    const pixels = new Uint8ClampedArray([
+      ...blueGradient,
+      ...Array.from({ length: 20 }, () => [220, 45, 40, 255]).flat(),
+      ...Array.from({ length: 20 }, () => [35, 190, 70, 255]).flat(),
+      ...Array.from({ length: 20 }, () => [245, 215, 40, 255]).flat(),
+      ...Array.from({ length: 20 }, () => [25, 25, 30, 255]).flat(),
+    ]);
+
+    const result = quantizeImage(pixels, 5);
+
+    expect(result.palette.some((color) => color.rgba[0] > color.rgba[1] * 1.5)).toBe(true);
+    expect(result.palette.some((color) => color.rgba[1] > color.rgba[0] * 1.5)).toBe(true);
+    expect(result.palette.some((color) => color.rgba[0] > 180 && color.rgba[1] > 160 && color.rgba[2] < 100)).toBe(true);
+    expect(result.palette.some((color) => Math.max(...color.rgba.slice(0, 3)) < 70)).toBe(true);
+    expect(result.palette.some((color) => color.rgba[2] > color.rgba[0] * 2)).toBe(true);
+  });
+
   it("clusters colors by perceptual distance, not raw RGB distance", () => {
     // White is much closer to green than to blue perceptually (OKLab), even though raw
     // RGB distance treats the two as exactly equidistant from white. Quantizing to 2

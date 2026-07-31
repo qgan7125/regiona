@@ -94,6 +94,22 @@ interface PaletteCenter {
   a: number;
 }
 
+const HUE_FAMILY_COUNT = 12;
+const NEUTRAL_CHROMA_THRESHOLD = 0.04;
+
+function colorFamily(color: Pick<HistogramColor, "okL" | "okA" | "okB">) {
+  const chroma = Math.hypot(color.okA, color.okB);
+  if (chroma < NEUTRAL_CHROMA_THRESHOLD) {
+    // Neutrals have no meaningful hue, but a dark outline and a light background are still
+    // distinct visual roles. Keeping their lightness bands separate prevents either from
+    // being consumed by a nearby chromatic color during the diversity pass.
+    return `neutral-${Math.min(2, Math.floor(color.okL * 3))}`;
+  }
+
+  const hue = (Math.atan2(color.okB, color.okA) + Math.PI * 2) % (Math.PI * 2);
+  return `hue-${Math.floor(hue / ((Math.PI * 2) / HUE_FAMILY_COUNT))}`;
+}
+
 function nearestPaletteIndex(color: HistogramColor, palette: PaletteCenter[]) {
   let nearestIndex = 0;
   let nearestDistance = Number.POSITIVE_INFINITY;
@@ -117,24 +133,39 @@ function chooseSeeds(histogram: HistogramColor[], targetColors: number): Palette
   if (!first) return [];
 
   const seeds: PaletteCenter[] = [{ okL: first.okL, okA: first.okA, okB: first.okB, a: first.a }];
+  const chosenFamilies = new Set([colorFamily(first)]);
   while (seeds.length < targetColors && remaining.length) {
-    const candidateIndex = remaining.reduce((bestIndex, color, index) => {
+    // Select one representative per broad color family before allowing a dominant gradient
+    // to claim more than one slot. The second pass below still uses perceptual distance, so
+    // a high color budget can retain tonal variation once the key hues and neutral roles are
+    // covered.
+    const hasUnrepresentedFamily = remaining.some((color) => !chosenFamilies.has(colorFamily(color)));
+    const candidates = hasUnrepresentedFamily
+      ? remaining.filter((color) => !chosenFamilies.has(colorFamily(color)))
+      : remaining;
+    const candidate = candidates.reduce((best, color) => {
       const nearestDistance = Math.min(
         ...seeds.map((seed) => colorDistance(color, seed)),
       );
-      const best = remaining[bestIndex];
       const bestDistance = best
         ? Math.min(...seeds.map((seed) => colorDistance(best, seed)))
         : -1;
-      const score = color.count * nearestDistance;
-      const bestScore = (best?.count ?? 0) * bestDistance;
+      // A linear pixel-count weight lets a large, smooth gradient spend several palette
+      // entries on nearly the same hue before a smaller but visibly distinct region gets
+      // represented. Square root weighting still favors substantial areas, but gives a
+      // perceptually distant accent color a realistic chance to claim one of the limited
+      // palette slots.
+      const score = Math.sqrt(color.count) * nearestDistance;
+      const bestScore = Math.sqrt(best?.count ?? 0) * bestDistance;
       return score > bestScore || (score === bestScore && color.key < (best?.key ?? Infinity))
-        ? index
-        : bestIndex;
-    }, 0);
-    const [candidate] = remaining.splice(candidateIndex, 1);
-    if (candidate) {
-      seeds.push({ okL: candidate.okL, okA: candidate.okA, okB: candidate.okB, a: candidate.a });
+        ? color
+        : best;
+    }, undefined as HistogramColor | undefined);
+    const candidateIndex = candidate ? remaining.indexOf(candidate) : -1;
+    const [selected] = candidateIndex >= 0 ? remaining.splice(candidateIndex, 1) : [];
+    if (selected) {
+      seeds.push({ okL: selected.okL, okA: selected.okA, okB: selected.okB, a: selected.a });
+      chosenFamilies.add(colorFamily(selected));
     }
   }
 
