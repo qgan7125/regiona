@@ -1,5 +1,10 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  createOpenAiImageProvider,
+  type AiGeneratedImage,
+} from "../ai/openai-image-provider";
+import { loadOpenAiApiKey } from "../ai/openai-key-store";
 import { AppHeader } from "../components/AppHeader";
 import { Inspector } from "../components/Inspector";
 import { OpenAiSettingsDialog } from "../components/OpenAiSettingsDialog";
@@ -31,6 +36,7 @@ import { ReconstructionWorkerClient } from "../workers/worker-client";
 type WorkStatus = "idle" | "decoding" | "processing" | "ready" | "error";
 
 interface SourceState {
+  file: File;
   filename: string;
   url: string;
   originalWidth: number;
@@ -69,6 +75,9 @@ export function App() {
   const [statusText, setStatusText] = useState("Ready for a source image");
   const [error, setError] = useState<string>();
   const [isOpenAiSettingsOpen, setIsOpenAiSettingsOpen] = useState(false);
+  const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
+  const [aiError, setAiError] = useState<string>();
+  const [isGeneratingCleanRedraw, setIsGeneratingCleanRedraw] = useState(false);
 
   useEffect(() => {
     const worker = new ReconstructionWorkerClient();
@@ -85,7 +94,8 @@ export function App() {
     [source?.url],
   );
 
-  const busy = status === "decoding" || status === "processing";
+  const localBusy = status === "decoding" || status === "processing";
+  const busy = localBusy || isGeneratingCleanRedraw;
 
   const resetSelectionHistory = useCallback(() => {
     selectedRegionIdsRef.current = [];
@@ -199,6 +209,7 @@ export function App() {
       const decoded = await decodeImage(file);
       const url = URL.createObjectURL(file);
       setSource({
+        file,
         filename: file.name,
         url,
         originalWidth: decoded.originalWidth,
@@ -216,6 +227,8 @@ export function App() {
       setColorFuture([]);
       setPickedColors([]);
       resetSelectionHistory();
+      setCleanRedraw(undefined);
+      setAiError(undefined);
     } catch (cause) {
       setStatus("error");
       setStatusText("Import failed");
@@ -315,6 +328,35 @@ export function App() {
     setGeneration((current) => current + 1);
   };
 
+  const handleGenerateCleanRedraw = async () => {
+    if (!source || busy) return;
+
+    const { apiKey } = loadOpenAiApiKey();
+    if (!apiKey) {
+      setAiError("Add your OpenAI API key in settings before generating a clean redraw.");
+      setIsOpenAiSettingsOpen(true);
+      return;
+    }
+
+    setAiError(undefined);
+    setIsGeneratingCleanRedraw(true);
+    try {
+      const provider = await createOpenAiImageProvider(apiKey);
+      const generated = await provider.createCleanRedraw({
+        source: source.file,
+      });
+      setCleanRedraw(generated);
+    } catch (cause) {
+      setAiError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not generate a clean redraw. Please try again.",
+      );
+    } finally {
+      setIsGeneratingCleanRedraw(false);
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
@@ -353,8 +395,8 @@ export function App() {
   return (
     <div className="app-shell">
       <AppHeader
-        status={status}
-        statusText={statusText}
+        status={isGeneratingCleanRedraw ? "processing" : status}
+        statusText={isGeneratingCleanRedraw ? "Generating AI clean redraw" : statusText}
         canExport={Boolean(result)}
         onOpenSettings={() => setIsOpenAiSettingsOpen(true)}
         onExportProject={() => {
@@ -407,11 +449,15 @@ export function App() {
           palette={result?.palette ?? []}
           regionCount={result?.regions.length ?? 0}
           busy={busy}
+          cleanRedraw={cleanRedraw}
+          aiError={aiError}
           onTargetColorsChange={setTargetColors}
           onRegionSimplificationChange={setRegionSimplification}
           onDespeckleEnabledChange={setDespeckleEnabled}
           onRegenerate={handleRegenerate}
           onFile={handleFile}
+          onGenerateCleanRedraw={() => void handleGenerateCleanRedraw()}
+          onOpenAiSettings={() => setIsOpenAiSettingsOpen(true)}
         />
         <PreviewWorkspace
           originalPixels={source?.pixels}

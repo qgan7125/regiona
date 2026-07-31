@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  createOpenAiImageProvider,
   createOpenAiImageProviderWithClient,
   type OpenAiImageClient,
 } from "../src/ai/openai-image-provider";
@@ -17,6 +18,11 @@ function createClient(base64 = "aGVsbG8=") {
 }
 
 describe("OpenAI image reconstruction provider", () => {
+  it("requires a user-provided API key before loading the browser client", async () => {
+    await expect(createOpenAiImageProvider("   "))
+      .rejects.toThrow("An OpenAI API key is required.");
+  });
+
   it("creates a clean redraw with conservative GPT Image settings", async () => {
     const { client, edit } = createClient();
     const provider = createOpenAiImageProviderWithClient(client);

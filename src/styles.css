@@ -328,6 +328,81 @@ h3 {
   opacity: 0.6;
 }
 
+.ai-assist-section {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 14px 0 16px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.ai-assist-section .helper-text {
+  margin: 0;
+}
+
+.ai-redraw-button {
+  justify-content: flex-start !important;
+  min-height: 38px;
+  border-radius: 0 !important;
+  color: var(--ink) !important;
+  border-color: var(--accent) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+}
+
+.ai-settings-link {
+  justify-self: start;
+  min-height: auto !important;
+  padding: 0 !important;
+  color: var(--focus) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+  text-transform: none !important;
+}
+
+.ai-assist-error {
+  margin: 0;
+  padding: 8px;
+  color: #7d2518;
+  background: #ffd9d0;
+  border-left: 3px solid #d04b2f;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ai-redraw-preview {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.ai-redraw-preview img {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.ai-redraw-preview figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.ai-redraw-preview a {
+  color: var(--focus);
+  font-weight: 700;
+}
+
 .upload-control input {
   position: absolute;
   width: 1px;

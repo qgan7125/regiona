@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 const openAiImageModel = "gpt-image-2";
 const maximumSourceBytes = 20 * 1024 * 1024;
@@ -47,10 +47,11 @@ export interface OpenAiImageClient {
   };
 }
 
-export function createOpenAiImageProvider(apiKey: string): ImageReconstructionProvider {
+export async function createOpenAiImageProvider(apiKey: string): Promise<ImageReconstructionProvider> {
   const normalizedKey = apiKey.trim();
   if (!normalizedKey) throw new Error("An OpenAI API key is required.");
 
+  const { default: OpenAI } = await import("openai");
   const client = new OpenAI({
     apiKey: normalizedKey,
     dangerouslyAllowBrowser: true,
