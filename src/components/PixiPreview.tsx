@@ -3,6 +3,7 @@ import {
   Application,
   Container,
   Graphics,
+  GraphicsPath,
   Sprite,
   Texture,
 } from "pixi.js";
@@ -17,6 +18,7 @@ import {
   selectionGraphicCacheKey,
   shouldUseSelectionTexture,
 } from "../preview/selection-rendering";
+import { buildRegionsGraphic } from "../preview/svg-graphics";
 
 interface PixiPreviewProps {
   width: number;
@@ -96,14 +98,16 @@ function bitmapTexture(bitmap: ImageBitmap, scaleMode?: "nearest") {
 
 function selectedRegionGraphic(
   region: { path: string; fill: string; opacity: number },
-  width: number,
-  height: number,
   viewportScale: number,
 ) {
+  // Built directly with GraphicsPath (not Graphics().svg(), which routes through Pixi's
+  // SVGParser - see src/preview/svg-graphics.ts for why that's unreliable for regions
+  // with evenodd holes).
   const strokeWidth = 2 / viewportScale;
-  return new Graphics().svg(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><path d="${region.path}" fill="${region.fill}" fill-opacity="${region.opacity}" stroke="#f25c35" stroke-width="${strokeWidth}" /></svg>`,
-  );
+  return new Graphics()
+    .path(new GraphicsPath(region.path, true))
+    .fill({ color: region.fill, alpha: region.opacity })
+    .stroke({ color: "#f25c35", width: strokeWidth });
 }
 
 function drawBrushCursor(cursor: Graphics, point: { x: number; y: number }, brushSize: number) {
@@ -698,7 +702,7 @@ export function PixiPreview({
         vectorGraphicCacheRef.current?.graphic.destroy();
         vectorGraphicCacheRef.current = {
           markup: svgMarkup,
-          graphic: new Graphics().svg(svgMarkup),
+          graphic: buildRegionsGraphic(svgMarkup),
         };
       }
       addDisplayObject(vectorGraphicCacheRef.current.graphic);
@@ -764,7 +768,7 @@ export function PixiPreview({
             selectionGraphicCacheRef.current.delete(oldestKey);
           }
         }
-        graphic = selectedRegionGraphic(region, width, height, selectionScale);
+        graphic = selectedRegionGraphic(region, selectionScale);
         selectionGraphicCacheRef.current.set(cacheKey, graphic);
       }
       selectionLayer.addChild(graphic);
