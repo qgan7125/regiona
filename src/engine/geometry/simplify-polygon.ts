@@ -29,48 +29,11 @@ function comparePoints(a: Point, b: Point) {
   return a.x - b.x || a.y - b.y;
 }
 
-// Finds the two points farthest apart in a loop - a purely geometric property of the point
-// set, independent of scan order or wherever in the array the loop happens to start. Used
-// as a fallback anchor pair when no junction-based anchors exist: a small region fully
-// enclosed by just one other region (a hole with no third region and no image-border
-// contact) has no natural junction anywhere on its boundary, so both sides tracing that
-// boundary would otherwise fall back to an arbitrary index-based split - which, same as
-// Douglas-Peucker's own tie-breaking, is not symmetric under reversal, since each side's
-// array happens to start at a different physical point. The two farthest-apart points are
-// the same regardless of where the array starts, so both sides agree on this fallback pair
-// too. Ties (common for symmetric shapes) are broken by comparing point coordinates, not
-// array position, for the same reason.
-function findFarthestIndexes(loop: Point[]): [number, number] {
-  let bestI = 0;
-  let bestJ = Math.min(1, loop.length - 1);
-  let bestDistance = -1;
-
-  for (let i = 0; i < loop.length; i += 1) {
-    for (let j = i + 1; j < loop.length; j += 1) {
-      const dx = loop[i]!.x - loop[j]!.x;
-      const dy = loop[i]!.y - loop[j]!.y;
-      const distance = dx * dx + dy * dy;
-      if (distance < bestDistance) continue;
-
-      const [a1, a2] = comparePoints(loop[i]!, loop[j]!) <= 0 ? [loop[i]!, loop[j]!] : [loop[j]!, loop[i]!];
-      const [b1, b2] = comparePoints(loop[bestI]!, loop[bestJ]!) <= 0 ? [loop[bestI]!, loop[bestJ]!] : [loop[bestJ]!, loop[bestI]!];
-      const tieOrder = comparePoints(a1, b1) || comparePoints(a2, b2);
-      if (distance > bestDistance || tieOrder < 0) {
-        bestDistance = distance;
-        bestI = i;
-        bestJ = j;
-      }
-    }
-  }
-
-  return [bestI, bestJ];
-}
-
 // Finds the loop point farthest from a given reference point. Used when exactly one real
 // junction exists on a loop: both sides of that boundary already agree on the junction's
 // coordinates (a shared, local property of the label map), so picking a second anchor
 // relative to that shared point - rather than an unrelated independent search - keeps the
-// choice consistent between them for the same reason findFarthestIndexes does.
+// choice consistent between them for the same reason findCanonicalAnchorIndexes does.
 function findFarthestIndexFrom(loop: Point[], fromIndex: number): number {
   const from = loop[fromIndex]!;
   let bestIndex = fromIndex === 0 ? Math.min(1, loop.length - 1) : 0;
@@ -92,6 +55,21 @@ function findFarthestIndexFrom(loop: Point[], fromIndex: number): number {
   }
 
   return bestIndex;
+}
+
+// A boundary with no junctions still needs two endpoints before Douglas-Peucker can simplify
+// it. Pick the lexicographically first point and the point farthest from it instead of the
+// globally farthest pair. Both choices depend only on geometry, so separately traced sides
+// agree even when their loops start at different positions or travel in opposite directions.
+// This deliberately avoids the previous O(n^2) all-pairs search, which became a processing
+// bottleneck for long, detail-heavy boundaries.
+function findCanonicalAnchorIndexes(loop: Point[]): [number, number] {
+  let canonicalIndex = 0;
+  for (let index = 1; index < loop.length; index += 1) {
+    if (comparePoints(loop[index]!, loop[canonicalIndex]!) < 0) canonicalIndex = index;
+  }
+
+  return [canonicalIndex, findFarthestIndexFrom(loop, canonicalIndex)];
 }
 
 function douglasPeucker(points: Point[], tolerance: number): Point[] {
@@ -148,7 +126,7 @@ export function simplifyClosedPolygon(
     return found;
   }, []);
   if (anchorIndexes.length === 0) {
-    anchorIndexes = findFarthestIndexes(loop);
+    anchorIndexes = findCanonicalAnchorIndexes(loop);
   } else if (anchorIndexes.length === 1) {
     // A single real junction still isn't enough to bound a Douglas-Peucker chain (that
     // needs two endpoints), and discarding it in favor of an unrelated anchor pair would
