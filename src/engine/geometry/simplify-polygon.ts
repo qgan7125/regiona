@@ -66,6 +66,34 @@ function findFarthestIndexes(loop: Point[]): [number, number] {
   return [bestI, bestJ];
 }
 
+// Finds the loop point farthest from a given reference point. Used when exactly one real
+// junction exists on a loop: both sides of that boundary already agree on the junction's
+// coordinates (a shared, local property of the label map), so picking a second anchor
+// relative to that shared point - rather than an unrelated independent search - keeps the
+// choice consistent between them for the same reason findFarthestIndexes does.
+function findFarthestIndexFrom(loop: Point[], fromIndex: number): number {
+  const from = loop[fromIndex]!;
+  let bestIndex = fromIndex === 0 ? Math.min(1, loop.length - 1) : 0;
+  let bestDistance = -1;
+
+  for (let index = 0; index < loop.length; index += 1) {
+    if (index === fromIndex) continue;
+    const point = loop[index]!;
+    const dx = point.x - from.x;
+    const dy = point.y - from.y;
+    const distance = dx * dx + dy * dy;
+    if (
+      distance > bestDistance
+      || (distance === bestDistance && comparePoints(point, loop[bestIndex]!) < 0)
+    ) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
+}
+
 function douglasPeucker(points: Point[], tolerance: number): Point[] {
   if (points.length < 3) return points;
   const start = points[0]!;
@@ -119,7 +147,17 @@ export function simplifyClosedPolygon(
     if (isAnchor(point)) found.push(index);
     return found;
   }, []);
-  if (anchorIndexes.length < 2) anchorIndexes = findFarthestIndexes(loop);
+  if (anchorIndexes.length === 0) {
+    anchorIndexes = findFarthestIndexes(loop);
+  } else if (anchorIndexes.length === 1) {
+    // A single real junction still isn't enough to bound a Douglas-Peucker chain (that
+    // needs two endpoints), and discarding it in favor of an unrelated anchor pair would
+    // reopen the exact inconsistency this anchoring scheme exists to prevent: a neighboring
+    // region that happens to pass through this same junction twice (e.g. a thin one-pixel
+    // spike touching it from both sides) keeps it as two real anchors, and an independent
+    // fallback here would pick a completely different second point instead of agreeing.
+    anchorIndexes = [anchorIndexes[0]!, findFarthestIndexFrom(loop, anchorIndexes[0]!)];
+  }
 
   const merged: Point[] = [];
   for (let anchor = 0; anchor < anchorIndexes.length; anchor += 1) {
