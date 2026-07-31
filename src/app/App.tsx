@@ -2,6 +2,7 @@ import { type SetStateAction, useCallback, useEffect, useRef, useState } from "r
 
 import { AppHeader } from "../components/AppHeader";
 import { Inspector } from "../components/Inspector";
+import { OpenAiSettingsDialog } from "../components/OpenAiSettingsDialog";
 import { PreviewWorkspace } from "../components/PreviewWorkspace";
 import { UploadPanel } from "../components/UploadPanel";
 import { appendColorHistory, redoColorEdit, undoColorEdit } from "./editor-state";
@@ -67,6 +68,7 @@ export function App() {
   const [status, setStatus] = useState<WorkStatus>("idle");
   const [statusText, setStatusText] = useState("Ready for a source image");
   const [error, setError] = useState<string>();
+  const [isOpenAiSettingsOpen, setIsOpenAiSettingsOpen] = useState(false);
 
   useEffect(() => {
     const worker = new ReconstructionWorkerClient();
@@ -354,6 +356,7 @@ export function App() {
         status={status}
         statusText={statusText}
         canExport={Boolean(result)}
+        onOpenSettings={() => setIsOpenAiSettingsOpen(true)}
         onExportProject={() => {
           if (result) exportRegionaProject(result);
         }}
@@ -361,6 +364,12 @@ export function App() {
           if (result) exportRegionaSvg(result);
         }}
       />
+      {isOpenAiSettingsOpen ? (
+        <OpenAiSettingsDialog
+          open
+          onClose={() => setIsOpenAiSettingsOpen(false)}
+        />
+      ) : null}
 
       {error ? (
         <div className="error-banner" role="alert">

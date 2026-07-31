@@ -4,6 +4,7 @@ interface AppHeaderProps {
   status: WorkStatus;
   statusText: string;
   canExport: boolean;
+  onOpenSettings: () => void;
   onExportProject: () => void;
   onExportSvg: () => void;
 }
@@ -12,6 +13,7 @@ export function AppHeader({
   status,
   statusText,
   canExport,
+  onOpenSettings,
   onExportProject,
   onExportSvg,
 }: AppHeaderProps) {
@@ -29,6 +31,14 @@ export function AppHeader({
         {statusText}
       </div>
       <div className="header-actions">
+        <Button
+          className="secondary-button ai-settings-button"
+          onClick={onOpenSettings}
+          variant="outlined"
+          size="small"
+        >
+          AI settings
+        </Button>
         <Button
           className="secondary-button"
           disabled={!canExport}
