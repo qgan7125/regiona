@@ -37,9 +37,11 @@ describe("OpenAI image reconstruction provider", () => {
       image: sourceImage,
       model: "gpt-image-2",
       background: "opaque",
-      input_fidelity: "high",
       output_format: "png",
       quality: "low",
+    }));
+    expect(edit).toHaveBeenCalledWith(expect.not.objectContaining({
+      input_fidelity: expect.anything(),
     }));
     expect(edit.mock.calls[0]?.[0].prompt).toContain("Preserve the original canvas aspect ratio");
   });

@@ -30,7 +30,6 @@ interface OpenAiImageEditRequest {
   image: File | File[];
   prompt: string;
   background: "opaque";
-  input_fidelity: "high";
   output_format: "png";
   quality: "low";
 }
@@ -126,7 +125,6 @@ async function requestImageEdit(
       ...request,
       model: openAiImageModel,
       background: "opaque",
-      input_fidelity: "high",
       output_format: "png",
       quality: "low",
     });
