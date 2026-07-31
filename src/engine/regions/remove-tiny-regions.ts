@@ -1,3 +1,5 @@
+import { oklabDistanceSquared, rgbToOklab } from "../color/oklab";
+
 interface ComponentMap {
   labels: Uint32Array;
   areas: number[];
@@ -10,7 +12,12 @@ interface NeighborScore {
 }
 
 const DEFAULT_MAXIMUM_PASSES = 3;
-export const SOURCE_EDGE_THRESHOLD = 64;
+// OKLab distance beyond which two colors count as a "strong" original-image edge worth
+// protecting. OKLab distances run roughly: under 0.05 is imperceptible, ~0.1 is a subtle
+// but visible step, above 0.3 is a clearly distinct color - 0.2 sits comfortably between
+// gentle gradient/noise steps and genuine color or luminance boundaries.
+export const SOURCE_EDGE_THRESHOLD = 0.2;
+export const SOURCE_EDGE_THRESHOLD_SQUARED = SOURCE_EDGE_THRESHOLD * SOURCE_EDGE_THRESHOLD;
 
 export function sourceEdgeDifference(
   pixels: Uint8ClampedArray | undefined,
@@ -21,11 +28,14 @@ export function sourceEdgeDifference(
 
   const offset = index * 4;
   const neighborOffset = neighbor * 4;
-  const red = (pixels[offset] ?? 0) - (pixels[neighborOffset] ?? 0);
-  const green = (pixels[offset + 1] ?? 0) - (pixels[neighborOffset + 1] ?? 0);
-  const blue = (pixels[offset + 2] ?? 0) - (pixels[neighborOffset + 2] ?? 0);
+  const color = rgbToOklab(pixels[offset] ?? 0, pixels[offset + 1] ?? 0, pixels[offset + 2] ?? 0);
+  const neighborColor = rgbToOklab(
+    pixels[neighborOffset] ?? 0,
+    pixels[neighborOffset + 1] ?? 0,
+    pixels[neighborOffset + 2] ?? 0,
+  );
 
-  return red * red + green * green + blue * blue;
+  return oklabDistanceSquared(color, neighborColor);
 }
 
 function mapComponents(
@@ -99,7 +109,6 @@ export function removeTinyPaletteRegions(
     ? sourcePixels
     : undefined;
   const maximumIterations = Math.max(1, Math.floor(maximumPasses));
-  const edgeThresholdSquared = SOURCE_EDGE_THRESHOLD * SOURCE_EDGE_THRESHOLD * 3;
   let cleaned = new Uint8Array(paletteIndexes);
 
   for (let pass = 0; pass < maximumIterations; pass += 1) {
@@ -145,7 +154,7 @@ export function removeTinyPaletteRegions(
       let sharedEdgeCount = -1;
       for (const [neighborComponent, score] of neighbors) {
         const averageSourceEdge = score.sourceEdgeDifference / score.sharedEdgeCount;
-        if (usableSourcePixels && averageSourceEdge > edgeThresholdSquared) continue;
+        if (usableSourcePixels && averageSourceEdge > SOURCE_EDGE_THRESHOLD_SQUARED) continue;
 
         const candidatePalette = components.paletteIndexes[neighborComponent] ?? 0;
         const currentPalette = components.paletteIndexes[replacementComponent] ?? Number.MAX_SAFE_INTEGER;
