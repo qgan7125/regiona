@@ -1,0 +1,187 @@
+import type {
+  AiGeneratedImage,
+  ImageReconstructionProvider,
+} from "./openai-image-provider";
+
+const geminiImageModel = "gemini-3.1-flash-image";
+const geminiInteractionsUrl = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const maximumSourceBytes = 20 * 1024 * 1024;
+const supportedImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
+const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+interface GeminiImageInput {
+  type: "image";
+  data: string;
+  mime_type: string;
+}
+
+interface GeminiTextInput {
+  type: "text";
+  text: string;
+}
+
+interface GeminiInteractionResponse {
+  output_image?: {
+    data?: string;
+    mime_type?: string;
+  };
+}
+
+export function createGeminiImageProvider(
+  apiKey: string,
+  fetcher: FetchLike = fetch,
+): ImageReconstructionProvider {
+  const normalizedKey = apiKey.trim();
+  if (!normalizedKey) throw new Error("A Gemini API key is required.");
+
+  return {
+    createCleanRedraw: async ({ source }) => {
+      assertSupportedSource(source);
+      return requestGeminiImage({
+        apiKey: normalizedKey,
+        fetcher,
+        input: [
+          { type: "text", text: cleanRedrawPrompt },
+          await toGeminiImageInput(source),
+        ],
+      });
+    },
+    reconstructColors: async ({ original, cleanRedraw, palette }) => {
+      assertSupportedSource(original);
+      assertSupportedSource(cleanRedraw);
+      return requestGeminiImage({
+        apiKey: normalizedKey,
+        fetcher,
+        input: [
+          { type: "text", text: colorReconstructionPrompt(normalizePalette(palette)) },
+          await toGeminiImageInput(cleanRedraw),
+          await toGeminiImageInput(original),
+        ],
+      });
+    },
+  };
+}
+
+const cleanRedrawPrompt = [
+  "Create a clean reconstruction of the supplied image for later vectorization.",
+  "Preserve the original canvas aspect ratio, composition, subject, silhouette, and distinct objects.",
+  "Keep meaningful boundaries and intentional interior details.",
+  "Remove compression noise, anti-alias speckles, accidental tiny fragments, and non-semantic texture.",
+  "Use clean, flat, closed color regions; do not add, remove, crop, or rearrange content.",
+].join(" ");
+
+function colorReconstructionPrompt(palette: readonly string[]) {
+  const paletteInstruction = palette.length
+    ? `Use this target palette where it fits the original semantics: ${palette.join(", ")}.`
+    : "Use the original image as the color reference.";
+
+  return [
+    "The first image is the clean geometry reference. The second image is the original color reference.",
+    "Apply the original semantic colors to the clean geometry while preserving its composition, silhouette, and boundaries.",
+    paletteInstruction,
+    "Do not add, remove, crop, or rearrange content. Keep clean, flat color regions suitable for vectorization.",
+  ].join(" ");
+}
+
+async function requestGeminiImage({
+  apiKey,
+  fetcher,
+  input,
+}: {
+  apiKey: string;
+  fetcher: FetchLike;
+  input: Array<GeminiTextInput | GeminiImageInput>;
+}): Promise<AiGeneratedImage> {
+  let response: Response;
+  try {
+    response = await fetcher(geminiInteractionsUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        model: geminiImageModel,
+        input,
+        response_format: { type: "image", mime_type: "image/png" },
+      }),
+    });
+  } catch (cause) {
+    throw new Error("Could not reach Gemini. Check your connection and try again.", { cause });
+  }
+
+  if (!response.ok) {
+    throw new Error(geminiImageErrorMessage(response.status));
+  }
+
+  let body: GeminiInteractionResponse;
+  try {
+    body = await response.json() as GeminiInteractionResponse;
+  } catch (cause) {
+    throw new Error("Gemini did not return a usable PNG image.", { cause });
+  }
+
+  const base64 = body.output_image?.data;
+  if (!base64 || !base64Pattern.test(base64)) {
+    throw new Error("Gemini did not return a usable PNG image.");
+  }
+
+  return {
+    dataUrl: `data:image/png;base64,${base64}`,
+    mimeType: "image/png",
+    model: geminiImageModel,
+  };
+}
+
+async function toGeminiImageInput(source: File): Promise<GeminiImageInput> {
+  return {
+    type: "image",
+    data: bytesToBase64(new Uint8Array(await source.arrayBuffer())),
+    mime_type: source.type,
+  };
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  const characters: string[] = [];
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    characters.push(String.fromCharCode(...bytes.subarray(offset, offset + chunkSize)));
+  }
+  return btoa(characters.join(""));
+}
+
+function geminiImageErrorMessage(status: number): string {
+  switch (status) {
+    case 400:
+      return "Gemini rejected this image request (HTTP 400). Confirm that the image is a valid PNG, JPEG, or WebP and try again.";
+    case 401:
+      return "Gemini rejected this API key for image generation (HTTP 401). Save the key again and retry.";
+    case 403:
+      return "Gemini denied image generation access (HTTP 403). Check that this key can use Gemini image models.";
+    case 429:
+      return "Gemini is rate-limiting image generation (HTTP 429). Wait a moment, then retry.";
+    default:
+      return `Gemini could not generate a reconstruction (HTTP ${status}). Try again shortly.`;
+  }
+}
+
+function assertSupportedSource(source: File) {
+  if (!supportedImageTypes.has(source.type) || source.size < 1 || source.size > maximumSourceBytes) {
+    throw new Error("AI reconstruction accepts only PNG, JPEG, or WebP images up to 20 MB.");
+  }
+}
+
+function normalizePalette(palette: readonly string[] | undefined): string[] {
+  if (!palette?.length) return [];
+  if (palette.length > 32) throw new Error("AI reconstruction supports at most 32 target palette colors.");
+
+  const normalized = palette.map((color) => color.trim().toLowerCase());
+  if (normalized.some((color) => !hexColorPattern.test(color))) {
+    throw new Error("Target palette colors must be six-digit hex values.");
+  }
+
+  return [...new Set(normalized)];
+}

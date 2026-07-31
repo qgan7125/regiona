@@ -7,7 +7,7 @@ const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]
 export interface AiGeneratedImage {
   dataUrl: string;
   mimeType: "image/png";
-  model: typeof openAiImageModel;
+  model: string;
 }
 
 export interface CleanRedrawInput {
