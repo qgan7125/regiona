@@ -221,4 +221,54 @@ describe("simplifyClosedPolygon", () => {
 
     expect(normalizeRotation(simplifiedFromStart)).toEqual(normalizeRotation(simplifiedFromOffset));
   });
+
+  it("agrees on a shared boundary when only one side passes through their single real junction twice", () => {
+    // Captured from a real reconstruction that produced a visible gap: two regions share
+    // almost their entire boundary, meeting a third region at exactly one junction point.
+    // A one-pixel spike on just one side (e.g. a thin sliver of that third region poking
+    // in) makes that side's traced loop pass through the junction twice, giving it 2 real
+    // anchors there; the other side, with no spike, passes through it only once. Discarding
+    // that single anchor in favor of an unrelated fallback pair (as the old code did) broke
+    // agreement on the shared boundary. Both sides must still simplify it identically.
+    const junction = { x: 10, y: 10 };
+    const centerX = 10;
+    const centerY = 18;
+    const radius = 8;
+    const steps = 20;
+    const ring: Array<{ x: number; y: number }> = [];
+    for (let index = 0; index <= steps; index += 1) {
+      const angle = (index / steps) * 2 * Math.PI - Math.PI / 2;
+      ring.push({
+        x: Math.round(centerX + radius * Math.cos(angle)),
+        y: Math.round(centerY + radius * Math.sin(angle)),
+      });
+    }
+    // ring[0] and ring[steps] both land on the junction by construction.
+
+    const isAnchor = (point: { x: number; y: number }) =>
+      point.x === junction.x && point.y === junction.y;
+
+    // Loop A: no spike, passes through the junction exactly once (at the shared start/end).
+    const loopA = ring;
+    // Loop B: same ring, but with a one-pixel spike inserted right at the junction, so it
+    // passes through the junction twice.
+    const spike = { x: 11, y: 9 };
+    const loopB = [ring[0]!, spike, junction, ...ring.slice(1)];
+
+    const simplifiedA = simplifyClosedPolygon(loopA, isAnchor);
+    const simplifiedB = simplifyClosedPolygon(loopB, isAnchor);
+
+    // Loop B's simplified output additionally contains the spike detour; strip it out so
+    // the remaining ring can be compared directly against loop A's.
+    const withoutSpike = simplifiedB.filter(
+      (point) => !(point.x === spike.x && point.y === spike.y),
+    );
+    const dedupedRing = withoutSpike.filter((point, index) => {
+      if (index === 0) return true;
+      const previous = withoutSpike[index - 1]!;
+      return !(point.x === previous.x && point.y === previous.y);
+    });
+
+    expect(normalizeRotation(simplifiedA)).toEqual(normalizeRotation(dedupedRing));
+  });
 });
