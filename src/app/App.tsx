@@ -1,14 +1,14 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  createOpenAiImageProvider,
   createPngFileFromGeneratedImage,
   type AiGeneratedImage,
 } from "../ai/openai-image-provider";
-import { loadOpenAiApiKey } from "../ai/openai-key-store";
+import { createGeminiImageProvider } from "../ai/gemini-image-provider";
+import { loadGeminiApiKey } from "../ai/gemini-key-store";
 import { AppHeader } from "../components/AppHeader";
 import { Inspector } from "../components/Inspector";
-import { OpenAiSettingsDialog } from "../components/OpenAiSettingsDialog";
+import { GeminiSettingsDialog } from "../components/GeminiSettingsDialog";
 import { PreviewWorkspace } from "../components/PreviewWorkspace";
 import { UploadPanel } from "../components/UploadPanel";
 import { appendColorHistory, redoColorEdit, undoColorEdit } from "./editor-state";
@@ -75,7 +75,7 @@ export function App() {
   const [status, setStatus] = useState<WorkStatus>("idle");
   const [statusText, setStatusText] = useState("Ready for a source image");
   const [error, setError] = useState<string>();
-  const [isOpenAiSettingsOpen, setIsOpenAiSettingsOpen] = useState(false);
+  const [isGeminiSettingsOpen, setIsGeminiSettingsOpen] = useState(false);
   const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
   const [colorReconstruction, setColorReconstruction] = useState<AiGeneratedImage>();
   const [aiError, setAiError] = useState<string>();
@@ -334,17 +334,17 @@ export function App() {
   const handleGenerateCleanRedraw = async () => {
     if (!source || busy) return;
 
-    const { apiKey } = loadOpenAiApiKey();
+    const { apiKey } = loadGeminiApiKey();
     if (!apiKey) {
-      setAiError("Add your OpenAI API key in settings before generating a clean redraw.");
-      setIsOpenAiSettingsOpen(true);
+      setAiError("Add your Gemini API key in settings before generating a clean redraw.");
+      setIsGeminiSettingsOpen(true);
       return;
     }
 
     setAiError(undefined);
     setAiGenerationStage("redraw");
     try {
-      const provider = await createOpenAiImageProvider(apiKey);
+      const provider = createGeminiImageProvider(apiKey);
       const generated = await provider.createCleanRedraw({
         source: source.file,
       });
@@ -364,17 +364,17 @@ export function App() {
   const handleReconstructColors = async () => {
     if (!source || !cleanRedraw || busy) return;
 
-    const { apiKey } = loadOpenAiApiKey();
+    const { apiKey } = loadGeminiApiKey();
     if (!apiKey) {
-      setAiError("Add your OpenAI API key in settings before reconstructing colors.");
-      setIsOpenAiSettingsOpen(true);
+      setAiError("Add your Gemini API key in settings before reconstructing colors.");
+      setIsGeminiSettingsOpen(true);
       return;
     }
 
     setAiError(undefined);
     setAiGenerationStage("color");
     try {
-      const provider = await createOpenAiImageProvider(apiKey);
+      const provider = createGeminiImageProvider(apiKey);
       const generated = await provider.reconstructColors({
         original: source.file,
         cleanRedraw: createPngFileFromGeneratedImage(cleanRedraw, "regiona-clean-redraw.png"),
@@ -437,7 +437,7 @@ export function App() {
             ? "Generating AI clean redraw"
             : statusText}
         canExport={Boolean(result)}
-        onOpenSettings={() => setIsOpenAiSettingsOpen(true)}
+        onOpenSettings={() => setIsGeminiSettingsOpen(true)}
         onExportProject={() => {
           if (result) exportRegionaProject(result);
         }}
@@ -445,10 +445,10 @@ export function App() {
           if (result) exportRegionaSvg(result);
         }}
       />
-      {isOpenAiSettingsOpen ? (
-        <OpenAiSettingsDialog
+      {isGeminiSettingsOpen ? (
+        <GeminiSettingsDialog
           open
-          onClose={() => setIsOpenAiSettingsOpen(false)}
+          onClose={() => setIsGeminiSettingsOpen(false)}
         />
       ) : null}
 
@@ -499,7 +499,7 @@ export function App() {
           onFile={handleFile}
           onGenerateCleanRedraw={() => void handleGenerateCleanRedraw()}
           onReconstructColors={() => void handleReconstructColors()}
-          onOpenAiSettings={() => setIsOpenAiSettingsOpen(true)}
+          onOpenGeminiSettings={() => setIsGeminiSettingsOpen(true)}
         />
         <PreviewWorkspace
           originalPixels={source?.pixels}

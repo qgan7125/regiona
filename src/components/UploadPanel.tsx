@@ -38,7 +38,7 @@ interface UploadPanelProps {
   onFile: (file: File) => void;
   onGenerateCleanRedraw: () => void;
   onReconstructColors: () => void;
-  onOpenAiSettings: () => void;
+  onOpenGeminiSettings: () => void;
 }
 
 function formatPalettePercentage(percentage: number) {
@@ -66,7 +66,7 @@ export function UploadPanel({
   onFile,
   onGenerateCleanRedraw,
   onReconstructColors,
-  onOpenAiSettings,
+  onOpenGeminiSettings,
 }: UploadPanelProps) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -126,7 +126,7 @@ export function UploadPanel({
       <section className="ai-assist-section" aria-labelledby="ai-assist-title">
         <div className="section-title-row">
           <h3 id="ai-assist-title">AI clean redraw</h3>
-          <span>OpenAI BYOK</span>
+          <span>Gemini BYOK</span>
         </div>
         <p className="helper-text">
           Creates a separate, cleaner intermediate image. Your uploaded original stays unchanged.
@@ -151,12 +151,12 @@ export function UploadPanel({
         </Button>
         <Button
           className="ai-settings-link"
-          onClick={onOpenAiSettings}
+          onClick={onOpenGeminiSettings}
           size="small"
           type="button"
           variant="text"
         >
-          OpenAI settings
+          Gemini settings
         </Button>
         {aiError ? <p className="ai-assist-error" role="alert">{aiError}</p> : null}
         {cleanRedraw ? (
