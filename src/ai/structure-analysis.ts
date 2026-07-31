@@ -1,5 +1,7 @@
 export type AiImageKind = "logo" | "illustration" | "other";
 export type AiRegionImportance = "primary" | "supporting" | "detail";
+export type AiObjectRole = "subject" | "background" | "attached-object" | "interior-detail";
+export type AiReconstructionStrategy = "restore" | "redraw" | "simplify";
 
 export interface AiStructureRegion {
   id: string;
@@ -10,9 +12,24 @@ export interface AiStructureRegion {
   suggestedFill?: string;
 }
 
+export interface AiStructureObject {
+  id: string;
+  label: string;
+  role: AiObjectRole;
+  /** [top, left, bottom, right], normalized to the 0–1000 image coordinate space. */
+  bounds: [number, number, number, number];
+  /** Confidence normalized to the 0–1000 range. */
+  confidence: number;
+}
+
 export interface AiStructureAnalysis {
   imageKind: AiImageKind;
   summary: string;
+  subjectDescription: string;
+  majorObjects: AiStructureObject[];
+  suggestedColorCount: number;
+  detectedProblems: string[];
+  reconstructionStrategy: AiReconstructionStrategy;
   regions: AiStructureRegion[];
 }
 
@@ -29,17 +46,43 @@ const importanceLevels = new Set<AiRegionImportance>([
   "supporting",
   "detail",
 ]);
+const objectRoles = new Set<AiObjectRole>([
+  "subject",
+  "background",
+  "attached-object",
+  "interior-detail",
+]);
+const reconstructionStrategies = new Set<AiReconstructionStrategy>([
+  "restore",
+  "redraw",
+  "simplify",
+]);
 const regionIdPattern = /^[a-z][a-z0-9-]{0,63}$/;
+const problemIdPattern = /^[a-z][a-z0-9-]{0,63}$/;
 const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
 const maximumRegions = 64;
+const maximumObjects = 32;
+const maximumProblems = 16;
 
 export function parseAiStructureAnalysis(value: unknown): AiStructureAnalysis {
   const record = readRecord(value, "analysis");
   const imageKind = readString(record.imageKind, "imageKind", 24) as AiImageKind;
   const summary = readString(record.summary, "summary", 280);
+  const subjectDescription = readString(record.subjectDescription, "subjectDescription", 280);
+  const majorObjects = parseMajorObjects(record.majorObjects);
+  const suggestedColorCount = readInteger(record.suggestedColorCount, "suggestedColorCount", 2, 32);
+  const detectedProblems = parseDetectedProblems(record.detectedProblems);
+  const reconstructionStrategy = readString(
+    record.reconstructionStrategy,
+    "reconstructionStrategy",
+    16,
+  ) as AiReconstructionStrategy;
 
   if (!imageKinds.has(imageKind)) {
     throw new AiStructureAnalysisError("imageKind must be logo, illustration, or other.");
+  }
+  if (!reconstructionStrategies.has(reconstructionStrategy)) {
+    throw new AiStructureAnalysisError("reconstructionStrategy must be restore, redraw, or simplify.");
   }
   if (!Array.isArray(record.regions) || record.regions.length > maximumRegions) {
     throw new AiStructureAnalysisError(`regions must contain at most ${maximumRegions} entries.`);
@@ -55,7 +98,58 @@ export function parseAiStructureAnalysis(value: unknown): AiStructureAnalysis {
     return parsed;
   });
 
-  return { imageKind, summary, regions };
+  return {
+    imageKind,
+    summary,
+    subjectDescription,
+    majorObjects,
+    suggestedColorCount,
+    detectedProblems,
+    reconstructionStrategy,
+    regions,
+  };
+}
+
+function parseMajorObjects(value: unknown): AiStructureObject[] {
+  if (!Array.isArray(value) || value.length > maximumObjects) {
+    throw new AiStructureAnalysisError(`majorObjects must contain at most ${maximumObjects} entries.`);
+  }
+
+  const objectIds = new Set<string>();
+  return value.map((object, index) => {
+    const field = `majorObjects[${index}]`;
+    const record = readRecord(object, field);
+    const id = readString(record.id, `${field}.id`, 64);
+    const label = readString(record.label, `${field}.label`, 80);
+    const role = readString(record.role, `${field}.role`, 24) as AiObjectRole;
+    const confidence = readInteger(record.confidence, `${field}.confidence`, 0, 1000);
+
+    if (!regionIdPattern.test(id) || objectIds.has(id)) {
+      throw new AiStructureAnalysisError(`${field}.id must be unique and use a safe format.`);
+    }
+    if (!objectRoles.has(role)) {
+      throw new AiStructureAnalysisError(`${field}.role is invalid.`);
+    }
+    objectIds.add(id);
+
+    return { id, label, role, bounds: parseBounds(record.bounds, field), confidence };
+  });
+}
+
+function parseDetectedProblems(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > maximumProblems) {
+    throw new AiStructureAnalysisError(`detectedProblems must contain at most ${maximumProblems} entries.`);
+  }
+  const problems = value.map((problem, index) =>
+    readString(problem, `detectedProblems[${index}]`, 64),
+  );
+  if (problems.some((problem) => !problemIdPattern.test(problem))) {
+    throw new AiStructureAnalysisError("detectedProblems must use safe identifiers.");
+  }
+  if (new Set(problems).size !== problems.length) {
+    throw new AiStructureAnalysisError("detectedProblems must not contain duplicates.");
+  }
+  return problems;
 }
 
 function parseRegion(value: unknown, index: number): AiStructureRegion {
@@ -75,7 +169,7 @@ function parseRegion(value: unknown, index: number): AiStructureRegion {
     throw new AiStructureAnalysisError(`regions[${index}].importance is invalid.`);
   }
 
-  const bounds = parseBounds(record.bounds, index);
+  const bounds = parseBounds(record.bounds, `regions[${index}]`);
   const suggestedFill = record.suggestedFill === undefined
     ? undefined
     : parseSuggestedFill(record.suggestedFill, index);
@@ -83,14 +177,14 @@ function parseRegion(value: unknown, index: number): AiStructureRegion {
   return { id, label, importance, bounds, ...(suggestedFill ? { suggestedFill } : {}) };
 }
 
-function parseBounds(value: unknown, index: number): [number, number, number, number] {
+function parseBounds(value: unknown, field: string): [number, number, number, number] {
   if (!Array.isArray(value) || value.length !== 4 || value.some((part) => !isCoordinate(part))) {
-    throw new AiStructureAnalysisError(`regions[${index}].bounds must contain four normalized coordinates.`);
+    throw new AiStructureAnalysisError(`${field}.bounds must contain four normalized coordinates.`);
   }
 
   const [top, left, bottom, right] = value as [number, number, number, number];
   if (top >= bottom || left >= right) {
-    throw new AiStructureAnalysisError(`regions[${index}].bounds must have positive area.`);
+    throw new AiStructureAnalysisError(`${field}.bounds must have positive area.`);
   }
 
   return [top, left, bottom, right];
@@ -120,6 +214,13 @@ function readString(value: unknown, field: string, maximumLength: number): strin
     throw new AiStructureAnalysisError(`${field} must be between 1 and ${maximumLength} characters.`);
   }
   return trimmed;
+}
+
+function readInteger(value: unknown, field: string, minimum: number, maximum: number): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new AiStructureAnalysisError(`${field} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return value;
 }
 
 function isCoordinate(value: unknown): value is number {
