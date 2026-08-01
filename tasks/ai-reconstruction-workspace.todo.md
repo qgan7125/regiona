@@ -6,7 +6,7 @@
   - Dependencies: None.
   - Files: `src/ai/workflow-state.ts`, `tests/ai-workflow-state.test.ts`.
 
-- [ ] Task 2: Add Gemini Line art and Analyze task contracts.
+- [x] Task 2: Add Gemini Line art and Analyze task contracts.
   - Acceptance: Line art uses original only; Analyze returns validated proposal data; no live API call in tests.
   - Verify: focused provider/analysis tests; `npm.cmd run lint`; `npm.cmd run typecheck`.
   - Dependencies: Task 1.
