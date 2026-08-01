@@ -169,7 +169,7 @@ function geminiImageErrorMessage(status: number): string {
     case 403:
       return "Gemini denied image generation access (HTTP 403). Check that this key can use Gemini image models.";
     case 429:
-      return "Gemini is rate-limiting image generation (HTTP 429). Wait a moment, then retry.";
+      return "Gemini image-generation quota is exhausted (HTTP 429). Check the AI Studio project linked to this key; if its limit is 0, set up billing before retrying.";
     default:
       return `Gemini could not generate a reconstruction (HTTP ${status}). Try again shortly.`;
   }

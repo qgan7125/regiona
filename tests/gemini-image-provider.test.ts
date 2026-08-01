@@ -85,6 +85,14 @@ describe("Gemini image reconstruction provider", () => {
       .rejects.toThrow("Gemini denied image generation access (HTTP 403).");
   });
 
+  it("explains how to resolve exhausted image-generation quota", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 429 }));
+    const provider = createGeminiImageProvider("gemini-user-key", fetcher);
+
+    await expect(provider.createCleanRedraw({ source: sourceImage }))
+      .rejects.toThrow("Gemini image-generation quota is exhausted (HTTP 429). Check the AI Studio project linked to this key");
+  });
+
   it("rejects an image response without usable PNG data", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [] }), {
       status: 200,
