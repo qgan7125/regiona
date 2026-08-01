@@ -6,7 +6,7 @@ const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]
 
 export interface AiGeneratedImage {
   dataUrl: string;
-  mimeType: "image/png";
+  mimeType: "image/png" | "image/jpeg";
   model: string;
 }
 
@@ -44,19 +44,35 @@ export interface OpenAiImageClient {
   };
 }
 
-export function createPngFileFromGeneratedImage(
+export function createImageFileFromGeneratedImage(
   image: AiGeneratedImage,
   filename: string,
 ): File {
-  const match = /^data:image\/png;base64,([A-Za-z0-9+/]*={0,2})$/.exec(image.dataUrl);
+  const match = new RegExp(
+    `^data:${image.mimeType};base64,([A-Za-z0-9+/]*={0,2})$`,
+  ).exec(image.dataUrl);
   const base64 = match?.[1];
   if (!base64 || !base64Pattern.test(base64)) {
-    throw new Error("The generated image does not contain a usable PNG.");
+    throw new Error("The generated image does not contain usable image data.");
   }
 
   const decoded = atob(base64);
   const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0));
   return new File([bytes], filename, { type: image.mimeType });
+}
+
+export function createPngFileFromGeneratedImage(
+  image: AiGeneratedImage,
+  filename: string,
+): File {
+  if (image.mimeType !== "image/png") {
+    throw new Error("The generated image does not contain a usable PNG.");
+  }
+  try {
+    return createImageFileFromGeneratedImage(image, filename);
+  } catch (cause) {
+    throw new Error("The generated image does not contain a usable PNG.", { cause });
+  }
 }
 
 export async function createOpenAiImageProvider(apiKey: string): Promise<ImageReconstructionProvider> {

@@ -1,7 +1,7 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  createPngFileFromGeneratedImage,
+  createImageFileFromGeneratedImage,
   type AiGeneratedImage,
 } from "../ai/openai-image-provider";
 import { createGeminiImageProvider } from "../ai/gemini-image-provider";
@@ -377,7 +377,10 @@ export function App() {
       const provider = createGeminiImageProvider(apiKey);
       const generated = await provider.reconstructColors({
         original: source.file,
-        cleanRedraw: createPngFileFromGeneratedImage(cleanRedraw, "regiona-clean-redraw.png"),
+        cleanRedraw: createImageFileFromGeneratedImage(
+          cleanRedraw,
+          `regiona-clean-redraw.${cleanRedraw.mimeType === "image/jpeg" ? "jpg" : "png"}`,
+        ),
         palette: result?.palette.map((color) => color.hex),
       });
       setColorReconstruction(generated);

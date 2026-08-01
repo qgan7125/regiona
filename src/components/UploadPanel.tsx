@@ -164,7 +164,12 @@ export function UploadPanel({
             <img alt="Generated clean redraw preview" src={cleanRedraw.dataUrl} />
             <figcaption>
               <span>Clean redraw ready</span>
-              <a download="regiona-clean-redraw.png" href={cleanRedraw.dataUrl}>Download PNG</a>
+              <a
+                download={`regiona-clean-redraw.${cleanRedraw.mimeType === "image/jpeg" ? "jpg" : "png"}`}
+                href={cleanRedraw.dataUrl}
+              >
+                Download {cleanRedraw.mimeType === "image/jpeg" ? "JPEG" : "PNG"}
+              </a>
             </figcaption>
           </figure>
         ) : null}
@@ -173,7 +178,12 @@ export function UploadPanel({
             <img alt="Generated color reconstruction preview" src={colorReconstruction.dataUrl} />
             <figcaption>
               <span>Color reconstruction ready</span>
-              <a download="regiona-color-reconstruction.png" href={colorReconstruction.dataUrl}>Download PNG</a>
+              <a
+                download={`regiona-color-reconstruction.${colorReconstruction.mimeType === "image/jpeg" ? "jpg" : "png"}`}
+                href={colorReconstruction.dataUrl}
+              >
+                Download {colorReconstruction.mimeType === "image/jpeg" ? "JPEG" : "PNG"}
+              </a>
             </figcaption>
           </figure>
         ) : null}

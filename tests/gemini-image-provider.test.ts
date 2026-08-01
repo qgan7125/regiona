@@ -5,14 +5,17 @@ import { createGeminiImageProvider } from "../src/ai/gemini-image-provider";
 const sourceImage = new File(["source"], "source.png", { type: "image/png" });
 const cleanRedraw = new File(["redraw"], "redraw.png", { type: "image/png" });
 
-function successfulGeminiResponse() {
+function successfulGeminiResponse(
+  mimeType = "image/png",
+  data = "aGVsbG8=",
+) {
   return new Response(JSON.stringify({
     candidates: [{
       content: {
         parts: [{
           inlineData: {
-            data: "aGVsbG8=",
-            mimeType: "image/png",
+            data,
+            mimeType,
           },
         }],
       },
@@ -75,6 +78,20 @@ describe("Gemini image reconstruction provider", () => {
     ]);
   });
 
+  it("keeps a JPEG result returned by Gemini", async () => {
+    const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse(
+      "image/jpeg",
+      "/9j/4AAQSkZJRgABAQAAAQABAAD/2Q==",
+    ));
+    const provider = createGeminiImageProvider("gemini-user-key", fetcher);
+
+    await expect(provider.createCleanRedraw({ source: sourceImage })).resolves.toEqual({
+      dataUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2Q==",
+      mimeType: "image/jpeg",
+      model: "gemini-3.1-flash-image",
+    });
+  });
+
   it("does not expose Gemini's response body when the request is rejected", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       error: { message: "secret provider diagnostic" },
@@ -100,6 +117,6 @@ describe("Gemini image reconstruction provider", () => {
     const provider = createGeminiImageProvider("gemini-user-key", fetcher);
 
     await expect(provider.createCleanRedraw({ source: sourceImage }))
-      .rejects.toThrow("Gemini did not return a usable PNG image.");
+      .rejects.toThrow("Gemini did not return a usable image result.");
   });
 });

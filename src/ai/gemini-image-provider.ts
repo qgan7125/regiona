@@ -7,6 +7,7 @@ const geminiImageModel = "gemini-3.1-flash-image";
 const geminiGenerateContentUrl = `https://generativelanguage.googleapis.com/v1/models/${geminiImageModel}:generateContent`;
 const maximumSourceBytes = 20 * 1024 * 1024;
 const supportedImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+const supportedGeneratedImageTypes = new Set(["image/png", "image/jpeg"]);
 const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
 const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
@@ -125,19 +126,21 @@ async function requestGeminiImage({
   try {
     body = await response.json() as GeminiGenerateContentResponse;
   } catch (cause) {
-    throw new Error("Gemini did not return a usable PNG image.", { cause });
+    throw new Error("Gemini did not return a usable image result.", { cause });
   }
 
-  const base64 = body.candidates?.[0]?.content?.parts
-    ?.find((part) => part.inlineData?.mimeType === "image/png")
-    ?.inlineData?.data;
-  if (!base64 || !base64Pattern.test(base64)) {
-    throw new Error("Gemini did not return a usable PNG image.");
+  const generatedImage = body.candidates?.[0]?.content?.parts
+    ?.map((part) => part.inlineData)
+    .find((image) => image?.mimeType && supportedGeneratedImageTypes.has(image.mimeType));
+  const base64 = generatedImage?.data;
+  const mimeType = generatedImage?.mimeType;
+  if (!base64 || !mimeType || !base64Pattern.test(base64)) {
+    throw new Error("Gemini did not return a usable image result.");
   }
 
   return {
-    dataUrl: `data:image/png;base64,${base64}`,
-    mimeType: "image/png",
+    dataUrl: `data:${mimeType};base64,${base64}`,
+    mimeType: mimeType as AiGeneratedImage["mimeType"],
     model: geminiImageModel,
   };
 }
