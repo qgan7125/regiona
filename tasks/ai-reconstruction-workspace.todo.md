@@ -1,6 +1,6 @@
 # Node-based image workflow tasks
 
-- [ ] Task 1: Expand pure workflow state into typed nodes, edges, output revisions, and invalidation rules.
+- [x] Task 1: Expand pure workflow state into typed nodes, edges, output revisions, and invalidation rules.
   - Acceptance: Fan-out, current inputs, stale descendants, and source-adoption eligibility are deterministic and tested.
   - Verify: `npm.cmd test -- --run tests/ai-workflow-state.test.ts`; `npm.cmd run typecheck`.
   - Dependencies: None.
