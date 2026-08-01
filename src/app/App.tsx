@@ -11,6 +11,7 @@ import { Inspector } from "../components/Inspector";
 import { GeminiSettingsDialog } from "../components/GeminiSettingsDialog";
 import { PreviewWorkspace } from "../components/PreviewWorkspace";
 import { UploadPanel } from "../components/UploadPanel";
+import { WorkflowCanvas } from "../components/WorkflowCanvas";
 import { appendColorHistory, redoColorEdit, undoColorEdit } from "./editor-state";
 import { appendPickedColor } from "./palette-suggestions";
 import {
@@ -35,6 +36,7 @@ import {
 import { ReconstructionWorkerClient } from "../workers/worker-client";
 
 type WorkStatus = "idle" | "decoding" | "processing" | "ready" | "error";
+type AppMode = "choose" | "direct" | "workflow";
 
 interface SourceState {
   file: File;
@@ -52,6 +54,7 @@ export function App() {
   const processingRequestRef = useRef(0);
   const processingStartedAtRef = useRef(0);
   const [targetColors, setTargetColors] = useState(12);
+  const [mode, setMode] = useState<AppMode>("choose");
   const [appliedTargetColors, setAppliedTargetColors] = useState(12);
   const [regionSimplification, setRegionSimplification] = useState<RegionSimplification>("off");
   const [appliedRegionSimplification, setAppliedRegionSimplification] = useState<RegionSimplification>("off");
@@ -465,7 +468,28 @@ export function App() {
         </div>
       ) : null}
 
-      <div className="editor-grid">
+      {mode === "choose" ? (
+        <main className="mode-choice">
+          <p className="eyebrow">Choose a path</p>
+          <h1>Start from the image, or build the process.</h1>
+          <div>
+            <button type="button" onClick={() => setMode("direct")}>
+              <strong>Start with Regiona</strong>
+              <span>Upload an image and go straight to quantization, regions, and vector editing.</span>
+            </button>
+            <button type="button" onClick={() => setMode("workflow")}>
+              <strong>Build a workflow</strong>
+              <span>Branch into analysis, redraw, line art, and color reconstruction before vectorizing.</span>
+            </button>
+          </div>
+        </main>
+      ) : mode === "workflow" ? (
+        <WorkflowCanvas
+          sourceName={source?.filename}
+          onFile={(file) => void handleFile(file)}
+          onOpenEditor={() => setMode("direct")}
+        />
+      ) : <div className="editor-grid">
         <UploadPanel
           source={
             source
@@ -532,7 +556,7 @@ export function App() {
           onUndoColor={handleUndoColor}
           onRedoColor={handleRedoColor}
         />
-      </div>
+      </div>}
     </div>
   );
 }
