@@ -111,6 +111,10 @@ button {
   display: inline-flex;
   align-items: center;
   justify-self: start;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
   gap: 10px;
   color: inherit;
   text-decoration: none;

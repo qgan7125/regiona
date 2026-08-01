@@ -443,6 +443,7 @@ export function App() {
             ? "Generating AI clean redraw"
             : statusText}
         canExport={Boolean(result)}
+        onGoHome={() => setMode("choose")}
         onOpenSettings={() => setIsGeminiSettingsOpen(true)}
         onExportProject={() => {
           if (result) exportRegionaProject(result);

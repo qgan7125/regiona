@@ -4,6 +4,7 @@ interface AppHeaderProps {
   status: WorkStatus;
   statusText: string;
   canExport: boolean;
+  onGoHome: () => void;
   onOpenSettings: () => void;
   onExportProject: () => void;
   onExportSvg: () => void;
@@ -13,24 +14,33 @@ export function AppHeader({
   status,
   statusText,
   canExport,
+  onGoHome,
   onOpenSettings,
   onExportProject,
   onExportSvg,
 }: AppHeaderProps) {
   return (
     <header className="app-header">
-      <a className="brand" href="/" aria-label="Regiona home">
+      <button className="brand" type="button" onClick={onGoHome} aria-label="Return to Regiona start">
         <span aria-hidden="true">R</span>
         <span>
           <strong>Regiona</strong>
           <small>region-first reconstruction</small>
         </span>
-      </a>
+      </button>
       <div className="status-line" role="status" aria-live="polite">
         <span className={`status-dot status-${status}`} aria-hidden="true" />
         {statusText}
       </div>
       <div className="header-actions">
+        <Button
+          className="secondary-button"
+          onClick={onGoHome}
+          variant="outlined"
+          size="small"
+        >
+          Start
+        </Button>
         <Button
           className="secondary-button ai-settings-button"
           onClick={onOpenSettings}
