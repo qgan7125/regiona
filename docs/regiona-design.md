@@ -560,6 +560,61 @@ May be considered later.
 
 Not part of the MVP.
 
+## 7.5 User-Composable Image Workflows
+
+Regiona supports two entry modes:
+
+- **Start with Regiona**: upload an image and proceed directly to deterministic quantization, region editing, vector review, and export.
+- **Build a workflow**: upload into a visual graph and branch into AI and analysis tasks before selecting an image for Regiona vector processing.
+
+The entry choice is reversible. A direct Regiona project can open a workflow using its current source as the Start image. A workflow can open the Regiona editor when it has one current, non-stale image selected for vector processing. Changing modes alone must never replace image data.
+
+### 7.5.1 Workflow Nodes
+
+Version one exposes a fixed catalogue of typed nodes. Users may add, remove, duplicate, arrange, and connect compatible nodes, but cannot create arbitrary executable code nodes or invalid dependency cycles.
+
+| Node | Input | Output | Notes |
+| --- | --- | --- | --- |
+| Start | User-uploaded image | Original image | The workflow's immutable reference image. |
+| Analyze | Original or generated image | AI proposal/report | Reports quality, image type, likely vectorization problems, suggested colour/detail budgets, and warnings. It does not silently change settings. |
+| AI clean redraw | Original image | Cleaned image | Removes non-semantic texture and noisy fragments while preserving composition. |
+| Black line art | Original image | Black-on-white line-art image | A direct candidate for Regiona vector processing; does not require redraw or colorization. |
+| Apply source colours | Original image + clean redraw + optional current target palette | Colour reconstruction | Reapplies semantic colour onto clean geometry. |
+| Regiona vector | One explicit current image candidate | Editable Regiona project | Runs local quantization, regions, vector editing, review, and export. |
+
+Nodes show a compact execution summary. Clicking a node opens a dedicated inspector: image-producing nodes use linked original/output comparison; Analyze uses a readable proposal report. Detailed image interaction belongs in the inspector, not inside the graph card.
+
+### 7.5.2 Execution and Revisions
+
+Each node output has a revision and one of these states:
+
+```ts
+type WorkflowNodeStatus =
+  | "idle"
+  | "ready"
+  | "running"
+  | "complete"
+  | "stale"
+  | "error";
+```
+
+Rerunning an image-producing node creates a new output revision and marks only its descendants stale. The previous result remains reviewable, but stale results cannot be automatically run downstream or selected for Regiona vector processing until their current inputs are recomputed.
+
+The workflow provides:
+
+- **Run node / Regenerate** for the selected task.
+- **Run ready nodes** to execute all enabled nodes with current inputs in dependency order.
+- **Run to Regiona vector** to execute one user-selected valid path, rather than every branch.
+- **Cancel current run** to prevent queued work from starting; late provider responses are ignored if their revision is no longer current.
+
+Selecting an AI image for Regiona vector processing requires confirmation. Confirming resets regions, selections, palette edits, vector edits, and undo/redo history because they belong to the previous source geometry. Cancelling changes nothing. AI output must never be auto-adopted.
+
+### 7.5.3 Workflow UI Boundary
+
+The graph is a visualization and interaction layer. Workflow dependency validation, execution ordering, revisions, stale-state calculation, and adoption eligibility live in Regiona's own pure workflow model so they are deterministic and unit-testable.
+
+The graph implementation may use React Flow custom nodes and typed handles. Its graph viewport is separate from the linked Pixi image-comparison viewport so pan and zoom interactions do not compete.
+
 ---
 
 # 8. Privacy and Deployment Model
@@ -594,8 +649,9 @@ If cloud AI is enabled:
 
 - The user must be informed before image upload.
 - The UI must distinguish local and cloud processing.
-- API credentials must not be exposed in browser code.
-- Requests must pass through a secure backend or serverless proxy.
+- Application-owned API credentials must not be exposed in browser code.
+- A bring-your-own-key (BYOK) mode may send a user-provided provider key directly from the browser only when the provider explicitly supports browser requests. The key must never be committed, logged, embedded in deployed assets, or sent to a Regiona backend.
+- A hosted/shared-key mode must use a secure backend or serverless proxy.
 - AI use must be optional.
 - Local-only mode must remain available.
 
