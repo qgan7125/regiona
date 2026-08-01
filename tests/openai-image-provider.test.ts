@@ -46,6 +46,18 @@ describe("OpenAI image reconstruction provider", () => {
     expect(edit.mock.calls[0]?.[0].prompt).toContain("Preserve the original canvas aspect ratio");
   });
 
+  it("creates black line art from the original image only", async () => {
+    const { client, edit } = createClient();
+    const provider = createOpenAiImageProviderWithClient(client);
+
+    await provider.createLineArt({ source: sourceImage });
+
+    expect(edit).toHaveBeenCalledWith(expect.objectContaining({
+      image: sourceImage,
+      prompt: expect.stringContaining("solid black line art"),
+    }));
+  });
+
   it("uses the clean redraw for geometry and the original image for color reconstruction", async () => {
     const { client, edit } = createClient();
     const provider = createOpenAiImageProviderWithClient(client);

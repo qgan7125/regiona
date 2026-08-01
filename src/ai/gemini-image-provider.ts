@@ -55,6 +55,17 @@ export function createGeminiImageProvider(
         ],
       });
     },
+    createLineArt: async ({ source }) => {
+      assertSupportedSource(source);
+      return requestGeminiImage({
+        apiKey: normalizedKey,
+        fetcher,
+        parts: [
+          { text: lineArtPrompt },
+          await toGeminiImageInput(source),
+        ],
+      });
+    },
     reconstructColors: async ({ original, cleanRedraw, palette }) => {
       assertSupportedSource(original);
       assertSupportedSource(cleanRedraw);
@@ -77,6 +88,13 @@ const cleanRedrawPrompt = [
   "Keep meaningful boundaries and intentional interior details.",
   "Remove compression noise, anti-alias speckles, accidental tiny fragments, and non-semantic texture.",
   "Use clean, flat, closed color regions; do not add, remove, crop, or rearrange content.",
+].join(" ");
+
+const lineArtPrompt = [
+  "Create solid black line art from the supplied image for later vectorization.",
+  "Preserve the original canvas aspect ratio, composition, subject, silhouette, and meaningful interior boundaries.",
+  "Use only opaque black lines on a plain white background; do not use color, gray, shading, texture, or gradients.",
+  "Do not add, remove, crop, or rearrange content.",
 ].join(" ");
 
 function colorReconstructionPrompt(palette: readonly string[]) {

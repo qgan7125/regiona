@@ -78,6 +78,23 @@ describe("Gemini image reconstruction provider", () => {
     ]);
   });
 
+  it("creates black line art from the original image only", async () => {
+    const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse());
+    const provider = createGeminiImageProvider("gemini-user-key", fetcher);
+
+    await provider.createLineArt({ source: sourceImage });
+
+    const request = JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string) as {
+      contents: Array<{ parts: Array<{ text?: string; inline_data?: { data: string } }> }>;
+      generationConfig: { responseModalities: string[] };
+    };
+    expect(request.generationConfig).toEqual({ responseModalities: ["IMAGE"] });
+    expect(request.contents[0]?.parts).toEqual([
+      expect.objectContaining({ text: expect.stringContaining("solid black line art") }),
+      expect.objectContaining({ inline_data: expect.objectContaining({ data: "c291cmNl" }) }),
+    ]);
+  });
+
   it("keeps a JPEG result returned by Gemini", async () => {
     const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse(
       "image/jpeg",

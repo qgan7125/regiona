@@ -22,6 +22,7 @@ export interface ColorReconstructionInput {
 
 export interface ImageReconstructionProvider {
   createCleanRedraw(input: CleanRedrawInput): Promise<AiGeneratedImage>;
+  createLineArt(input: CleanRedrawInput): Promise<AiGeneratedImage>;
   reconstructColors(input: ColorReconstructionInput): Promise<AiGeneratedImage>;
 }
 
@@ -99,6 +100,13 @@ export function createOpenAiImageProviderWithClient(
         prompt: cleanRedrawPrompt,
       });
     },
+    createLineArt: async ({ source }) => {
+      assertSupportedSource(source);
+      return requestImageEdit(client, {
+        image: source,
+        prompt: lineArtPrompt,
+      });
+    },
     reconstructColors: async ({ original, cleanRedraw, palette }) => {
       assertSupportedSource(original);
       assertSupportedSource(cleanRedraw);
@@ -116,6 +124,13 @@ const cleanRedrawPrompt = [
   "Keep meaningful boundaries and intentional interior details.",
   "Remove compression noise, anti-alias speckles, accidental tiny fragments, and non-semantic texture.",
   "Use clean, flat, closed color regions; do not add, remove, crop, or rearrange content.",
+].join(" ");
+
+const lineArtPrompt = [
+  "Create solid black line art from the supplied image for later vectorization.",
+  "Preserve the original canvas aspect ratio, composition, subject, silhouette, and meaningful interior boundaries.",
+  "Use only opaque black lines on a plain white background; do not use color, gray, shading, texture, or gradients.",
+  "Do not add, remove, crop, or rearrange content.",
 ].join(" ");
 
 function colorReconstructionPrompt(palette: readonly string[]) {
