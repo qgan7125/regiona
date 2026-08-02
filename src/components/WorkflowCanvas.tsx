@@ -53,7 +53,7 @@ function WorkflowNode({ data }: NodeProps<Node<WorkflowNodeData>>) {
     <article className={`workflow-node workflow-node--${data.status}`}>
       {data.acceptsInput && <Handle type="target" position={Position.Left} />}
       <strong>{data.title}</strong>
-      <span>{data.detail}</span>
+      <span title={data.detail}>{data.detail}</span>
       <small>{data.status.replaceAll("-", " ")}</small>
       {data.providesOutput && <Handle type="source" position={Position.Right} />}
     </article>

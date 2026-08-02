@@ -87,7 +87,7 @@ button {
 .workflow-panel--actions { display: grid; gap: .5rem; }
 .workflow-node { position: relative; display: grid; width: 12rem; gap: .35rem; padding: .9rem; background: var(--surface-raised); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .workflow-node strong { font-size: .9rem; }
-.workflow-node span { color: var(--muted); font-size: .78rem; line-height: 1.35; }
+.workflow-node span { min-width: 0; color: var(--muted); font-size: .78rem; line-height: 1.35; overflow-wrap: anywhere; word-break: break-word; }
 .workflow-node small { color: var(--accent); font-size: .68rem; text-transform: uppercase; }
 .workflow-node--stale { opacity: .65; border-style: dashed; }
 .workflow-node--running { border-color: var(--accent); }
