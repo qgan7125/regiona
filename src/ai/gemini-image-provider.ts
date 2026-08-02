@@ -89,6 +89,11 @@ export function createGeminiImageProvider(
         ],
       });
     },
+    createPromptRedraw: async ({ prompt }) => requestGeminiImage({
+      apiKey: normalizedKey,
+      fetcher,
+      parts: [{ text: promptRedrawPrompt(normalizePrompt(prompt)) }],
+    }),
   };
 }
 
@@ -122,6 +127,16 @@ function colorizeLineArtPrompt(colorCount: number) {
     "Color the white regions of the line art using the original image's semantic colors while preserving its composition, silhouette, boundaries, and black linework.",
     `Use exactly ${colorCount} flat fill colors, excluding the preserved black linework and white background.`,
     "Do not add, remove, crop, or rearrange content. Keep the background, black linework, and clean flat color regions suitable for vectorization.",
+  ].join(" ");
+}
+
+function promptRedrawPrompt(prompt: string) {
+  return [
+    "Generate one image from this reverse-engineered recreation prompt.",
+    "Follow its visible subject, composition, palette, style, and aspect-ratio instructions faithfully.",
+    "Do not add a caption, UI, frame, watermark, or explanatory text.",
+    "Reverse prompt:",
+    prompt,
   ].join(" ");
 }
 
@@ -229,4 +244,10 @@ function normalizeImageScale(scale: number): number {
     throw new Error("AI image scale improvement supports an integer scale between 2× and 4×.");
   }
   return scale;
+}
+
+function normalizePrompt(prompt: string): string {
+  const normalized = prompt.trim();
+  if (!normalized) throw new Error("A reverse prompt is required to generate an image.");
+  return normalized;
 }

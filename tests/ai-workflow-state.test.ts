@@ -112,11 +112,39 @@ describe("AI workflow state", () => {
       "image-scale",
     )).toBe(true);
     expect(createWorkflowExecutionPlan(workflow)).toEqual([
-      { nodeId: "image-scale", kind: "upscale", sourceId: "start" },
-      { nodeId: "black-line-art", kind: "line-art", sourceId: "image-scale" },
-      { nodeId: "colorize-line-art", kind: "color", sourceId: "black-line-art" },
+      { nodeId: "image-scale", kind: "upscale", sourceId: "start", inputPort: "image" },
+      { nodeId: "black-line-art", kind: "line-art", sourceId: "image-scale", inputPort: "image" },
+      { nodeId: "colorize-line-art", kind: "color", sourceId: "black-line-art", inputPort: "line-art" },
     ]);
     expect(getWorkflowVectorInputSourceId(workflow)).toBe("colorize-line-art");
+  });
+
+  it("allows an Analyze result to feed a prompt-only redraw node", () => {
+    let workflow = createAiWorkflowState("original-image");
+    workflow = addAiWorkflowNode(workflow, "analyze");
+    workflow = addAiWorkflowNode(workflow, "prompt-redraw");
+    workflow = disconnectAiWorkflowNodes(workflow, "start:image:regiona-vector");
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "start",
+      targetId: "analyze",
+      targetPort: "image",
+    });
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "analyze",
+      targetId: "prompt-redraw",
+      targetPort: "prompt",
+    });
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "prompt-redraw",
+      targetId: "regiona-vector",
+      targetPort: "image",
+    });
+
+    expect(createWorkflowExecutionPlan(workflow)).toEqual([
+      { nodeId: "analyze", kind: "analyze", sourceId: "start", inputPort: "image" },
+      { nodeId: "prompt-redraw", kind: "prompt-redraw", sourceId: "analyze", inputPort: "prompt" },
+    ]);
+    expect(getWorkflowVectorInputSourceId(workflow)).toBe("prompt-redraw");
   });
 
   it("removes a library node with every connection that belongs to it", () => {

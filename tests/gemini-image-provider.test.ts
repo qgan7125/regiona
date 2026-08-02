@@ -59,6 +59,23 @@ describe("Gemini image reconstruction provider", () => {
     ]));
   });
 
+  it("creates an image directly from a reverse prompt without sending an image input", async () => {
+    const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse());
+    const provider = createGeminiImageProvider("gemini-user-key", fetcher);
+
+    await provider.createPromptRedraw({
+      prompt: "A centered green-haired character portrait with a soft pink graphic background.",
+    });
+
+    const request = JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string) as {
+      contents: Array<{ parts: Array<{ text?: string; inline_data?: unknown }> }>;
+    };
+    expect(request.contents[0]?.parts).toEqual([
+      expect.objectContaining({ text: expect.stringContaining("centered green-haired character portrait") }),
+    ]);
+    expect(request.contents[0]?.parts.some((part) => part.inline_data)).toBe(false);
+  });
+
   it("uses black line art first and the original second to colorize line art", async () => {
     const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse());
     const provider = createGeminiImageProvider("gemini-user-key", fetcher);

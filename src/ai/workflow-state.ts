@@ -1,4 +1,4 @@
-export type AiIntermediateStage = "redraw" | "color" | "line-art" | "upscale";
+export type AiIntermediateStage = "redraw" | "color" | "line-art" | "upscale" | "prompt-redraw";
 export type AiWorkflowNodeKind =
   | "start"
   | "analyze"
@@ -6,24 +6,28 @@ export type AiWorkflowNodeKind =
   | "redraw"
   | "line-art"
   | "color"
+  | "prompt-redraw"
   | "vector";
 export type AiWorkflowNodeStatus = "idle" | "ready" | "running" | "complete" | "stale" | "error";
-export type AiWorkflowInputPort = "image" | "line-art";
+export type AiWorkflowInputPort = "image" | "line-art" | "prompt";
 
-const intermediateStages = new Set<AiIntermediateStage>(["redraw", "color", "line-art", "upscale"]);
+const intermediateStages = new Set<AiIntermediateStage>(["redraw", "color", "line-art", "upscale", "prompt-redraw"]);
 const imageProducingNodeKinds = new Set<AiWorkflowNodeKind>([
   "start",
   "upscale",
   "redraw",
   "line-art",
   "color",
+  "prompt-redraw",
 ]);
+const promptProducingNodeKinds = new Set<AiWorkflowNodeKind>(["analyze"]);
 const libraryNodeKinds = new Set<AiWorkflowNodeKind>([
   "analyze",
   "upscale",
   "redraw",
   "line-art",
   "color",
+  "prompt-redraw",
 ]);
 const nodeIdsByKind: Partial<Record<AiWorkflowNodeKind, string>> = {
   analyze: "analyze",
@@ -31,6 +35,7 @@ const nodeIdsByKind: Partial<Record<AiWorkflowNodeKind, string>> = {
   redraw: "clean-redraw",
   "line-art": "black-line-art",
   color: "colorize-line-art",
+  "prompt-redraw": "prompt-redraw",
 };
 
 export interface AiIntermediateImage {
@@ -170,9 +175,6 @@ export function connectAiWorkflowNodes(
   const source = findNode(workflow, connection.sourceId);
   const target = findNode(workflow, connection.targetId);
 
-  if (!imageProducingNodeKinds.has(source.kind)) {
-    throw new Error("The selected source does not provide an image output.");
-  }
   if (!requiredInputPorts(target.kind).includes(connection.targetPort)) {
     throw new Error("The selected target does not support that input.");
   }
@@ -268,6 +270,8 @@ function requiredInputPorts(kind: AiWorkflowNodeKind): AiWorkflowInputPort[] {
       return ["image"];
     case "color":
       return ["line-art"];
+    case "prompt-redraw":
+      return ["prompt"];
     case "start":
       return [];
   }
@@ -279,7 +283,8 @@ function isCompatibleInput(
   targetPort: AiWorkflowInputPort,
 ): boolean {
   if (targetPort === "line-art") return sourceKind === "line-art";
-  return targetKind !== "start";
+  if (targetPort === "prompt") return promptProducingNodeKinds.has(sourceKind);
+  return targetKind !== "start" && imageProducingNodeKinds.has(sourceKind);
 }
 
 function hasCurrentInputs(workflow: AiWorkflowState, node: AiWorkflowNode): boolean {

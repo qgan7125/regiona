@@ -23,11 +23,16 @@ export interface LineArtColorizationInput {
   colorCount: number;
 }
 
+export interface PromptRedrawInput {
+  prompt: string;
+}
+
 export interface ImageReconstructionProvider {
   createCleanRedraw(input: CleanRedrawInput): Promise<AiGeneratedImage>;
   improveImageScale(input: ImageScaleImprovementInput): Promise<AiGeneratedImage>;
   createLineArt(input: CleanRedrawInput): Promise<AiGeneratedImage>;
   colorizeLineArt(input: LineArtColorizationInput): Promise<AiGeneratedImage>;
+  createPromptRedraw(input: PromptRedrawInput): Promise<AiGeneratedImage>;
 }
 
 interface OpenAiImageEditRequest {
@@ -43,9 +48,18 @@ interface OpenAiImageEditResponse {
   data?: Array<{ b64_json?: string }>;
 }
 
+interface OpenAiImageGenerationRequest {
+  model: typeof openAiImageModel;
+  prompt: string;
+  background: "opaque";
+  output_format: "png";
+  quality: "low";
+}
+
 export interface OpenAiImageClient {
   images: {
     edit(request: OpenAiImageEditRequest): Promise<OpenAiImageEditResponse>;
+    generate?(request: OpenAiImageGenerationRequest): Promise<OpenAiImageEditResponse>;
   };
 }
 
@@ -126,7 +140,14 @@ export function createOpenAiImageProviderWithClient(
         prompt: colorizeLineArtPrompt(normalizeColorCount(colorCount)),
       });
     },
+    createPromptRedraw: async ({ prompt }) => requestImageGeneration(client, normalizePrompt(prompt)),
   };
+}
+
+function normalizePrompt(prompt: string) {
+  const normalized = prompt.trim();
+  if (!normalized) throw new Error("A reverse prompt is required to generate an image.");
+  return normalized;
 }
 
 const cleanRedrawPrompt = [
@@ -179,6 +200,31 @@ async function requestImageEdit(
     throw new Error(openAiImageErrorMessage(readHttpStatus(cause)), { cause });
   }
 
+  return imageFromOpenAiResponse(response);
+}
+
+async function requestImageGeneration(client: OpenAiImageClient, prompt: string): Promise<AiGeneratedImage> {
+  if (!client.images.generate) {
+    throw new Error("This OpenAI image client does not support prompt-only image generation.");
+  }
+
+  let response: OpenAiImageEditResponse;
+  try {
+    response = await client.images.generate({
+      model: openAiImageModel,
+      prompt,
+      background: "opaque",
+      output_format: "png",
+      quality: "low",
+    });
+  } catch (cause) {
+    throw new Error(openAiImageErrorMessage(readHttpStatus(cause)), { cause });
+  }
+
+  return imageFromOpenAiResponse(response);
+}
+
+function imageFromOpenAiResponse(response: OpenAiImageEditResponse): AiGeneratedImage {
   const base64 = response.data?.[0]?.b64_json;
   if (!base64 || !isValidBase64(base64)) {
     throw new Error("OpenAI did not return a usable PNG image.");

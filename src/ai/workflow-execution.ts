@@ -1,9 +1,10 @@
-import type { AiWorkflowNodeKind, AiWorkflowState } from "./workflow-state";
+import type { AiWorkflowInputPort, AiWorkflowNodeKind, AiWorkflowState } from "./workflow-state";
 
 export interface WorkflowExecutionStep {
   nodeId: string;
   kind: Exclude<AiWorkflowNodeKind, "start" | "vector">;
   sourceId: string;
+  inputPort: AiWorkflowInputPort;
 }
 
 export function createWorkflowExecutionPlan(workflow: Pick<AiWorkflowState, "nodes" | "edges">) {
@@ -11,13 +12,17 @@ export function createWorkflowExecutionPlan(workflow: Pick<AiWorkflowState, "nod
     kind: WorkflowExecutionStep["kind"];
   } => node.kind !== "start" && node.kind !== "vector");
   const pending = new Map(runnableNodes.map((node) => [node.id, node]));
-  const availableSources = new Set(["start"]);
+  const availableImageSources = new Set(["start"]);
+  const availablePromptSources = new Set<string>();
   const plan: WorkflowExecutionStep[] = [];
 
   while (pending.size) {
     const next = [...pending.values()].find((node) => {
       const input = workflow.edges.find((edge) => edge.targetId === node.id);
-      return input && availableSources.has(input.sourceId);
+      if (!input) return false;
+      return input.targetPort === "prompt"
+        ? availablePromptSources.has(input.sourceId)
+        : availableImageSources.has(input.sourceId);
     });
     if (!next) break;
 
@@ -27,9 +32,11 @@ export function createWorkflowExecutionPlan(workflow: Pick<AiWorkflowState, "nod
       nodeId: next.id,
       kind: next.kind,
       sourceId: input.sourceId,
+      inputPort: input.targetPort,
     });
     pending.delete(next.id);
-    if (next.kind !== "analyze") availableSources.add(next.id);
+    if (next.kind === "analyze") availablePromptSources.add(next.id);
+    else availableImageSources.add(next.id);
   }
 
   return plan;
