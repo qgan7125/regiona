@@ -16,7 +16,9 @@ import {
   disconnectAiWorkflowNodes,
   removeAiWorkflowNode,
   type AiWorkflowNodeKind,
+  type AiWorkflowNodeStatus,
 } from "../ai/workflow-state";
+import { createWorkflowExecutionPlan, getWorkflowVectorInputSourceId } from "../ai/workflow-execution";
 import { AppHeader } from "../components/AppHeader";
 import { Inspector } from "../components/Inspector";
 import { GeminiSettingsDialog } from "../components/GeminiSettingsDialog";
@@ -64,6 +66,12 @@ interface SourceState {
   pixels: Uint8ClampedArray;
 }
 
+interface WorkflowImageInput {
+  file: File;
+  width: number;
+  height: number;
+}
+
 async function createSourceState(
   file: File,
   options?: { maximumFileBytes?: number },
@@ -79,6 +87,20 @@ async function createSourceState(
     processedHeight: decoded.height,
     pixels: decoded.pixels,
   };
+}
+
+async function createWorkflowImageInput(
+  image: AiGeneratedImage,
+  label: string,
+): Promise<WorkflowImageInput> {
+  const extension = image.mimeType === "image/jpeg" ? "jpg" : "png";
+  const file = createImageFileFromGeneratedImage(image, `regiona-${label}.${extension}`);
+  const bitmap = await createImageBitmap(file);
+  try {
+    return { file, width: bitmap.width, height: bitmap.height };
+  } finally {
+    bitmap.close();
+  }
 }
 
 export function App() {
@@ -451,13 +473,9 @@ export function App() {
       return;
     }
 
-    const shouldAnalyze = !analysis;
-    const shouldScale = !imageScale;
-    const shouldRedraw = !cleanRedraw;
-    const shouldLineArt = !lineArt;
-    const shouldColorize = !colorizedLineArt;
-    if (!(shouldAnalyze || shouldScale || shouldRedraw || shouldLineArt || shouldColorize)) {
-      setStatusText("All ready workflow tasks have completed.");
+    const plan = createWorkflowExecutionPlan(workflow);
+    if (!plan.length) {
+      setAiError("Connect at least one AI node to Start before running the workflow.");
       return;
     }
 
@@ -470,59 +488,87 @@ export function App() {
     try {
       const imageProvider = createGeminiImageProvider(apiKey);
       const analysisProvider = createGeminiAnalysisProvider(apiKey);
-      let currentLineArt = lineArt;
-
-      if (shouldAnalyze) {
-        setAiGenerationStage("analysis");
-        const generatedAnalysis = await analysisProvider.analyzeImage({ source: inputSource.file });
-        if (!isCurrentRun()) return;
-        setAnalysis(generatedAnalysis);
-      }
-
-      if (shouldScale) {
-        setAiGenerationStage("scale");
-        const upscaleDimensions = calculateUpscaleDimensions({
+      const outputs = new Map<string, AiGeneratedImage>();
+      if (imageScale) outputs.set("image-scale", imageScale);
+      if (cleanRedraw) outputs.set("clean-redraw", cleanRedraw);
+      if (lineArt) outputs.set("black-line-art", lineArt);
+      if (colorizedLineArt) outputs.set("colorize-line-art", colorizedLineArt);
+      const inputs = new Map<string, WorkflowImageInput>([
+        ["start", {
+          file: inputSource.file,
           width: inputSource.originalWidth,
           height: inputSource.originalHeight,
-          scale: imageScaleFactor,
-        });
-        const generatedScale = await imageProvider.improveImageScale({
-          source: inputSource.file,
-          scale: imageScaleFactor,
-        });
-        if (!isCurrentRun()) return;
-        const resizedScale = await resizeAiGeneratedImage(generatedScale, upscaleDimensions);
-        if (!isCurrentRun()) return;
-        setImageScale(resizedScale);
-      }
+        }],
+      ]);
 
-      if (shouldRedraw) {
-        setAiGenerationStage("redraw");
-        const generatedCleanRedraw = await imageProvider.createCleanRedraw({ source: inputSource.file });
-        if (!isCurrentRun()) return;
-        setCleanRedraw(generatedCleanRedraw);
-      }
+      for (const step of plan) {
+        if (step.kind === "analyze" && analysis) continue;
+        const input = inputs.get(step.sourceId)
+          ?? (outputs.get(step.sourceId)
+            ? await createWorkflowImageInput(outputs.get(step.sourceId)!, step.sourceId)
+            : undefined);
+        if (!input) {
+          throw new Error(`Run ${step.sourceId} before ${step.nodeId}.`);
+        }
+        if (!inputs.has(step.sourceId)) inputs.set(step.sourceId, input);
 
-      if (shouldLineArt) {
-        setAiGenerationStage("line-art");
-        const generatedLineArt = await imageProvider.createLineArt({ source: inputSource.file });
-        if (!isCurrentRun()) return;
-        currentLineArt = generatedLineArt;
-        setLineArt(generatedLineArt);
-      }
+        if (step.kind === "analyze") {
+          setAiGenerationStage("analysis");
+          const generatedAnalysis = await analysisProvider.analyzeImage({ source: input.file });
+          if (!isCurrentRun()) return;
+          setAnalysis(generatedAnalysis);
+          continue;
+        }
+        if (outputs.has(step.nodeId)) {
+          inputs.set(step.nodeId, await createWorkflowImageInput(outputs.get(step.nodeId)!, step.nodeId));
+          continue;
+        }
 
-      if (shouldColorize && currentLineArt) {
+        if (step.kind === "upscale") {
+          setAiGenerationStage("scale");
+          const dimensions = calculateUpscaleDimensions({
+            width: input.width,
+            height: input.height,
+            scale: imageScaleFactor,
+          });
+          const generated = await imageProvider.improveImageScale({ source: input.file, scale: imageScaleFactor });
+          if (!isCurrentRun()) return;
+          const resized = await resizeAiGeneratedImage(generated, dimensions);
+          if (!isCurrentRun()) return;
+          outputs.set(step.nodeId, resized);
+          inputs.set(step.nodeId, await createWorkflowImageInput(resized, step.nodeId));
+          setImageScale(resized);
+          continue;
+        }
+        if (step.kind === "redraw") {
+          setAiGenerationStage("redraw");
+          const generated = await imageProvider.createCleanRedraw({ source: input.file });
+          if (!isCurrentRun()) return;
+          outputs.set(step.nodeId, generated);
+          inputs.set(step.nodeId, await createWorkflowImageInput(generated, step.nodeId));
+          setCleanRedraw(generated);
+          continue;
+        }
+        if (step.kind === "line-art") {
+          setAiGenerationStage("line-art");
+          const generated = await imageProvider.createLineArt({ source: input.file });
+          if (!isCurrentRun()) return;
+          outputs.set(step.nodeId, generated);
+          inputs.set(step.nodeId, await createWorkflowImageInput(generated, step.nodeId));
+          setLineArt(generated);
+          continue;
+        }
+
         setAiGenerationStage("color");
-        const generatedColors = await imageProvider.colorizeLineArt({
+        const generated = await imageProvider.colorizeLineArt({
           original: inputSource.file,
-          lineArt: createImageFileFromGeneratedImage(
-            currentLineArt,
-            `regiona-black-line-art.${currentLineArt.mimeType === "image/jpeg" ? "jpg" : "png"}`,
-          ),
+          lineArt: input.file,
           colorCount: lineArtColorCount,
         });
         if (!isCurrentRun()) return;
-        setColorizedLineArt(generatedColors);
+        outputs.set(step.nodeId, generated);
+        inputs.set(step.nodeId, await createWorkflowImageInput(generated, step.nodeId));
+        setColorizedLineArt(generated);
       }
     } catch (cause) {
       if (isCurrentRun()) {
@@ -564,6 +610,31 @@ export function App() {
   const handleDisconnectWorkflowNodes = useCallback((edgeId: string) => {
     setWorkflow((current) => disconnectAiWorkflowNodes(current, edgeId));
   }, []);
+
+  const handleOpenWorkflowEditor = useCallback(() => {
+    const sourceId = getWorkflowVectorInputSourceId(workflow);
+    if (!sourceId) {
+      setAiError("Connect an image node to Regiona vector before opening the editor.");
+      return;
+    }
+    if (sourceId === "start") {
+      setMode("direct");
+      return;
+    }
+
+    const candidates: Record<string, { image: AiGeneratedImage | undefined; label: string }> = {
+      "image-scale": { image: imageScale, label: "AI upscale" },
+      "clean-redraw": { image: cleanRedraw, label: "AI clean redraw" },
+      "black-line-art": { image: lineArt, label: "Black line art" },
+      "colorize-line-art": { image: colorizedLineArt, label: "Colorized line art" },
+    };
+    const candidate = candidates[sourceId];
+    if (!candidate?.image) {
+      setAiError("Run the image connected to Regiona vector before opening the editor.");
+      return;
+    }
+    setPendingVectorCandidate({ image: candidate.image, label: candidate.label });
+  }, [cleanRedraw, colorizedLineArt, imageScale, lineArt, workflow]);
 
   const handleGenerateCleanRedraw = async () => {
     const inputSource = mode === "workflow" ? workflowSource ?? source : source;
@@ -710,35 +781,51 @@ export function App() {
   };
 
   const workflowNodeStatuses = useMemo(() => {
+    const statuses: Partial<Record<WorkflowNodeId, AiWorkflowNodeStatus | "awaiting-source">> = {};
     const currentWorkflowSource = workflowSource ?? source;
     if (!currentWorkflowSource) {
-      return {
-        start: "awaiting-source",
-        analyze: "awaiting-source",
-        "image-scale": "awaiting-source",
-        "clean-redraw": "awaiting-source",
-        "black-line-art": "awaiting-source",
-        "colorize-line-art": "awaiting-source",
-        "regiona-vector": "awaiting-source",
-      } as const;
+      for (const node of workflow.nodes) {
+        statuses[node.id as WorkflowNodeId] = "awaiting-source";
+      }
+      return statuses;
     }
 
-    return {
-      start: "complete",
-      analyze: aiGenerationStage === "analysis" ? "running" : analysis ? "complete" : "ready",
-      "image-scale": aiGenerationStage === "scale" ? "running" : imageScale ? "complete" : "ready",
-      "clean-redraw": aiGenerationStage === "redraw" ? "running" : cleanRedraw ? "complete" : "ready",
-      "black-line-art": aiGenerationStage === "line-art" ? "running" : lineArt ? "complete" : "ready",
-      "colorize-line-art": aiGenerationStage === "color"
-        ? "running"
-        : colorizedLineArt
-          ? "complete"
-          : lineArt
-            ? "ready"
-            : "idle",
-      "regiona-vector": "ready",
-    } as const;
-  }, [aiGenerationStage, analysis, cleanRedraw, colorizedLineArt, imageScale, lineArt, source, workflowSource]);
+    const completed = new Set<string>(["start"]);
+    if (analysis) completed.add("analyze");
+    if (imageScale) completed.add("image-scale");
+    if (cleanRedraw) completed.add("clean-redraw");
+    if (lineArt) completed.add("black-line-art");
+    if (colorizedLineArt) completed.add("colorize-line-art");
+
+    const runningNodeByStage: Partial<Record<AiGenerationStage, WorkflowNodeId>> = {
+      analysis: "analyze",
+      scale: "image-scale",
+      redraw: "clean-redraw",
+      "line-art": "black-line-art",
+      color: "colorize-line-art",
+    };
+    const runningNodeId = aiGenerationStage ? runningNodeByStage[aiGenerationStage] : undefined;
+
+    for (const node of workflow.nodes) {
+      const id = node.id as WorkflowNodeId;
+      if (id === "start") {
+        statuses[id] = "complete";
+        continue;
+      }
+      if (id === runningNodeId) {
+        statuses[id] = "running";
+        continue;
+      }
+      if (completed.has(id)) {
+        statuses[id] = "complete";
+        continue;
+      }
+      const input = workflow.edges.find((edge) => edge.targetId === id);
+      statuses[id] = input && completed.has(input.sourceId) ? "ready" : "idle";
+    }
+
+    return statuses;
+  }, [aiGenerationStage, analysis, cleanRedraw, colorizedLineArt, imageScale, lineArt, source, workflow, workflowSource]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -845,7 +932,7 @@ export function App() {
             onConnectWorkflowNodes={handleConnectWorkflowNodes}
             onDisconnectWorkflowNodes={handleDisconnectWorkflowNodes}
             onInspectNode={setWorkflowInspectorNodeId}
-            onOpenEditor={() => setMode("direct")}
+            onOpenEditor={handleOpenWorkflowEditor}
             onRemoveNode={handleRemoveWorkflowNode}
             onRunReadyNodes={() => void handleRunReadyWorkflowNodes()}
           />

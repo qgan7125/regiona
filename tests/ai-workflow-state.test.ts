@@ -12,6 +12,7 @@ import {
   removeAiWorkflowNode,
   selectAiWorkingImage,
 } from "../src/ai/workflow-state";
+import { createWorkflowExecutionPlan, getWorkflowVectorInputSourceId } from "../src/ai/workflow-execution";
 
 describe("AI workflow state", () => {
   it("keeps the original reference intact while selecting a redraw as the working image", () => {
@@ -110,6 +111,12 @@ describe("AI workflow state", () => {
       completeAiWorkflowNodeRun(workflow, "image-scale"),
       "image-scale",
     )).toBe(true);
+    expect(createWorkflowExecutionPlan(workflow)).toEqual([
+      { nodeId: "image-scale", kind: "upscale", sourceId: "start" },
+      { nodeId: "black-line-art", kind: "line-art", sourceId: "image-scale" },
+      { nodeId: "colorize-line-art", kind: "color", sourceId: "black-line-art" },
+    ]);
+    expect(getWorkflowVectorInputSourceId(workflow)).toBe("colorize-line-art");
   });
 
   it("removes a library node with every connection that belongs to it", () => {
