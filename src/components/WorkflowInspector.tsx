@@ -14,7 +14,7 @@ import type { AiGeneratedImage } from "../ai/openai-image-provider";
 import type { AiStructureAnalysis } from "../ai/structure-analysis";
 import type { WorkflowNodeId } from "./WorkflowCanvas";
 import { WorkflowImageComparison } from "./WorkflowImageComparison";
-import { copyPromptText } from "./prompt-copy";
+import { buildCompletePrompt, copyPromptText } from "./prompt-copy";
 
 interface WorkflowSourceSummary {
   filename: string;
@@ -75,19 +75,13 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
 interface PromptCardProps {
   label: string;
   value: string;
-  copied: boolean;
-  copyUnavailable: boolean;
-  onCopy: () => void;
 }
 
-function PromptCard({ label, value, copied, copyUnavailable, onCopy }: PromptCardProps) {
+function PromptCard({ label, value }: PromptCardProps) {
   return (
     <Box className="workflow-prompt-card">
       <div className="workflow-prompt-card__header">
         <Typography color="text.secondary" variant="overline">{label}</Typography>
-        <Button aria-label={`Copy ${label}`} onClick={onCopy} size="small" variant="text">
-          {copied ? "Copied" : copyUnavailable ? "Copy unavailable" : "Copy"}
-        </Button>
       </div>
       <Typography className="workflow-prompt-card__content" variant="body2">{value}</Typography>
     </Box>
@@ -114,7 +108,7 @@ export function WorkflowInspector({
   onUseInRegionaVector,
   onOpenEditor,
 }: WorkflowInspectorProps) {
-  const [copiedPrompt, setCopiedPrompt] = useState<string>();
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copyUnavailable, setCopyUnavailable] = useState(false);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -134,13 +128,13 @@ export function WorkflowInspector({
     mimeType: source.mimeType,
   } : undefined;
 
-  const handleCopyPrompt = async (label: string, value: string) => {
+  const handleCopyPrompt = async (value: string) => {
     const copied = await copyPromptText(
       value,
       navigator.clipboard?.writeText.bind(navigator.clipboard),
     );
     setCopyUnavailable(!copied);
-    setCopiedPrompt(copied ? label : undefined);
+    setCopiedPrompt(copied);
   };
 
   return (
@@ -173,30 +167,35 @@ export function WorkflowInspector({
 
           {nodeId === "analyze" ? (
             <Stack spacing={1.5}>
-              <Button disabled={!hasSource || isRunning} onClick={onRunAnalyze} variant="contained">
+              <Button
+                disabled={!hasSource || isRunning}
+                onClick={() => {
+                  setCopiedPrompt(false);
+                  setCopyUnavailable(false);
+                  onRunAnalyze();
+                }}
+                variant="contained"
+              >
                 {runningStage === "analysis" ? "Analyzing..." : analysis ? "Analyze again" : "Analyze image"}
               </Button>
               {analysis ? (
                 <Stack className="workflow-analysis" spacing={1.5}>
+                  <Button
+                    onClick={() => void handleCopyPrompt(buildCompletePrompt(analysis))}
+                    variant="outlined"
+                  >
+                    {copiedPrompt ? "Copied full prompt" : copyUnavailable ? "Copy unavailable" : "Copy full prompt"}
+                  </Button>
                   <PromptCard
-                    copied={copiedPrompt === "Recreation prompt"}
-                    copyUnavailable={copyUnavailable}
                     label="Recreation prompt"
-                    onCopy={() => void handleCopyPrompt("Recreation prompt", analysis.recreationPrompt)}
                     value={analysis.recreationPrompt}
                   />
                   <PromptCard
-                    copied={copiedPrompt === "Core prompt"}
-                    copyUnavailable={copyUnavailable}
                     label="Core prompt"
-                    onCopy={() => void handleCopyPrompt("Core prompt", analysis.corePrompt)}
                     value={analysis.corePrompt}
                   />
                   <PromptCard
-                    copied={copiedPrompt === "Negative prompt"}
-                    copyUnavailable={copyUnavailable}
                     label="Negative prompt"
-                    onCopy={() => void handleCopyPrompt("Negative prompt", analysis.negativePrompt)}
                     value={analysis.negativePrompt}
                   />
                   <Box className="workflow-analysis-card">
