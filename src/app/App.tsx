@@ -677,6 +677,10 @@ export function App() {
             : statusText}
         canExport={Boolean(result)}
         onGoHome={() => setMode("choose")}
+        onOpenWorkflow={() => {
+          setWorkflowInspectorNodeId(undefined);
+          setMode("workflow");
+        }}
         onOpenSettings={() => setIsGeminiSettingsOpen(true)}
         onExportProject={() => {
           if (result) exportRegionaProject(result);

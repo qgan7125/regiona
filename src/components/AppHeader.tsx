@@ -5,6 +5,7 @@ interface AppHeaderProps {
   statusText: string;
   canExport: boolean;
   onGoHome: () => void;
+  onOpenWorkflow: () => void;
   onOpenSettings: () => void;
   onExportProject: () => void;
   onExportSvg: () => void;
@@ -15,6 +16,7 @@ export function AppHeader({
   statusText,
   canExport,
   onGoHome,
+  onOpenWorkflow,
   onOpenSettings,
   onExportProject,
   onExportSvg,
@@ -40,6 +42,14 @@ export function AppHeader({
           size="small"
         >
           Start
+        </Button>
+        <Button
+          className="secondary-button"
+          onClick={onOpenWorkflow}
+          variant="outlined"
+          size="small"
+        >
+          Workflow
         </Button>
         <Button
           className="secondary-button ai-settings-button"

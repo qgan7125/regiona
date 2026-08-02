@@ -61,11 +61,11 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
   },
   "apply-source-colors": {
     title: "Apply source colors",
-    description: "Restore source colours onto the clean-redraw geometry as a separate candidate.",
+    description: "Restore source colors onto the clean-redraw geometry as a separate candidate.",
   },
   "regiona-vector": {
     title: "Regiona vector",
-    description: "Open the existing deterministic Regiona editor. Choosing an AI candidate as a new vector source will be added next.",
+    description: "Open the deterministic Regiona editor with the original or an explicitly adopted candidate.",
   },
 };
 
@@ -114,82 +114,111 @@ export function WorkflowInspector({
       </DialogTitle>
       <DialogContent dividers>
         <Stack className="workflow-inspector" spacing={2}>
-        <Typography color="text.secondary">{detail?.description}</Typography>
-        <Divider />
+          <Typography color="text.secondary">{detail?.description}</Typography>
+          <Divider />
 
-        {nodeId === "start" ? (
-          <Stack spacing={1.5}>
-            {source ? (
-              <>
-                <Box component="img" alt="Original source preview" src={source.url} sx={{ width: "100%", maxHeight: 300, objectFit: "contain", bgcolor: "#f4f5f2" }} />
-                <Typography variant="body2">{source.filename} · {source.originalWidth} × {source.originalHeight} · {source.mimeType.replace("image/", "").toUpperCase()}</Typography>
-              </>
-            ) : <Typography color="text.secondary">Upload a PNG, JPEG, or WebP to begin this workflow.</Typography>}
-            <Button component="label" variant="contained">
-              {source ? "Replace source image" : "Upload source image"}
-              <input accept="image/png,image/jpeg,image/webp" hidden onChange={handleFileChange} type="file" />
-            </Button>
-          </Stack>
-        ) : null}
+          {nodeId === "start" ? (
+            <Stack spacing={1.5}>
+              {source ? (
+                <>
+                  <Box component="img" alt="Original source preview" src={source.url} sx={{ width: "100%", maxHeight: 300, objectFit: "contain", bgcolor: "#f4f5f2" }} />
+                  <Typography variant="body2">{source.filename} · {source.originalWidth} x {source.originalHeight} · {source.mimeType.replace("image/", "").toUpperCase()}</Typography>
+                </>
+              ) : <Typography color="text.secondary">Upload a PNG, JPEG, or WebP to begin this workflow.</Typography>}
+              <Button component="label" variant="contained">
+                {source ? "Replace source image" : "Upload source image"}
+                <input accept="image/png,image/jpeg,image/webp" hidden onChange={handleFileChange} type="file" />
+              </Button>
+            </Stack>
+          ) : null}
 
-        {nodeId === "analyze" ? (
-          <Stack spacing={1.5}>
-            <Button disabled={!hasSource || isRunning} onClick={onRunAnalyze} variant="contained">
-              {runningStage === "analysis" ? "Analyzing…" : analysis ? "Analyze again" : "Analyze image"}
-            </Button>
-            {analysis ? (
-              <Stack spacing={1}>
-                <Typography variant="subtitle2">{analysis.summary}</Typography>
-                <Typography color="text.secondary" variant="body2">{analysis.subjectDescription}</Typography>
-                <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75 }}>
-                  <Chip label={`${analysis.imageKind} image`} size="small" />
-                  <Chip label={`${analysis.suggestedColorCount} suggested colors`} size="small" />
-                  <Chip label={`${analysis.reconstructionStrategy} strategy`} size="small" />
+          {nodeId === "analyze" ? (
+            <Stack spacing={1.5}>
+              <Button disabled={!hasSource || isRunning} onClick={onRunAnalyze} variant="contained">
+                {runningStage === "analysis" ? "Analyzing..." : analysis ? "Analyze again" : "Analyze image"}
+              </Button>
+              {analysis ? (
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2">{analysis.summary}</Typography>
+                  <Typography color="text.secondary" variant="body2">{analysis.subjectDescription}</Typography>
+                  <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75 }}>
+                    <Chip label={`${analysis.imageKind} image`} size="small" />
+                    <Chip label={`${analysis.suggestedColorCount} suggested colors`} size="small" />
+                    <Chip label={`${analysis.reconstructionStrategy} strategy`} size="small" />
+                  </Stack>
+                  {analysis.detectedProblems.length ? (
+                    <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                      {analysis.detectedProblems.map((problem) => <li key={problem}><Typography variant="body2">{problem}</Typography></li>)}
+                    </Box>
+                  ) : <Typography color="text.secondary" variant="body2">No high-confidence issues reported.</Typography>}
                 </Stack>
-                {analysis.detectedProblems.length ? (
-                  <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                    {analysis.detectedProblems.map((problem) => <li key={problem}><Typography variant="body2">{problem}</Typography></li>)}
-                  </Box>
-                ) : <Typography color="text.secondary" variant="body2">No high-confidence issues reported.</Typography>}
-              </Stack>
-            ) : null}
-          </Stack>
-        ) : null}
+              ) : null}
+            </Stack>
+          ) : null}
 
-        {nodeId === "clean-redraw" ? (
-          <Stack spacing={1.5}>
-            <Button disabled={!hasSource || isRunning} onClick={onRunCleanRedraw} variant="contained">
-              {runningStage === "redraw" ? "Generating…" : cleanRedraw ? "Regenerate clean redraw" : "Generate clean redraw"}
-            </Button>
-            {comparisonOriginal ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={comparisonOriginal} output={cleanRedraw} outputLabel="Clean redraw" /> : null}
-          </Stack>
-        ) : null}
+          {nodeId === "clean-redraw" ? (
+            comparisonOriginal ? (
+              <WorkflowImageComparison
+                onUseInRegionaVector={onUseInRegionaVector}
+                original={comparisonOriginal}
+                output={cleanRedraw}
+                outputLabel="Clean redraw"
+                primaryAction={
+                  <Button disabled={!hasSource || isRunning} onClick={onRunCleanRedraw} size="small" variant="contained">
+                    {runningStage === "redraw" ? "Generating..." : cleanRedraw ? "Regenerate clean redraw" : "Generate clean redraw"}
+                  </Button>
+                }
+              />
+            ) : (
+              <Button disabled={!hasSource || isRunning} onClick={onRunCleanRedraw} variant="contained">Generate clean redraw</Button>
+            )
+          ) : null}
 
-        {nodeId === "black-line-art" ? (
-          <Stack spacing={1.5}>
-            <Button disabled={!hasSource || isRunning} onClick={onRunLineArt} variant="contained">
-              {runningStage === "line-art" ? "Generating…" : lineArt ? "Regenerate black line art" : "Generate black line art"}
-            </Button>
-            {comparisonOriginal ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={comparisonOriginal} output={lineArt} outputLabel="Black line art" /> : null}
-          </Stack>
-        ) : null}
+          {nodeId === "black-line-art" ? (
+            comparisonOriginal ? (
+              <WorkflowImageComparison
+                onUseInRegionaVector={onUseInRegionaVector}
+                original={comparisonOriginal}
+                output={lineArt}
+                outputLabel="Black line art"
+                primaryAction={
+                  <Button disabled={!hasSource || isRunning} onClick={onRunLineArt} size="small" variant="contained">
+                    {runningStage === "line-art" ? "Generating..." : lineArt ? "Regenerate black line art" : "Generate black line art"}
+                  </Button>
+                }
+              />
+            ) : (
+              <Button disabled={!hasSource || isRunning} onClick={onRunLineArt} variant="contained">Generate black line art</Button>
+            )
+          ) : null}
 
-        {nodeId === "apply-source-colors" ? (
-          <Stack spacing={1.5}>
-            <Button disabled={!cleanRedraw || isRunning} onClick={onRunColorReconstruction} variant="contained">
-              {runningStage === "color" ? "Applying colors…" : colorReconstruction ? "Reapply source colors" : "Apply source colors"}
-            </Button>
-            {!cleanRedraw ? <Typography color="text.secondary" variant="body2">Generate a clean redraw first; this node combines it with the original source.</Typography> : null}
-            {comparisonOriginal ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={comparisonOriginal} output={colorReconstruction} outputLabel="Color reconstruction" /> : null}
-          </Stack>
-        ) : null}
+          {nodeId === "apply-source-colors" ? (
+            comparisonOriginal ? (
+              <>
+                {!cleanRedraw ? <Typography color="text.secondary" variant="body2">Generate a clean redraw first; this node combines it with the original source.</Typography> : null}
+                <WorkflowImageComparison
+                  onUseInRegionaVector={onUseInRegionaVector}
+                  original={comparisonOriginal}
+                  output={colorReconstruction}
+                  outputLabel="Color reconstruction"
+                  primaryAction={
+                    <Button disabled={!cleanRedraw || isRunning} onClick={onRunColorReconstruction} size="small" variant="contained">
+                      {runningStage === "color" ? "Applying colors..." : colorReconstruction ? "Reapply source colors" : "Apply source colors"}
+                    </Button>
+                  }
+                />
+              </>
+            ) : (
+              <Button disabled={!cleanRedraw || isRunning} onClick={onRunColorReconstruction} variant="contained">Apply source colors</Button>
+            )
+          ) : null}
 
-        {nodeId === "regiona-vector" ? (
-          <Stack spacing={1.5}>
-            <Button disabled={!hasSource} onClick={onOpenEditor} variant="contained">Open Regiona editor</Button>
-            <Typography color="text.secondary" variant="body2">The original is currently the vector source. Candidate comparison and explicit source adoption come next.</Typography>
-          </Stack>
-        ) : null}
+          {nodeId === "regiona-vector" ? (
+            <Stack spacing={1.5}>
+              <Button disabled={!hasSource} onClick={onOpenEditor} variant="contained">Open Regiona editor</Button>
+              <Typography color="text.secondary" variant="body2">The original is the current vector source. You can explicitly adopt an AI candidate from its comparison view.</Typography>
+            </Stack>
+          ) : null}
 
           {error && nodeId !== "start" ? <Typography color="error" role="alert" variant="body2">{error}</Typography> : null}
         </Stack>
