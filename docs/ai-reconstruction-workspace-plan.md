@@ -35,7 +35,7 @@ This plan restores the design document's **Analyze** and **Colorize** concepts, 
 | Node | Inputs | Output | User purpose |
 | --- | --- | --- | --- |
 | **Start** | User file | Original image | Establishes the immutable reference image for the workflow. |
-| **AI upscale** | Original image | High-resolution image | Produces an explicit 2× AI high-resolution candidate for detail review or Regiona vector processing. |
+| **AI upscale** | Original image | High-resolution image | Lets the user choose a 2×, 3×, or 4× AI high-resolution candidate for detail review or Regiona vector processing. Regiona writes the final PNG at the selected target dimensions, subject to a safe pixel cap. |
 | **AI clean redraw** | Original image | Cleaned image | Removes non-semantic texture and noisy fragments while preserving composition. |
 | **Analyze** | Original or any generated image | Reverse prompt | Reconstructs a prompt-ready visual description from visible evidence; it does not assess Regiona processing. |
 | **Black line art** | Original image | Black lines on white | Produces an independently reviewable line-art candidate. |

@@ -577,7 +577,7 @@ Version one exposes a fixed catalogue of typed nodes. Users may add, remove, dup
 | --- | --- | --- | --- |
 | Start | User-uploaded image | Original image | The workflow's immutable reference image. |
 | Analyze | Original or generated image | Reverse prompt | Reconstructs a prompt-ready description from visible evidence for high-fidelity regeneration. It is text-only and does not silently change settings. |
-| AI upscale | Original image | High-resolution image | Produces an explicit 2× AI high-resolution candidate for detail review or Regiona vector processing. |
+| AI upscale | Original image | High-resolution image | Lets the user choose a 2×, 3×, or 4× AI high-resolution candidate for detail review or Regiona vector processing. Regiona writes the final PNG at the selected target dimensions, subject to a safe pixel cap. |
 | AI clean redraw | Original image | Cleaned image | Removes non-semantic texture and noisy fragments while preserving composition. |
 | Black line art | Original image | Black-on-white line-art image | A direct candidate for Regiona vector processing; does not require redraw or colorization. |
 | Apply source colours | Original image + clean redraw + optional current target palette | Colour reconstruction | Reapplies semantic colour onto clean geometry. |

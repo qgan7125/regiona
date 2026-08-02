@@ -9,6 +9,8 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Slider from "@mui/material/Slider";
 import Stack from "@mui/material/Stack";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
 
 import type { AiGeneratedImage } from "../ai/openai-image-provider";
@@ -30,6 +32,7 @@ interface WorkflowInspectorProps {
   source?: WorkflowSourceSummary;
   analysis?: AiStructureAnalysis;
   imageScale?: AiGeneratedImage;
+  imageScaleFactor: number;
   cleanRedraw?: AiGeneratedImage;
   lineArt?: AiGeneratedImage;
   colorizedLineArt?: AiGeneratedImage;
@@ -40,6 +43,7 @@ interface WorkflowInspectorProps {
   onFile: (file: File) => void;
   onRunAnalyze: () => void;
   onRunImageScale: () => void;
+  onImageScaleFactorChange: (scale: number) => void;
   onRunCleanRedraw: () => void;
   onRunLineArt: () => void;
   onRunColorizeLineArt: () => void;
@@ -100,6 +104,7 @@ export function WorkflowInspector({
   source,
   analysis,
   imageScale,
+  imageScaleFactor,
   cleanRedraw,
   lineArt,
   colorizedLineArt,
@@ -110,6 +115,7 @@ export function WorkflowInspector({
   onFile,
   onRunAnalyze,
   onRunImageScale,
+  onImageScaleFactorChange,
   onRunCleanRedraw,
   onRunLineArt,
   onRunColorizeLineArt,
@@ -233,15 +239,34 @@ export function WorkflowInspector({
                 onUseInRegionaVector={onUseInRegionaVector}
                 original={comparisonOriginal}
                 output={imageScale}
-                outputLabel="AI upscale"
+                outputLabel={`AI upscale ${imageScaleFactor}×`}
+                toolbarControl={
+                  <>
+                    <span>Output scale</span>
+                    <ToggleButtonGroup
+                      aria-label="AI upscale factor"
+                      disabled={isRunning}
+                      exclusive
+                      onChange={(_event, scale: number | null) => {
+                        if (scale) onImageScaleFactorChange(scale);
+                      }}
+                      size="small"
+                      value={imageScaleFactor}
+                    >
+                      <ToggleButton value={2}>2×</ToggleButton>
+                      <ToggleButton value={3}>3×</ToggleButton>
+                      <ToggleButton value={4}>4×</ToggleButton>
+                    </ToggleButtonGroup>
+                  </>
+                }
                 primaryAction={
                   <Button disabled={!hasSource || isRunning} onClick={onRunImageScale} size="small" variant="contained">
-                    {runningStage === "scale" ? "Upscaling..." : imageScale ? "Regenerate 2× upscale" : "Create 2× upscale"}
+                    {runningStage === "scale" ? "Upscaling..." : imageScale ? `Regenerate ${imageScaleFactor}× upscale` : `Create ${imageScaleFactor}× upscale`}
                   </Button>
                 }
               />
             ) : (
-              <Button disabled={!hasSource || isRunning} onClick={onRunImageScale} variant="contained">Create 2× upscale</Button>
+              <Button disabled={!hasSource || isRunning} onClick={onRunImageScale} variant="contained">Create {imageScaleFactor}× upscale</Button>
             )
           ) : null}
 

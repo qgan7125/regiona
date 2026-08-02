@@ -6,6 +6,7 @@ import {
 } from "../ai/openai-image-provider";
 import { createGeminiImageProvider } from "../ai/gemini-image-provider";
 import { createGeminiAnalysisProvider } from "../ai/gemini-analysis-provider";
+import { calculateUpscaleDimensions, resizeAiGeneratedImage } from "../ai/image-scale";
 import { loadGeminiApiKey } from "../ai/gemini-key-store";
 import type { AiStructureAnalysis } from "../ai/structure-analysis";
 import { AppHeader } from "../components/AppHeader";
@@ -102,6 +103,7 @@ export function App() {
   const [isGeminiSettingsOpen, setIsGeminiSettingsOpen] = useState(false);
   const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
   const [imageScale, setImageScale] = useState<AiGeneratedImage>();
+  const [imageScaleFactor, setImageScaleFactor] = useState(2);
   const [lineArt, setLineArt] = useState<AiGeneratedImage>();
   const [colorizedLineArt, setColorizedLineArt] = useState<AiGeneratedImage>();
   const [lineArtColorCount, setLineArtColorCount] = useState(12);
@@ -465,9 +467,19 @@ export function App() {
 
       if (shouldScale) {
         setAiGenerationStage("scale");
-        const generatedScale = await imageProvider.improveImageScale({ source: inputSource.file, scale: 2 });
+        const upscaleDimensions = calculateUpscaleDimensions({
+          width: inputSource.originalWidth,
+          height: inputSource.originalHeight,
+          scale: imageScaleFactor,
+        });
+        const generatedScale = await imageProvider.improveImageScale({
+          source: inputSource.file,
+          scale: imageScaleFactor,
+        });
         if (!isCurrentRun()) return;
-        setImageScale(generatedScale);
+        const resizedScale = await resizeAiGeneratedImage(generatedScale, upscaleDimensions);
+        if (!isCurrentRun()) return;
+        setImageScale(resizedScale);
       }
 
       if (shouldRedraw) {
@@ -563,7 +575,16 @@ export function App() {
     setAiGenerationStage("scale");
     try {
       const provider = createGeminiImageProvider(apiKey);
-      setImageScale(await provider.improveImageScale({ source: inputSource.file, scale: 2 }));
+      const upscaleDimensions = calculateUpscaleDimensions({
+        width: inputSource.originalWidth,
+        height: inputSource.originalHeight,
+        scale: imageScaleFactor,
+      });
+      const generated = await provider.improveImageScale({
+        source: inputSource.file,
+        scale: imageScaleFactor,
+      });
+      setImageScale(await resizeAiGeneratedImage(generated, upscaleDimensions));
     } catch (cause) {
       setAiError(cause instanceof Error ? cause.message : "Could not create a high-resolution image. Please try again.");
     } finally {
@@ -790,6 +811,7 @@ export function App() {
           <WorkflowInspector
             analysis={analysis}
             imageScale={imageScale}
+            imageScaleFactor={imageScaleFactor}
             cleanRedraw={cleanRedraw}
             colorCount={lineArtColorCount}
             colorizedLineArt={colorizedLineArt}
@@ -809,6 +831,10 @@ export function App() {
             onOpenEditor={() => setMode("direct")}
             onRunAnalyze={() => void handleAnalyzeImage()}
             onRunImageScale={() => void handleImproveImageScale()}
+            onImageScaleFactorChange={(scale) => {
+              setImageScaleFactor(scale);
+              setImageScale(undefined);
+            }}
             onRunCleanRedraw={() => void handleGenerateCleanRedraw()}
             onRunColorizeLineArt={() => void handleColorizeLineArt()}
             onRunLineArt={() => void handleGenerateLineArt()}
