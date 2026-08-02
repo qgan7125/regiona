@@ -12,7 +12,7 @@ Make **Analyze** useful before reconstruction by producing a prompt-ready, text-
 
 ## Contracts
 
-`AiStructureAnalysis` includes the reverse-prompt result in addition to concise Regiona advice:
+`AiStructureAnalysis` is a prompt-only reverse-analysis result:
 
 1. `recreationPrompt` — 130–220 words.
 2. `corePrompt` — 30–60 words.
@@ -59,5 +59,5 @@ Add or update unit tests for parser fields, Gemini request ordering, and workflo
 
 - The graph and inspector call the node **Colorize line art** and show it only as the direct next step of black line art.
 - A colorize request contains black line art plus the original source reference, retains black linework, and uses the selected 2–32 fill-color count.
-- Analyze renders all six requested reverse-prompt sections and continues to show concise Regiona reconstruction advice.
+- Analyze renders only the six requested reverse-prompt sections; it does not provide Regiona reconstruction advice.
 - Tests, lint, type check, and build pass.

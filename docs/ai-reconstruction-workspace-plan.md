@@ -10,7 +10,7 @@ This plan restores the design document's **Analyze** and **Colorize** concepts, 
 
 ```text
                          ┌──────────────────┐
-                         │   Analyze image  │──► quality report
+                         │   Analyze image  │──► reverse prompt
                          └──────────────────┘
                                   ▲
                                   │
@@ -36,7 +36,7 @@ This plan restores the design document's **Analyze** and **Colorize** concepts, 
 | --- | --- | --- | --- |
 | **Start** | User file | Original image | Establishes the immutable reference image for the workflow. |
 | **AI clean redraw** | Original image | Cleaned image | Removes non-semantic texture and noisy fragments while preserving composition. |
-| **Analyze** | Original or any generated image | Quality report | Identifies image type, likely vectorization issues, suggested colour count/detail budget, and warnings. |
+| **Analyze** | Original or any generated image | Reverse prompt | Reconstructs a prompt-ready visual description from visible evidence; it does not assess Regiona processing. |
 | **Black line art** | Original image | Black lines on white | Produces an independently reviewable line-art candidate. |
 | **Apply source colours** | Clean redraw + original + current palette when available | Colour reconstruction | Restores semantic source colours onto clean geometry. |
 | **Regiona vector** | Any selected image candidate | Editable Regiona result | Runs the existing local quantization, regions, vector preview, editing, and export pipeline. |
@@ -58,7 +58,7 @@ The entry screen is not a blocking one-time decision. Direct Regiona exposes **O
 
 - The main application surface becomes a React Flow canvas with the default workflow pre-populated after upload.
 - A node is a concise status card: title, input summary, last-run status, result thumbnail or report summary, and stale/error state. It does not contain a full image editor.
-- Clicking a node opens a dedicated inspector workspace. Image-producing nodes show the original and selected output side-by-side using the existing linked Pixi pan/zoom view. Analyze shows an accessible report with suggestions and warnings.
+- Clicking a node opens a dedicated inspector workspace. Image-producing nodes show the original and selected output side-by-side using the existing linked Pixi pan/zoom view. Analyze shows a structured, copyable reverse prompt.
 - Start can fan out to any compatible task. Version one exposes prebuilt, typed nodes and valid handles; it does not allow arbitrary script-like nodes or invalid connections.
 - `Regiona vector` accepts a compatible image output selected through its incoming edge. It must never run against an ambiguous or stale upstream result.
 - Black line art has a direct, first-class compatible edge to `Regiona vector`; users can select that edge and run only the line-art-to-vector path without first producing a clean redraw or colour reconstruction.
@@ -89,7 +89,7 @@ If a user confirms a candidate as the Regiona vector source, the existing region
 - Keep execution state in a pure Regiona workflow model, not in React Flow node objects. React Flow gets a derived projection of node status, positions, and edges. This makes stale-result handling testable and avoids coupling orchestration to rendering.
 - Expand the existing `src/ai/workflow-state.ts` rather than replacing it. It already models original and intermediate images; add typed nodes, revisions, dependencies, output states, and analysis results.
 - Extend `ImageReconstructionProvider` with `createLineArt`. Keep `createCleanRedraw` and `reconstructColors` as separate operations so their prompts and inputs remain explicit.
-- Implement Analyze as a structured AI proposal/report using the existing `AiStructureAnalysis` parser. It advises the user; it does not generate SVG geometry or silently change Regiona settings.
+- Implement Analyze as structured, text-only reverse-prompt analysis using the existing `AiStructureAnalysis` parser. It does not generate SVG geometry, alter the source, or silently change Regiona settings.
 - Use React Flow custom node components defined outside render, as recommended by its documentation, and use `onlyRenderVisibleElements` after profiling demonstrates it is helpful. The graph itself is small; image rendering remains in the existing Pixi viewer.
 - Store graph layout and outputs only in browser memory in version one. No key, generated image, or workflow is committed to Git or sent to a Regiona backend.
 
@@ -121,7 +121,7 @@ If a user confirms a candidate as the Regiona vector source, the existing region
 **Acceptance criteria**
 
 - Each provider task has explicit required inputs and cannot receive an unsupported file.
-- Analyze returns a displayable proposal/report rather than modifying processing settings.
+- Analyze returns a displayable, copyable reverse prompt rather than modifying processing settings.
 - Live API calls remain out of automated tests.
 
 **Verification**
@@ -157,7 +157,7 @@ If a user confirms a candidate as the Regiona vector source, the existing region
 ### Phase 4 — Inspector workspaces and image comparison
 
 - [ ] Implement image-node inspectors with Original/Output linked Pixi comparison, progress, error, download, and regenerate actions.
-- [ ] Implement Analyze inspector with report, confidence/warning copy, and suggested processing settings shown as proposals.
+- [ ] Implement Analyze inspector with the structured reverse-prompt sections and a single full-prompt copy action.
 - [ ] Implement a confirmation dialog for selecting an image result as the Regiona vector source.
 
 **Acceptance criteria**
@@ -199,7 +199,7 @@ If a user confirms a candidate as the Regiona vector source, the existing region
 | Gemini latency/quota makes “Run ready” feel stuck | High | Per-node progress, queue status, no duplicate requests, clear 429 messages, and cancellation of queued work. |
 | Existing Pixi and React Flow pan/zoom compete | Medium | Keep graph interaction in the main canvas; the inspector is a separate surface with focus and pointer boundaries. |
 | Too much work appears in one node | Medium | Nodes are summaries; detailed controls open in inspectors. |
-| Analysis is mistaken for authoritative vector output | Medium | Analyze only returns proposals and confidence; deterministic Regiona processing owns final vector geometry. |
+| Analysis is mistaken for authoritative vector output | Medium | Analyze is text-only reverse prompting; deterministic Regiona processing owns final vector geometry. |
 
 ## Explicitly out of scope for version one
 

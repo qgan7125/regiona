@@ -102,7 +102,7 @@ function createWorkflowNodes(
 
   return [
     node("start", "Start", sourceName ?? "Upload source image", 0, 260),
-    node("analyze", "Analyze", "Reverse prompt + Regiona advice", 300, 0),
+    node("analyze", "Analyze", "Forensic reverse prompt", 300, 0),
     node("clean-redraw", "AI clean redraw", "Clean geometry candidate", 300, 170),
     node("black-line-art", "Black line art", "Black lines on white", 300, 340),
     node("colorize-line-art", "Colorize line art", "Black line art → limited colors", 600, 340),

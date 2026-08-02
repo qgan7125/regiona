@@ -576,13 +576,13 @@ Version one exposes a fixed catalogue of typed nodes. Users may add, remove, dup
 | Node | Input | Output | Notes |
 | --- | --- | --- | --- |
 | Start | User-uploaded image | Original image | The workflow's immutable reference image. |
-| Analyze | Original or generated image | AI proposal/report | Reports quality, image type, likely vectorization problems, suggested colour/detail budgets, and warnings. It does not silently change settings. |
+| Analyze | Original or generated image | Reverse prompt | Reconstructs a prompt-ready description from visible evidence for high-fidelity regeneration. It is text-only and does not silently change settings. |
 | AI clean redraw | Original image | Cleaned image | Removes non-semantic texture and noisy fragments while preserving composition. |
 | Black line art | Original image | Black-on-white line-art image | A direct candidate for Regiona vector processing; does not require redraw or colorization. |
 | Apply source colours | Original image + clean redraw + optional current target palette | Colour reconstruction | Reapplies semantic colour onto clean geometry. |
 | Regiona vector | One explicit current image candidate | Editable Regiona project | Runs local quantization, regions, vector editing, review, and export. |
 
-Nodes show a compact execution summary. Clicking a node opens a dedicated inspector: image-producing nodes use linked original/output comparison; Analyze uses a readable proposal report. Detailed image interaction belongs in the inspector, not inside the graph card.
+Nodes show a compact execution summary. Clicking a node opens a dedicated inspector: image-producing nodes use linked original/output comparison; Analyze uses a structured, copyable reverse prompt. Detailed image interaction belongs in the inspector, not inside the graph card.
 
 ### 7.5.2 Execution and Revisions
 

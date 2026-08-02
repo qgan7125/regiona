@@ -53,7 +53,7 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
   },
   analyze: {
     title: "Analyze",
-    description: "Reverse-engineer a prompt from visible details, then summarize practical Regiona reconstruction advice.",
+    description: "Reconstruct a prompt from visible details for high-fidelity image regeneration.",
   },
   "clean-redraw": {
     title: "AI clean redraw",
@@ -214,21 +214,6 @@ export function WorkflowInspector({
                   <Box className="workflow-analysis-card">
                     <Typography color="text.secondary" variant="body2">{analysis.variantOffer}</Typography>
                   </Box>
-                  <Box className="workflow-analysis-card">
-                    <Typography variant="subtitle2">Regiona reconstruction advice</Typography>
-                    <Typography color="text.secondary" variant="body2">{analysis.summary}</Typography>
-                    <Typography color="text.secondary" variant="body2">{analysis.subjectDescription}</Typography>
-                  </Box>
-                  <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75 }}>
-                    <Chip label={`${analysis.imageKind} image`} size="small" />
-                    <Chip label={`${analysis.suggestedColorCount} suggested colors`} size="small" />
-                    <Chip label={`${analysis.reconstructionStrategy} strategy`} size="small" />
-                  </Stack>
-                  {analysis.detectedProblems.length ? (
-                    <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                      {analysis.detectedProblems.map((problem) => <li key={problem}><Typography variant="body2">{problem}</Typography></li>)}
-                    </Box>
-                  ) : <Typography color="text.secondary" variant="body2">No high-confidence Regiona issues reported.</Typography>}
                 </Stack>
               ) : null}
             </Stack>

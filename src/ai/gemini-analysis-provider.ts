@@ -78,180 +78,43 @@ export function createGeminiAnalysisProvider(
       } catch (cause) {
         throw new Error("Gemini did not return valid analysis JSON.", { cause });
       }
-      return parseAiStructureAnalysis(normalizeGeminiAnalysis(result));
+      return parseAiStructureAnalysis(result);
     },
   };
 }
 
 const analysisPrompt = [
-  "You are an expert reverse-prompt analyst for AI-generated and highly stylized images.",
-  "Your sole purpose is to analyze the user-supplied image and reconstruct the most likely image-generation prompt that produced it.",
-  "Your behavior is text-only analysis: do not generate, edit, recreate, or transform an image.",
-  "Before writing, inspect each eye individually; hands; ears and jewelry; visible text; head orientation and camera angle; and what the frame contains versus its crop.",
-  "Describe only visually verifiable details. Do not identify real people, speculate about hidden content, invent brands, artists, camera models, render engines, or locations.",
-  "Transcribe visible text exactly when legible, estimate the aspect ratio, avoid filler such as masterpiece, 8k, and highly detailed, and commit to one plausible interpretation rather than alternatives.",
-  "If resolution is too low to verify fine details, state that briefly in analysis and recommend a higher-resolution upload.",
-  "Return the requested JSON fields in this output order: recreationPrompt, corePrompt, negativePrompt, styleTags, analysis, variantOffer, then the Regiona reconstruction advice fields.",
-  "recreationPrompt must be one concrete 130 to 220 word prompt-ready paragraph. corePrompt must be one concrete 30 to 60 word prompt. negativePrompt must be one line. styleTags must contain exactly four tags. analysis must contain three to five concise sentences. variantOffer must offer variants in one final sentence.",
-  "Also provide concise, high-confidence structure and likely vectorization risks for Regiona.",
-  "Use normalized integer bounds from 0 to 1000 and concise safe identifiers with lowercase letters, numbers, and hyphens only.",
-  "Keep summary and subjectDescription below 280 characters. suggestedColorCount must be 2 through 32.",
-  "Use only the enum values defined in the schema. suggestedFill must be a six-digit hex colour or omitted.",
-  "Do not claim to create SVG paths or modify the image.",
+  "You are an elite reverse-prompt analyst for AI-generated and highly stylized images.",
+  "Examine the provided image and reconstruct the most likely original image-generation prompt from visible evidence. The result must help another image model recreate the source with close visual fidelity. Treat this as forensic reconstruction, not creative writing.",
+  "Analyze the main subject; action and pose; appearance; foreground, midground, background, and their depth relationships; lighting and atmosphere; composition; visual style; colors and materials; and the likely generation intent.",
+  "For posters, magazine covers, and advertisements, describe visible text placement, title hierarchy, subject-to-title overlap, layout blocks, background layers, and overall graphic design. Transcribe visible text exactly when legible; otherwise describe its location, size, color, and typographic style without inventing wording.",
+  "Maximize visual fidelity and describe only visually supported details. Do not identify real people, speculate about hidden content, or invent brands, named artists, camera or lens models, render engines, locations, or unseen objects. When uncertain, use broader but still useful wording. Avoid alternatives and filler such as masterpiece, 8k, or highly detailed.",
+  "Capture small distinctive details that materially affect recognition. Accurately describe scale, placement, crop, proportions, perspective, orientation, negative space, palette, material finish, texture, transparency, and reflectivity. For simple images, add precision through visible spatial relationships, edges, textures, lighting, palette, and finish rather than inventing content.",
+  "If the resolution is too low to verify fine details, state that briefly in analysis and recommend a higher-resolution upload.",
+  "Return JSON fields in this exact order: recreationPrompt, corePrompt, negativePrompt, styleTags, analysis, variantOffer.",
+  "recreationPrompt must be one concrete, single-line, prompt-ready paragraph of 130 to 220 words, covering subject, pose, appearance, environment, lighting, composition, visual style, palette, materials, aspect ratio, and finish. corePrompt must be a concrete 30 to 60 word reusable prompt covering the most important subject, composition, lighting, style, and palette. negativePrompt must be one compatible line preventing common artifacts and source deviations. styleTags must contain exactly four distinct tags. analysis must contain three to five concise sentences. variantOffer must be one final sentence offering variants.",
+  "This is text-only analysis. Never generate, edit, recreate, or transform the image.",
 ].join(" ");
 
 const analysisSchema = {
   type: "OBJECT",
   properties: {
-    imageKind: { type: "STRING", enum: ["logo", "illustration", "other"] },
-    summary: { type: "STRING" },
-    subjectDescription: { type: "STRING" },
     recreationPrompt: { type: "STRING" },
     corePrompt: { type: "STRING" },
     negativePrompt: { type: "STRING" },
     styleTags: { type: "ARRAY", items: { type: "STRING" } },
     analysis: { type: "ARRAY", items: { type: "STRING" } },
     variantOffer: { type: "STRING" },
-    majorObjects: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          id: { type: "STRING" },
-          label: { type: "STRING" },
-          role: { type: "STRING", enum: ["subject", "background", "attached-object", "interior-detail"] },
-          bounds: { type: "ARRAY", items: { type: "INTEGER" } },
-          confidence: { type: "INTEGER" },
-        },
-        required: ["id", "label", "role", "bounds", "confidence"],
-      },
-    },
-    suggestedColorCount: { type: "INTEGER" },
-    detectedProblems: { type: "ARRAY", items: { type: "STRING" } },
-    reconstructionStrategy: { type: "STRING", enum: ["restore", "redraw", "simplify"] },
-    regions: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          id: { type: "STRING" },
-          label: { type: "STRING" },
-          importance: { type: "STRING", enum: ["primary", "supporting", "detail"] },
-          bounds: { type: "ARRAY", items: { type: "INTEGER" } },
-          suggestedFill: { type: "STRING" },
-        },
-        required: ["id", "label", "importance", "bounds"],
-      },
-    },
   },
   required: [
-    "imageKind",
-    "summary",
-    "subjectDescription",
     "recreationPrompt",
     "corePrompt",
     "negativePrompt",
     "styleTags",
     "analysis",
     "variantOffer",
-    "majorObjects",
-    "suggestedColorCount",
-    "detectedProblems",
-    "reconstructionStrategy",
-    "regions",
   ],
 };
-
-function normalizeGeminiAnalysis(value: unknown): unknown {
-  if (!isRecord(value)) return value;
-
-  return {
-    ...value,
-    summary: normalizeText(value.summary, 280),
-    subjectDescription: normalizeText(value.subjectDescription, 280),
-    suggestedColorCount: clampInteger(value.suggestedColorCount, 2, 32),
-    reconstructionStrategy: normalizeStrategy(value.reconstructionStrategy),
-    detectedProblems: Array.isArray(value.detectedProblems)
-      ? value.detectedProblems.slice(0, 16).map((problem, index) => normalizeId(problem, `problem-${index + 1}`))
-      : value.detectedProblems,
-    majorObjects: Array.isArray(value.majorObjects)
-      ? value.majorObjects.slice(0, 32).map((object, index) => normalizeObject(object, index))
-      : value.majorObjects,
-    regions: Array.isArray(value.regions)
-      ? value.regions.slice(0, 64).map((region, index) => normalizeRegion(region, index))
-      : value.regions,
-  };
-}
-
-function normalizeObject(value: unknown, index: number): unknown {
-  if (!isRecord(value)) return value;
-  return {
-    ...value,
-    id: normalizeId(value.id, `object-${index + 1}`),
-    label: normalizeText(value.label, 80),
-    role: normalizeRole(value.role),
-    confidence: clampInteger(value.confidence, 0, 1000),
-  };
-}
-
-function normalizeRegion(value: unknown, index: number): unknown {
-  if (!isRecord(value)) return value;
-  const normalized = {
-    ...value,
-    id: normalizeId(value.id, `region-${index + 1}`),
-    label: normalizeText(value.label, 80),
-    importance: normalizeImportance(value.importance),
-  };
-  return /^#[0-9a-fA-F]{6}$/.test(String(value.suggestedFill ?? ""))
-    ? normalized
-    : Object.fromEntries(Object.entries(normalized).filter(([key]) => key !== "suggestedFill"));
-}
-
-function normalizeText(value: unknown, maximumLength: number): unknown {
-  return typeof value === "string" ? value.trim().slice(0, maximumLength) : value;
-}
-
-function normalizeId(value: unknown, fallback: string): unknown {
-  if (typeof value !== "string") return value;
-  const normalized = value.toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64);
-  if (!normalized) return fallback;
-  return /^[a-z]/.test(normalized) ? normalized : `${fallback}-${normalized}`.slice(0, 64);
-}
-
-function normalizeRole(value: unknown): unknown {
-  if (value === "structure") return "subject";
-  if (value === "text") return "interior-detail";
-  return value;
-}
-
-function normalizeImportance(value: unknown): unknown {
-  if (value === "high") return "primary";
-  if (value === "medium") return "supporting";
-  if (value === "low") return "detail";
-  return value;
-}
-
-function normalizeStrategy(value: unknown): unknown {
-  if (value === "restore" || value === "redraw" || value === "simplify") return value;
-  if (typeof value !== "string") return value;
-  const normalized = value.toLowerCase();
-  if (normalized.includes("simpl")) return "simplify";
-  if (normalized.includes("redraw") || normalized.includes("trace") || normalized.includes("rebuild")) return "redraw";
-  return "restore";
-}
-
-function clampInteger(value: unknown, minimum: number, maximum: number): unknown {
-  if (typeof value !== "number" || !Number.isFinite(value)) return value;
-  return Math.max(minimum, Math.min(maximum, Math.round(value)));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 async function toGeminiImageInput(source: File) {
   return {
