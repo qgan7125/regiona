@@ -78,7 +78,7 @@ export function createGeminiAnalysisProvider(
       } catch (cause) {
         throw new Error("Gemini did not return valid analysis JSON.", { cause });
       }
-      return parseAiStructureAnalysis(result);
+      return parseAiStructureAnalysis(normalizeGeminiAnalysis(result));
     },
   };
 }
@@ -86,14 +86,16 @@ export function createGeminiAnalysisProvider(
 const analysisPrompt = [
   "Analyze the supplied image for a human reviewing raster-to-vector reconstruction.",
   "Describe only visible, high-confidence structure and likely quality problems.",
-  "Use normalized integer bounds from 0 to 1000 and concise safe identifiers.",
+  "Use normalized integer bounds from 0 to 1000 and concise safe identifiers with lowercase letters, numbers, and hyphens only.",
+  "Keep summary and subjectDescription below 280 characters. suggestedColorCount must be 2 through 32.",
+  "Use only the enum values defined in the schema. suggestedFill must be a six-digit hex colour or omitted.",
   "Do not claim to create SVG paths or modify the image.",
 ].join(" ");
 
 const analysisSchema = {
   type: "OBJECT",
   properties: {
-    imageKind: { type: "STRING" },
+    imageKind: { type: "STRING", enum: ["logo", "illustration", "other"] },
     summary: { type: "STRING" },
     subjectDescription: { type: "STRING" },
     majorObjects: {
@@ -103,7 +105,7 @@ const analysisSchema = {
         properties: {
           id: { type: "STRING" },
           label: { type: "STRING" },
-          role: { type: "STRING" },
+          role: { type: "STRING", enum: ["subject", "background", "attached-object", "interior-detail"] },
           bounds: { type: "ARRAY", items: { type: "INTEGER" } },
           confidence: { type: "INTEGER" },
         },
@@ -112,7 +114,7 @@ const analysisSchema = {
     },
     suggestedColorCount: { type: "INTEGER" },
     detectedProblems: { type: "ARRAY", items: { type: "STRING" } },
-    reconstructionStrategy: { type: "STRING" },
+    reconstructionStrategy: { type: "STRING", enum: ["restore", "redraw", "simplify"] },
     regions: {
       type: "ARRAY",
       items: {
@@ -120,7 +122,7 @@ const analysisSchema = {
         properties: {
           id: { type: "STRING" },
           label: { type: "STRING" },
-          importance: { type: "STRING" },
+          importance: { type: "STRING", enum: ["primary", "supporting", "detail"] },
           bounds: { type: "ARRAY", items: { type: "INTEGER" } },
           suggestedFill: { type: "STRING" },
         },
@@ -139,6 +141,97 @@ const analysisSchema = {
     "regions",
   ],
 };
+
+function normalizeGeminiAnalysis(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+
+  return {
+    ...value,
+    summary: normalizeText(value.summary, 280),
+    subjectDescription: normalizeText(value.subjectDescription, 280),
+    suggestedColorCount: clampInteger(value.suggestedColorCount, 2, 32),
+    reconstructionStrategy: normalizeStrategy(value.reconstructionStrategy),
+    detectedProblems: Array.isArray(value.detectedProblems)
+      ? value.detectedProblems.slice(0, 16).map((problem, index) => normalizeId(problem, `problem-${index + 1}`))
+      : value.detectedProblems,
+    majorObjects: Array.isArray(value.majorObjects)
+      ? value.majorObjects.slice(0, 32).map((object, index) => normalizeObject(object, index))
+      : value.majorObjects,
+    regions: Array.isArray(value.regions)
+      ? value.regions.slice(0, 64).map((region, index) => normalizeRegion(region, index))
+      : value.regions,
+  };
+}
+
+function normalizeObject(value: unknown, index: number): unknown {
+  if (!isRecord(value)) return value;
+  return {
+    ...value,
+    id: normalizeId(value.id, `object-${index + 1}`),
+    label: normalizeText(value.label, 80),
+    role: normalizeRole(value.role),
+    confidence: clampInteger(value.confidence, 0, 1000),
+  };
+}
+
+function normalizeRegion(value: unknown, index: number): unknown {
+  if (!isRecord(value)) return value;
+  const normalized = {
+    ...value,
+    id: normalizeId(value.id, `region-${index + 1}`),
+    label: normalizeText(value.label, 80),
+    importance: normalizeImportance(value.importance),
+  };
+  return /^#[0-9a-fA-F]{6}$/.test(String(value.suggestedFill ?? ""))
+    ? normalized
+    : Object.fromEntries(Object.entries(normalized).filter(([key]) => key !== "suggestedFill"));
+}
+
+function normalizeText(value: unknown, maximumLength: number): unknown {
+  return typeof value === "string" ? value.trim().slice(0, maximumLength) : value;
+}
+
+function normalizeId(value: unknown, fallback: string): unknown {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+  if (!normalized) return fallback;
+  return /^[a-z]/.test(normalized) ? normalized : `${fallback}-${normalized}`.slice(0, 64);
+}
+
+function normalizeRole(value: unknown): unknown {
+  if (value === "structure") return "subject";
+  if (value === "text") return "interior-detail";
+  return value;
+}
+
+function normalizeImportance(value: unknown): unknown {
+  if (value === "high") return "primary";
+  if (value === "medium") return "supporting";
+  if (value === "low") return "detail";
+  return value;
+}
+
+function normalizeStrategy(value: unknown): unknown {
+  if (value === "restore" || value === "redraw" || value === "simplify") return value;
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase();
+  if (normalized.includes("simpl")) return "simplify";
+  if (normalized.includes("redraw") || normalized.includes("trace") || normalized.includes("rebuild")) return "redraw";
+  return "restore";
+}
+
+function clampInteger(value: unknown, minimum: number, maximum: number): unknown {
+  if (typeof value !== "number" || !Number.isFinite(value)) return value;
+  return Math.max(minimum, Math.min(maximum, Math.round(value)));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 async function toGeminiImageInput(source: File) {
   return {

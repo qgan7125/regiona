@@ -49,4 +49,37 @@ describe("Gemini analysis provider", () => {
     await expect(provider.analyzeImage({ source: sourceImage }))
       .rejects.toThrow("imageKind");
   });
+
+  it("normalizes known Gemini label variants before strict validation", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify({
+        ...validAnalysis,
+        summary: "x".repeat(300),
+        suggestedColorCount: 60,
+        reconstructionStrategy: "Trace important contours and rebuild the illustration.",
+        majorObjects: [{
+          id: "character",
+          label: "character",
+          role: "structure",
+          bounds: [0, 0, 1000, 1000],
+          confidence: 5,
+        }],
+        regions: [{
+          id: "main",
+          label: "main subject",
+          importance: "high",
+          bounds: [0, 0, 1000, 1000],
+          suggestedFill: "complex gradient",
+        }],
+      }) }] } }],
+    }), { status: 200 }));
+    const provider = createGeminiAnalysisProvider("gemini-user-key", fetcher);
+
+    await expect(provider.analyzeImage({ source: sourceImage })).resolves.toMatchObject({
+      suggestedColorCount: 32,
+      reconstructionStrategy: "redraw",
+      majorObjects: [expect.objectContaining({ role: "subject" })],
+      regions: [expect.objectContaining({ importance: "primary" })],
+    });
+  });
 });
