@@ -90,8 +90,16 @@ button {
 .workflow-node small { color: var(--accent); font-size: .68rem; text-transform: uppercase; }
 .workflow-node--stale { opacity: .65; border-style: dashed; }
 .workflow-node--running { border-color: var(--accent); }
+.workflow-inspector-dialog .MuiPaper-root { max-height: min(88dvh, 58rem); color: var(--ink); background: var(--surface-raised); }
+.workflow-inspector { min-height: 18rem; }
+.workflow-image-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.workflow-image-comparison figure { display: grid; gap: .75rem; min-width: 0; margin: 0; padding: 1rem; background: var(--surface); border: 1px solid var(--line); }
+.workflow-image-comparison figcaption { font-weight: 700; }
+.workflow-image-comparison img { width: 100%; max-height: 28rem; object-fit: contain; background: #f4f5f2; }
+.workflow-image-comparison a { color: var(--accent-dark); font-size: .85rem; font-weight: 700; }
+.workflow-image-comparison__empty { display: grid; min-height: 14rem; margin: 0; place-items: center; color: var(--muted); text-align: center; }
 
-@media (max-width: 700px) { .mode-choice > div { grid-template-columns: 1fr; } .workflow-shell { min-height: 32rem; } }
+@media (max-width: 700px) { .mode-choice > div, .workflow-image-comparison { grid-template-columns: 1fr; } .workflow-shell { min-height: 32rem; } }
 
 .app-header {
   position: sticky;

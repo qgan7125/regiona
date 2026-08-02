@@ -2,14 +2,18 @@ import { type ChangeEvent } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
-import Drawer from "@mui/material/Drawer";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import type { AiGeneratedImage } from "../ai/openai-image-provider";
 import type { AiStructureAnalysis } from "../ai/structure-analysis";
 import type { WorkflowNodeId } from "./WorkflowCanvas";
+import { WorkflowImageComparison } from "./WorkflowImageComparison";
 
 interface WorkflowSourceSummary {
   filename: string;
@@ -63,25 +67,6 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
   },
 };
 
-function GeneratedImagePreview({ image, label }: { image?: AiGeneratedImage; label: string }) {
-  if (!image) return null;
-
-  const extension = image.mimeType === "image/jpeg" ? "jpg" : "png";
-  return (
-    <Stack spacing={1}>
-      <Box
-        component="img"
-        alt={`${label} preview`}
-        src={image.dataUrl}
-        sx={{ width: "100%", maxHeight: 360, objectFit: "contain", bgcolor: "#f4f5f2" }}
-      />
-      <Button component="a" download={`regiona-${label.toLowerCase().replaceAll(" ", "-")}.${extension}`} href={image.dataUrl} size="small" variant="text">
-        Download {extension.toUpperCase()}
-      </Button>
-    </Stack>
-  );
-}
-
 export function WorkflowInspector({
   nodeId,
   source,
@@ -110,17 +95,15 @@ export function WorkflowInspector({
   const isRunning = Boolean(runningStage);
 
   return (
-    <Drawer anchor="right" onClose={onClose} open={Boolean(nodeId)}>
-      <Stack className="workflow-inspector" spacing={2} sx={{ width: { xs: "min(100vw, 420px)", sm: 420 }, p: 3 }}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
-          <Box>
-            <Typography color="text.secondary" sx={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }}>
-              Workflow node
-            </Typography>
-            <Typography component="h2" variant="h5">{detail?.title}</Typography>
-          </Box>
-          <Button onClick={onClose} size="small" variant="text">Close</Button>
-        </Stack>
+    <Dialog className="workflow-inspector-dialog" fullWidth maxWidth="xl" onClose={onClose} open={Boolean(nodeId)} scroll="paper">
+      <DialogTitle component="div">
+        <Typography color="text.secondary" sx={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }}>
+          Workflow node
+        </Typography>
+        <Typography component="h2" variant="h5">{detail?.title}</Typography>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack className="workflow-inspector" spacing={2}>
         <Typography color="text.secondary">{detail?.description}</Typography>
         <Divider />
 
@@ -168,7 +151,7 @@ export function WorkflowInspector({
             <Button disabled={!hasSource || isRunning} onClick={onRunCleanRedraw} variant="contained">
               {runningStage === "redraw" ? "Generating…" : cleanRedraw ? "Regenerate clean redraw" : "Generate clean redraw"}
             </Button>
-            <GeneratedImagePreview image={cleanRedraw} label="Clean redraw" />
+            {source ? <WorkflowImageComparison original={source} output={cleanRedraw} outputLabel="Clean redraw" /> : null}
           </Stack>
         ) : null}
 
@@ -177,7 +160,7 @@ export function WorkflowInspector({
             <Button disabled={!hasSource || isRunning} onClick={onRunLineArt} variant="contained">
               {runningStage === "line-art" ? "Generating…" : lineArt ? "Regenerate black line art" : "Generate black line art"}
             </Button>
-            <GeneratedImagePreview image={lineArt} label="Black line art" />
+            {source ? <WorkflowImageComparison original={source} output={lineArt} outputLabel="Black line art" /> : null}
           </Stack>
         ) : null}
 
@@ -187,7 +170,7 @@ export function WorkflowInspector({
               {runningStage === "color" ? "Applying colors…" : colorReconstruction ? "Reapply source colors" : "Apply source colors"}
             </Button>
             {!cleanRedraw ? <Typography color="text.secondary" variant="body2">Generate a clean redraw first; this node combines it with the original source.</Typography> : null}
-            <GeneratedImagePreview image={colorReconstruction} label="Color reconstruction" />
+            {source ? <WorkflowImageComparison original={source} output={colorReconstruction} outputLabel="Color reconstruction" /> : null}
           </Stack>
         ) : null}
 
@@ -198,8 +181,12 @@ export function WorkflowInspector({
           </Stack>
         ) : null}
 
-        {error && nodeId !== "start" ? <Typography color="error" role="alert" variant="body2">{error}</Typography> : null}
-      </Stack>
-    </Drawer>
+          {error && nodeId !== "start" ? <Typography color="error" role="alert" variant="body2">{error}</Typography> : null}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} variant="text">Close</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
