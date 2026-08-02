@@ -11,6 +11,10 @@ export interface DecodedImage {
   originalHeight: number;
 }
 
+interface ImageFileOptions {
+  maximumFileBytes?: number;
+}
+
 function hasSupportedSignature(bytes: Uint8Array) {
   const isPng =
     bytes[0] === 0x89 &&
@@ -25,12 +29,15 @@ function hasSupportedSignature(bytes: Uint8Array) {
   return isPng || isJpeg || isWebp;
 }
 
-export async function validateImageFile(file: File) {
+export async function validateImageFile(
+  file: File,
+  { maximumFileBytes = MAX_FILE_BYTES }: ImageFileOptions = {},
+) {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error("Choose a PNG, JPEG, or WebP image.");
   }
-  if (file.size === 0 || file.size > MAX_FILE_BYTES) {
-    throw new Error("Images must be between 1 byte and 20 MB.");
+  if (file.size === 0 || file.size > maximumFileBytes) {
+    throw new Error(`Images must be between 1 byte and ${Math.round(maximumFileBytes / 1024 / 1024)} MB.`);
   }
 
   const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
@@ -39,8 +46,11 @@ export async function validateImageFile(file: File) {
   }
 }
 
-export async function decodeImage(file: File): Promise<DecodedImage> {
-  await validateImageFile(file);
+export async function decodeImage(
+  file: File,
+  options?: ImageFileOptions,
+): Promise<DecodedImage> {
+  await validateImageFile(file, options);
   const bitmap = await createImageBitmap(file, {
     imageOrientation: "from-image",
   });

@@ -1,7 +1,6 @@
 const openAiImageModel = "gpt-image-2";
 const maximumSourceBytes = 20 * 1024 * 1024;
 const supportedImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
-const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export interface AiGeneratedImage {
   dataUrl: string;
@@ -54,16 +53,16 @@ export function createImageFileFromGeneratedImage(
   image: AiGeneratedImage,
   filename: string,
 ): File {
-  const match = new RegExp(
-    `^data:${image.mimeType};base64,([A-Za-z0-9+/]*={0,2})$`,
-  ).exec(image.dataUrl);
-  const base64 = match?.[1];
-  if (!base64 || !base64Pattern.test(base64)) {
+  const base64 = generatedImageBase64(image);
+  if (!base64) {
     throw new Error("The generated image does not contain usable image data.");
   }
 
   const decoded = atob(base64);
-  const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+  const bytes = new Uint8Array(decoded.length);
+  for (let index = 0; index < decoded.length; index += 1) {
+    bytes[index] = decoded.charCodeAt(index);
+  }
   return new File([bytes], filename, { type: image.mimeType });
 }
 
@@ -181,7 +180,7 @@ async function requestImageEdit(
   }
 
   const base64 = response.data?.[0]?.b64_json;
-  if (!base64 || !base64Pattern.test(base64)) {
+  if (!base64 || !isValidBase64(base64)) {
     throw new Error("OpenAI did not return a usable PNG image.");
   }
 
@@ -190,6 +189,37 @@ async function requestImageEdit(
     mimeType: "image/png",
     model: openAiImageModel,
   };
+}
+
+function generatedImageBase64(image: AiGeneratedImage) {
+  const prefix = `data:${image.mimeType};base64,`;
+  if (!image.dataUrl.startsWith(prefix)) return undefined;
+
+  const base64 = image.dataUrl.slice(prefix.length);
+  return isValidBase64(base64) ? base64 : undefined;
+}
+
+function isValidBase64(value: string) {
+  if (!value || value.length % 4 !== 0) return false;
+
+  const firstPadding = value.indexOf("=");
+  const contentEnd = firstPadding === -1 ? value.length : firstPadding;
+  const paddingLength = value.length - contentEnd;
+  if (paddingLength > 2) return false;
+
+  for (let index = 0; index < contentEnd; index += 1) {
+    const code = value.charCodeAt(index);
+    const isUppercase = code >= 65 && code <= 90;
+    const isLowercase = code >= 97 && code <= 122;
+    const isDigit = code >= 48 && code <= 57;
+    if (!isUppercase && !isLowercase && !isDigit && code !== 43 && code !== 47) return false;
+  }
+
+  for (let index = contentEnd; index < value.length; index += 1) {
+    if (value.charCodeAt(index) !== 61) return false;
+  }
+
+  return contentEnd > 0;
 }
 
 function readHttpStatus(cause: unknown): number | undefined {

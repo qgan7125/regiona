@@ -43,6 +43,7 @@ import { ReconstructionWorkerClient } from "../workers/worker-client";
 type WorkStatus = "idle" | "decoding" | "processing" | "ready" | "error";
 type AppMode = "choose" | "direct" | "workflow";
 type AiGenerationStage = "analysis" | "scale" | "redraw" | "line-art" | "color";
+const MAX_GENERATED_IMAGE_BYTES = 64 * 1024 * 1024;
 
 interface SourceState {
   file: File;
@@ -55,8 +56,11 @@ interface SourceState {
   pixels: Uint8ClampedArray;
 }
 
-async function createSourceState(file: File): Promise<SourceState> {
-  const decoded = await decodeImage(file);
+async function createSourceState(
+  file: File,
+  options?: { maximumFileBytes?: number },
+): Promise<SourceState> {
+  const decoded = await decodeImage(file, options);
   return {
     file,
     filename: file.name,
@@ -406,6 +410,7 @@ export function App() {
       const extension = candidate.image.mimeType === "image/jpeg" ? "jpg" : "png";
       const nextSource = await createSourceState(
         createImageFileFromGeneratedImage(candidate.image, `regiona-${candidate.label.toLowerCase().replaceAll(" ", "-")}.${extension}`),
+        { maximumFileBytes: MAX_GENERATED_IMAGE_BYTES },
       );
       setSource(nextSource);
       setAppliedTargetColors(targetColors);

@@ -152,6 +152,17 @@ describe("OpenAI image reconstruction provider", () => {
     await expect(file.text()).resolves.toBe("hello");
   });
 
+  it("converts a large generated image payload without recursive base64 validation", () => {
+    const base64 = "AAAA".repeat(6 * 1024 * 1024);
+    const file = createPngFileFromGeneratedImage({
+      dataUrl: `data:image/png;base64,${base64}`,
+      mimeType: "image/png",
+      model: "gpt-image-2",
+    }, "large-upscale.png");
+
+    expect(file.size).toBe(18 * 1024 * 1024);
+  });
+
   it("rejects a generated image with an invalid PNG data URL", () => {
     expect(() => createPngFileFromGeneratedImage({
       dataUrl: "data:text/html;base64,PHNjcmlwdD4=",
