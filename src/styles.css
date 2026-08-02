@@ -78,6 +78,11 @@ button {
 .mode-choice button { display: grid; gap: .75rem; padding: 1.5rem; text-align: left; background: var(--surface-raised); border: 1px solid var(--line); cursor: pointer; }
 .mode-choice button:hover, .mode-choice button:focus-visible { border-color: var(--accent); outline: none; }
 .mode-choice button span { color: var(--muted); line-height: 1.5; }
+.mode-choice__security-note { max-width: 48rem; margin-top: 1.5rem; padding: 1rem 1.25rem; background: var(--surface); border: 1px solid var(--line); border-left: .25rem solid var(--accent); }
+.mode-choice__security-note .eyebrow { margin-bottom: .25rem; }
+.mode-choice__security-note h2 { margin: 0; font-size: 1rem; }
+.mode-choice__security-note p:not(.eyebrow) { margin: .5rem 0; color: var(--muted); line-height: 1.5; }
+.mode-choice__security-note ul { display: grid; gap: .35rem; margin: .75rem 0 0; padding-left: 1.25rem; color: var(--ink); line-height: 1.45; }
 
 .workflow-shell { height: calc(100dvh - var(--app-header-height)); min-height: 0; overflow: hidden; }
 .workflow-panel { width: min(21rem, calc(100vw - 2rem)); padding: 1rem; background: var(--surface-raised); border: 1px solid var(--line); }

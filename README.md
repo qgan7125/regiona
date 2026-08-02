@@ -29,11 +29,40 @@ This first implementation slice includes:
 - PixiJS-backed previews with wheel zoom, drag-to-pan, optional linked views, and selection focus;
 - loading feedback while regenerating or recoloring;
 - searchable Material UI palette picker for region fills;
-- editable SVG and Regiona project JSON export.
+- editable SVG and Regiona project JSON export;
+- an optional, user-composed Gemini workflow for reverse-prompt analysis, prompt redraw, clean redraw, black line art, colorized line art, and AI high-resolution candidates.
 
 OpenCV.js analysis, shared-boundary reconstruction, curve fitting, split/merge
-operations, redo, and AI proposals are intentionally scheduled for later
-development phases. The geometric core does not depend on cloud AI.
+operations, and richer geometry editing are intentionally scheduled for later
+development phases. The deterministic geometric core does not depend on cloud AI.
+
+## AI workflow: privacy, key safety, and limitations
+
+AI is optional. Direct Regiona processing (decode, palette reduction, regions,
+vector editing, and SVG export) runs locally in the browser. Choosing an AI
+workflow node sends the selected image directly from the browser to Gemini using
+the user's own API key; Regiona has no backend proxy and does not receive or
+hold that key.
+
+This is a BYOK convenience feature, **not a secure credential vault**:
+
+- By default, a key is kept only for the current browser session. Choosing
+  **Remember on this device** stores it in browser local storage, which is less
+  appropriate on shared devices and remains exposed to the normal risks of a
+  browser environment (for example, malicious extensions or script injection).
+- Use a separate, restricted, low-budget key. Do not enter an organization,
+  shared, or high-value production key.
+- Do not enable remembering on a shared computer; clear the key when finished.
+- API usage, billing, provider retention, quotas, and latency are governed by
+  the AI provider and the user's account.
+
+AI results are candidates, not authoritative edits. They may fail, be slow,
+vary across runs, or change small visual details. In particular, **AI upscale**
+is an AI-generated high-resolution candidate rather than guaranteed
+pixel-faithful super-resolution, so it may not align exactly with the source.
+Review and explicitly adopt a candidate before using it as the Regiona vector
+source. Regiona's final palette, regions, editing, and SVG geometry remain
+deterministic after a source is chosen.
 
 ## Development
 
@@ -61,5 +90,6 @@ npm run build
 - `src/types`: serializable Regiona project model subset.
 - `tests`: fast behavior-focused tests for the reconstruction core.
 
-Image data stays in the browser. This prototype has no backend and makes no
-network request with uploaded artwork.
+For local-only Regiona processing, image data stays in the browser. This
+prototype has no Regiona backend. When an AI workflow node is run, its input
+image is sent directly to Gemini from the browser using the user's key.

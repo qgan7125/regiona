@@ -571,7 +571,10 @@ The entry choice is reversible. A direct Regiona project can open a workflow usi
 
 ### 7.5.1 Workflow Nodes
 
-Version one exposes a fixed catalogue of typed nodes. Users may add, remove, duplicate, arrange, and connect compatible nodes, but cannot create arbitrary executable code nodes or invalid dependency cycles.
+Version one exposes a fixed catalogue of typed nodes. Users may add, remove,
+arrange, and connect compatible nodes, but cannot create arbitrary executable
+code nodes, duplicate a node type, or create invalid dependency cycles. The
+default graph is only `Start -> Regiona vector`; all AI work is opt-in.
 
 | Node | Input | Output | Notes |
 | --- | --- | --- | --- |
@@ -579,9 +582,15 @@ Version one exposes a fixed catalogue of typed nodes. Users may add, remove, dup
 | Analyze | Original or generated image | Reverse prompt | Reconstructs a prompt-ready description from visible evidence for high-fidelity regeneration. It is text-only and does not silently change settings. |
 | AI upscale | Original image | High-resolution image | Lets the user choose a 2×, 3×, or 4× AI high-resolution candidate for detail review or Regiona vector processing. Regiona writes the final PNG at the selected target dimensions, subject to a safe pixel cap. |
 | AI clean redraw | Original image | Cleaned image | Removes non-semantic texture and noisy fragments while preserving composition. |
+| AI prompt redraw | Analyze reverse prompt | Generated image | Generates a new candidate from Analyze's recreation prompt. It has no image input and is intentionally a distinct path from clean redraw. |
 | Black line art | Original image | Black-on-white line-art image | A direct candidate for Regiona vector processing; does not require redraw or colorization. |
-| Apply source colours | Original image + clean redraw + optional current target palette | Colour reconstruction | Reapplies semantic colour onto clean geometry. |
+| Colorize line art | Black line art + original color reference | Colour reconstruction | Reapplies limited semantic colour onto black-line geometry while preserving linework. |
 | Regiona vector | One explicit current image candidate | Editable Regiona project | Runs local quantization, regions, vector editing, review, and export. |
+
+Implementation note: AI upscale creates a high-resolution AI candidate at the
+selected target dimensions. It is not a pixel-faithful local resampler, so the
+candidate can differ from the source even when both images have the same aspect
+ratio.
 
 Nodes show a compact execution summary. Clicking a node opens a dedicated inspector: image-producing nodes use linked original/output comparison; Analyze uses a structured, copyable reverse prompt. Detailed image interaction belongs in the inspector, not inside the graph card.
 
@@ -604,8 +613,8 @@ Rerunning an image-producing node creates a new output revision and marks only i
 The workflow provides:
 
 - **Run node / Regenerate** for the selected task.
-- **Run ready nodes** to execute all enabled nodes with current inputs in dependency order.
-- **Run to Regiona vector** to execute one user-selected valid path, rather than every branch.
+- **Run ready nodes** to execute connected, reachable nodes with current inputs in dependency order.
+- **Open Regiona editor** to use Start directly or confirm the currently connected completed image candidate. The application does not auto-adopt any AI result.
 - **Cancel current run** to prevent queued work from starting; late provider responses are ignored if their revision is no longer current.
 
 Selecting an AI image for Regiona vector processing requires confirmation. Confirming resets regions, selections, palette edits, vector edits, and undo/redo history because they belong to the previous source geometry. Cancelling changes nothing. AI output must never be auto-adopted.
@@ -615,6 +624,13 @@ Selecting an AI image for Regiona vector processing requires confirmation. Confi
 The graph is a visualization and interaction layer. Workflow dependency validation, execution ordering, revisions, stale-state calculation, and adoption eligibility live in Regiona's own pure workflow model so they are deterministic and unit-testable.
 
 The graph implementation may use React Flow custom nodes and typed handles. Its graph viewport is separate from the linked Pixi image-comparison viewport so pan and zoom interactions do not compete.
+
+### 7.5.4 AI Workflow Limitations
+
+- AI nodes are provider requests, so they can fail, be rate-limited, incur user-account cost, or take noticeably longer than local processing.
+- Generated candidates are nondeterministic and may alter fine details, text, or spatial alignment. They are preview-and-review artifacts, not a replacement for deterministic Regiona geometry.
+- AI upscale is a high-resolution image-generation candidate, not a promise of exact super-resolution. It should be reviewed side by side, not used for pixel-perfect difference claims.
+- Running an AI node does not change the Regiona editor source. The user must explicitly confirm a candidate; adoption resets source-dependent edits and history.
 
 ---
 
@@ -652,6 +668,9 @@ If cloud AI is enabled:
 - The UI must distinguish local and cloud processing.
 - Application-owned API credentials must not be exposed in browser code.
 - A bring-your-own-key (BYOK) mode may send a user-provided provider key directly from the browser only when the provider explicitly supports browser requests. The key must never be committed, logged, embedded in deployed assets, or sent to a Regiona backend.
+- Browser key storage is a convenience mechanism, not a secure vault. The default must be session-only; persistent browser storage requires an explicit opt-in and is unsuitable for shared devices or high-value organization keys.
+- The UI must tell users that running an AI node sends its selected image directly to the provider. Provider data handling, quotas, availability, and billing are outside Regiona's control.
+- The UI must recommend a separate, restricted, low-budget key and provide an explicit clear-key action.
 - A hosted/shared-key mode must use a secure backend or serverless proxy.
 - AI use must be optional.
 - Local-only mode must remain available.
@@ -663,7 +682,9 @@ If cloud AI is enabled:
 ```text
 Browser application
 +
-Optional minimal AI proxy
+Optional direct BYOK Gemini calls
+
+(no Regiona backend or shared key)
 ```
 
 ### Later

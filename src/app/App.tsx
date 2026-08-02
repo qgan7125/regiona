@@ -967,6 +967,19 @@ export function App() {
               <span>Branch into analysis, redraw, line art, and color reconstruction before vectorizing.</span>
             </button>
           </div>
+          <aside aria-label="AI key safety notice" className="mode-choice__security-note" role="note">
+            <p className="eyebrow">AI workflow is optional</p>
+            <h2>Use a separate, limited Gemini key.</h2>
+            <p>
+              Direct Regiona processing stays local. Running an AI node sends its selected image directly from this browser to Gemini using your key.
+              Regiona has no key-holding backend, but browser storage is not a secure credential vault.
+            </p>
+            <ul>
+              <li>Use a low-budget, restricted key instead of an organization or shared key.</li>
+              <li>Do not choose “Remember on this device” on a shared computer.</li>
+              <li>Clear the saved key in Settings when you are finished.</li>
+            </ul>
+          </aside>
         </main>
       ) : mode === "workflow" ? (
         <>
