@@ -35,10 +35,11 @@ interface WorkflowInspectorProps {
   imageScale?: AiGeneratedImage;
   imageScaleFactor: number;
   cleanRedraw?: AiGeneratedImage;
+  promptRedraw?: AiGeneratedImage;
   lineArt?: AiGeneratedImage;
   colorizedLineArt?: AiGeneratedImage;
   colorCount: number;
-  runningStage?: "analysis" | "scale" | "redraw" | "line-art" | "color";
+  runningStage?: "analysis" | "scale" | "redraw" | "prompt-redraw" | "line-art" | "color";
   error?: string;
   onClose: () => void;
   onFile: (file: File) => void;
@@ -46,6 +47,7 @@ interface WorkflowInspectorProps {
   onRunImageScale: () => void;
   onImageScaleFactorChange: (scale: number) => void;
   onRunCleanRedraw: () => void;
+  onRunPromptRedraw: () => void;
   onRunLineArt: () => void;
   onRunColorizeLineArt: () => void;
   onColorCountChange: (colorCount: number) => void;
@@ -69,6 +71,10 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
   "clean-redraw": {
     title: "AI clean redraw",
     description: "Create a cleaner image candidate while preserving the source composition.",
+  },
+  "prompt-redraw": {
+    title: "AI prompt redraw",
+    description: "Generate a fresh image from Analyze's reverse-engineered recreation prompt.",
   },
   "black-line-art": {
     title: "Black line art",
@@ -107,6 +113,7 @@ export function WorkflowInspector({
   imageScale,
   imageScaleFactor,
   cleanRedraw,
+  promptRedraw,
   lineArt,
   colorizedLineArt,
   colorCount,
@@ -118,6 +125,7 @@ export function WorkflowInspector({
   onRunImageScale,
   onImageScaleFactorChange,
   onRunCleanRedraw,
+  onRunPromptRedraw,
   onRunLineArt,
   onRunColorizeLineArt,
   onColorCountChange,
@@ -293,6 +301,31 @@ export function WorkflowInspector({
               />
             ) : (
               <Button disabled={!hasSource || isRunning} onClick={onRunCleanRedraw} variant="contained">Generate clean redraw</Button>
+            )
+          ) : null}
+
+          {nodeId === "prompt-redraw" ? (
+            comparisonOriginal ? (
+              <>
+                {!analysis ? (
+                  <Alert className="workflow-inline-notification" severity="info" variant="outlined">
+                    Connect Analyze to this node and generate the reverse prompt first.
+                  </Alert>
+                ) : null}
+                <WorkflowImageComparison
+                  onUseInRegionaVector={onUseInRegionaVector}
+                  original={comparisonOriginal}
+                  output={promptRedraw}
+                  outputLabel="AI prompt redraw"
+                  primaryAction={
+                    <Button disabled={!analysis || isRunning} onClick={onRunPromptRedraw} size="small" variant="contained">
+                      {runningStage === "prompt-redraw" ? "Generating..." : promptRedraw ? "Regenerate from reverse prompt" : "Generate from reverse prompt"}
+                    </Button>
+                  }
+                />
+              </>
+            ) : (
+              <Button disabled={!analysis || isRunning} onClick={onRunPromptRedraw} variant="contained">Generate from reverse prompt</Button>
             )
           ) : null}
 

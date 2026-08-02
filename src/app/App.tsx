@@ -52,7 +52,7 @@ import { ReconstructionWorkerClient } from "../workers/worker-client";
 
 type WorkStatus = "idle" | "decoding" | "processing" | "ready" | "error";
 type AppMode = "choose" | "direct" | "workflow";
-type AiGenerationStage = "analysis" | "scale" | "redraw" | "line-art" | "color";
+type AiGenerationStage = "analysis" | "scale" | "redraw" | "prompt-redraw" | "line-art" | "color";
 const MAX_GENERATED_IMAGE_BYTES = 64 * 1024 * 1024;
 
 interface SourceState {
@@ -137,6 +137,7 @@ export function App() {
   const [error, setError] = useState<string>();
   const [isGeminiSettingsOpen, setIsGeminiSettingsOpen] = useState(false);
   const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
+  const [promptRedraw, setPromptRedraw] = useState<AiGeneratedImage>();
   const [imageScale, setImageScale] = useState<AiGeneratedImage>();
   const [imageScaleFactor, setImageScaleFactor] = useState(2);
   const [lineArt, setLineArt] = useState<AiGeneratedImage>();
@@ -301,6 +302,7 @@ export function App() {
       setPickedColors([]);
       resetSelectionHistory();
       setCleanRedraw(undefined);
+      setPromptRedraw(undefined);
       setImageScale(undefined);
       setLineArt(undefined);
       setColorizedLineArt(undefined);
@@ -491,8 +493,11 @@ export function App() {
       const outputs = new Map<string, AiGeneratedImage>();
       if (imageScale) outputs.set("image-scale", imageScale);
       if (cleanRedraw) outputs.set("clean-redraw", cleanRedraw);
+      if (promptRedraw) outputs.set("prompt-redraw", promptRedraw);
       if (lineArt) outputs.set("black-line-art", lineArt);
       if (colorizedLineArt) outputs.set("colorize-line-art", colorizedLineArt);
+      const analyses = new Map<string, AiStructureAnalysis>();
+      if (analysis) analyses.set("analyze", analysis);
       const inputs = new Map<string, WorkflowImageInput>([
         ["start", {
           file: inputSource.file,
@@ -502,7 +507,22 @@ export function App() {
       ]);
 
       for (const step of plan) {
-        if (step.kind === "analyze" && analysis) continue;
+        if (step.kind === "analyze" && analyses.has(step.nodeId)) continue;
+        if (step.kind === "prompt-redraw") {
+          const reversePrompt = analyses.get(step.sourceId)?.recreationPrompt;
+          if (!reversePrompt) {
+            throw new Error(`Run ${step.sourceId} before ${step.nodeId}.`);
+          }
+          if (outputs.has(step.nodeId)) continue;
+
+          setAiGenerationStage("prompt-redraw");
+          const generated = await imageProvider.createPromptRedraw({ prompt: reversePrompt });
+          if (!isCurrentRun()) return;
+          outputs.set(step.nodeId, generated);
+          inputs.set(step.nodeId, await createWorkflowImageInput(generated, step.nodeId));
+          setPromptRedraw(generated);
+          continue;
+        }
         const input = inputs.get(step.sourceId)
           ?? (outputs.get(step.sourceId)
             ? await createWorkflowImageInput(outputs.get(step.sourceId)!, step.sourceId)
@@ -516,7 +536,9 @@ export function App() {
           setAiGenerationStage("analysis");
           const generatedAnalysis = await analysisProvider.analyzeImage({ source: input.file });
           if (!isCurrentRun()) return;
+          analyses.set(step.nodeId, generatedAnalysis);
           setAnalysis(generatedAnalysis);
+          setPromptRedraw(undefined);
           continue;
         }
         if (outputs.has(step.nodeId)) {
@@ -602,7 +624,7 @@ export function App() {
   const handleConnectWorkflowNodes = useCallback((connection: {
     sourceId: string;
     targetId: string;
-    targetPort: "image" | "line-art";
+    targetPort: "image" | "line-art" | "prompt";
   }) => {
     setWorkflow((current) => connectAiWorkflowNodes(current, connection));
   }, []);
@@ -625,6 +647,7 @@ export function App() {
     const candidates: Record<string, { image: AiGeneratedImage | undefined; label: string }> = {
       "image-scale": { image: imageScale, label: "AI upscale" },
       "clean-redraw": { image: cleanRedraw, label: "AI clean redraw" },
+      "prompt-redraw": { image: promptRedraw, label: "AI prompt redraw" },
       "black-line-art": { image: lineArt, label: "Black line art" },
       "colorize-line-art": { image: colorizedLineArt, label: "Colorized line art" },
     };
@@ -634,7 +657,7 @@ export function App() {
       return;
     }
     setPendingVectorCandidate({ image: candidate.image, label: candidate.label });
-  }, [cleanRedraw, colorizedLineArt, imageScale, lineArt, workflow]);
+  }, [cleanRedraw, colorizedLineArt, imageScale, lineArt, promptRedraw, workflow]);
 
   const handleGenerateCleanRedraw = async () => {
     const inputSource = mode === "workflow" ? workflowSource ?? source : source;
@@ -738,8 +761,31 @@ export function App() {
     try {
       const provider = createGeminiAnalysisProvider(apiKey);
       setAnalysis(await provider.analyzeImage({ source: inputSource.file }));
+      setPromptRedraw(undefined);
     } catch (cause) {
       setAiError(cause instanceof Error ? cause.message : "Could not analyze this image. Please try again.");
+    } finally {
+      setAiGenerationStage(undefined);
+    }
+  };
+
+  const handleGeneratePromptRedraw = async () => {
+    if (!analysis || busy) return;
+
+    const { apiKey } = loadGeminiApiKey();
+    if (!apiKey) {
+      setAiError("Add your Gemini API key in settings before generating from a reverse prompt.");
+      setIsGeminiSettingsOpen(true);
+      return;
+    }
+
+    setAiError(undefined);
+    setAiGenerationStage("prompt-redraw");
+    try {
+      const provider = createGeminiImageProvider(apiKey);
+      setPromptRedraw(await provider.createPromptRedraw({ prompt: analysis.recreationPrompt }));
+    } catch (cause) {
+      setAiError(cause instanceof Error ? cause.message : "Could not generate from the reverse prompt. Please try again.");
     } finally {
       setAiGenerationStage(undefined);
     }
@@ -794,6 +840,7 @@ export function App() {
     if (analysis) completed.add("analyze");
     if (imageScale) completed.add("image-scale");
     if (cleanRedraw) completed.add("clean-redraw");
+    if (promptRedraw) completed.add("prompt-redraw");
     if (lineArt) completed.add("black-line-art");
     if (colorizedLineArt) completed.add("colorize-line-art");
 
@@ -801,6 +848,7 @@ export function App() {
       analysis: "analyze",
       scale: "image-scale",
       redraw: "clean-redraw",
+      "prompt-redraw": "prompt-redraw",
       "line-art": "black-line-art",
       color: "colorize-line-art",
     };
@@ -825,7 +873,7 @@ export function App() {
     }
 
     return statuses;
-  }, [aiGenerationStage, analysis, cleanRedraw, colorizedLineArt, imageScale, lineArt, source, workflow, workflowSource]);
+  }, [aiGenerationStage, analysis, cleanRedraw, colorizedLineArt, imageScale, lineArt, promptRedraw, source, workflow, workflowSource]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -870,10 +918,12 @@ export function App() {
           ? "Colorizing black line art from the source image"
           : aiGenerationStage === "scale"
             ? "Creating a high-resolution image candidate"
-          : aiGenerationStage === "line-art"
+            : aiGenerationStage === "line-art"
             ? "Generating black line art"
             : aiGenerationStage === "analysis"
               ? "Analyzing image structure"
+              : aiGenerationStage === "prompt-redraw"
+                ? "Generating image from reverse prompt"
           : aiGenerationStage === "redraw"
             ? "Generating AI clean redraw"
             : statusText}
@@ -941,6 +991,7 @@ export function App() {
             imageScale={imageScale}
             imageScaleFactor={imageScaleFactor}
             cleanRedraw={cleanRedraw}
+            promptRedraw={promptRedraw}
             colorCount={lineArtColorCount}
             colorizedLineArt={colorizedLineArt}
             error={aiError}
@@ -956,7 +1007,7 @@ export function App() {
             } : undefined}
             onClose={() => setWorkflowInspectorNodeId(undefined)}
             onFile={(file) => void handleFile(file)}
-            onOpenEditor={() => setMode("direct")}
+            onOpenEditor={handleOpenWorkflowEditor}
             onRunAnalyze={() => void handleAnalyzeImage()}
             onRunImageScale={() => void handleImproveImageScale()}
             onImageScaleFactorChange={(scale) => {
@@ -964,6 +1015,7 @@ export function App() {
               setImageScale(undefined);
             }}
             onRunCleanRedraw={() => void handleGenerateCleanRedraw()}
+            onRunPromptRedraw={() => void handleGeneratePromptRedraw()}
             onRunColorizeLineArt={() => void handleColorizeLineArt()}
             onRunLineArt={() => void handleGenerateLineArt()}
             onColorCountChange={(colorCount) => {

@@ -38,7 +38,7 @@ interface WorkflowCanvasProps {
   onFile: (file: File) => void;
   onAddNode: (kind: AiWorkflowNodeKind) => void;
   onRemoveNode: (nodeId: WorkflowNodeId) => void;
-  onConnectWorkflowNodes: (connection: { sourceId: string; targetId: string; targetPort: "image" | "line-art" }) => void;
+  onConnectWorkflowNodes: (connection: { sourceId: string; targetId: string; targetPort: "image" | "line-art" | "prompt" }) => void;
   onDisconnectWorkflowNodes: (edgeId: string) => void;
   onOpenEditor: () => void;
   onInspectNode: (nodeId: WorkflowNodeId) => void;
@@ -52,6 +52,7 @@ export type WorkflowNodeId =
   | "analyze"
   | "image-scale"
   | "clean-redraw"
+  | "prompt-redraw"
   | "black-line-art"
   | "colorize-line-art"
   | "regiona-vector";
@@ -106,7 +107,7 @@ const nodeDefinitions: Record<WorkflowNodeId, WorkflowNodeDefinition> = {
     detail: "Forensic reverse prompt",
     position: { x: 380, y: 80 },
     acceptsInput: true,
-    providesOutput: false,
+    providesOutput: true,
     canDelete: true,
   },
   "image-scale": {
@@ -125,6 +126,16 @@ const nodeDefinitions: Record<WorkflowNodeId, WorkflowNodeDefinition> = {
     title: "AI clean redraw",
     detail: "Clean geometry candidate",
     position: { x: 380, y: 280 },
+    acceptsInput: true,
+    providesOutput: true,
+    canDelete: true,
+  },
+  "prompt-redraw": {
+    id: "prompt-redraw",
+    kind: "prompt-redraw",
+    title: "AI prompt redraw",
+    detail: "Generate from Analyze's reverse prompt",
+    position: { x: 680, y: 100 },
     acceptsInput: true,
     providesOutput: true,
     canDelete: true,
@@ -164,11 +175,13 @@ const libraryNodeIds: WorkflowNodeId[] = [
   "analyze",
   "image-scale",
   "clean-redraw",
+  "prompt-redraw",
   "black-line-art",
   "colorize-line-art",
 ];
 
-function targetPortForNode(nodeId: string): "image" | "line-art" {
+function targetPortForNode(nodeId: string): "image" | "line-art" | "prompt" {
+  if (nodeId === "prompt-redraw") return "prompt";
   return nodeId === "colorize-line-art" ? "line-art" : "image";
 }
 
