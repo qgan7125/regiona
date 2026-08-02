@@ -7,7 +7,7 @@ export type AiWorkflowNodeKind =
   | "color"
   | "vector";
 export type AiWorkflowNodeStatus = "idle" | "ready" | "running" | "complete" | "stale" | "error";
-export type AiWorkflowInputPort = "image" | "original" | "clean";
+export type AiWorkflowInputPort = "image" | "original" | "line-art";
 
 const intermediateStages = new Set<AiIntermediateStage>(["redraw", "color", "line-art"]);
 const imageProducingNodeKinds = new Set<AiWorkflowNodeKind>([
@@ -57,15 +57,15 @@ export function createAiWorkflowState(originalImageId: string): AiWorkflowState 
       { id: "analyze", kind: "analyze", status: "idle", revision: 0 },
       { id: "clean-redraw", kind: "redraw", status: "idle", revision: 0 },
       { id: "black-line-art", kind: "line-art", status: "idle", revision: 0 },
-      { id: "apply-source-colors", kind: "color", status: "idle", revision: 0 },
+      { id: "colorize-line-art", kind: "color", status: "idle", revision: 0 },
       { id: "regiona-vector", kind: "vector", status: "idle", revision: 0 },
     ],
     edges: [
       createEdge("start", "analyze", "image"),
       createEdge("start", "clean-redraw", "image"),
       createEdge("start", "black-line-art", "image"),
-      createEdge("start", "apply-source-colors", "original"),
-      createEdge("clean-redraw", "apply-source-colors", "clean"),
+      createEdge("start", "colorize-line-art", "original"),
+      createEdge("black-line-art", "colorize-line-art", "line-art"),
       createEdge("start", "regiona-vector", "image"),
     ],
   });
@@ -209,7 +209,7 @@ function requiredInputPorts(kind: AiWorkflowNodeKind): AiWorkflowInputPort[] {
     case "vector":
       return ["image"];
     case "color":
-      return ["original", "clean"];
+      return ["original", "line-art"];
     case "start":
       return [];
   }
@@ -221,7 +221,7 @@ function isCompatibleInput(
   targetPort: AiWorkflowInputPort,
 ): boolean {
   if (targetPort === "original") return sourceKind === "start";
-  if (targetPort === "clean") return sourceKind === "redraw";
+  if (targetPort === "line-art") return sourceKind === "line-art";
   return targetKind !== "start";
 }
 

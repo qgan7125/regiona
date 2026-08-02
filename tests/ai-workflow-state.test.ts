@@ -59,7 +59,7 @@ describe("AI workflow state", () => {
     })).toThrow("dimensions");
   });
 
-  it("creates a ready fan-out from Start while waiting for redraw before colorization", () => {
+  it("creates a ready fan-out from Start while waiting for line art before colorization", () => {
     const workflow = createAiWorkflowState("original-image");
 
     expect(workflow.nodes.map(({ id, status }) => ({ id, status }))).toEqual([
@@ -67,7 +67,7 @@ describe("AI workflow state", () => {
       { id: "analyze", status: "ready" },
       { id: "clean-redraw", status: "ready" },
       { id: "black-line-art", status: "ready" },
-      { id: "apply-source-colors", status: "idle" },
+      { id: "colorize-line-art", status: "idle" },
       { id: "regiona-vector", status: "ready" },
     ]);
   });
@@ -88,22 +88,22 @@ describe("AI workflow state", () => {
     })).toThrow("already has an input");
   });
 
-  it("marks only completed descendants stale when a redraw is rerun", () => {
+  it("marks only completed descendants stale when black line art is rerun", () => {
     let workflow = createAiWorkflowState("original-image");
-    workflow = completeAiWorkflowNodeRun(workflow, "clean-redraw");
-    workflow = completeAiWorkflowNodeRun(workflow, "apply-source-colors");
+    workflow = completeAiWorkflowNodeRun(workflow, "black-line-art");
+    workflow = completeAiWorkflowNodeRun(workflow, "colorize-line-art");
     workflow = completeAiWorkflowNodeRun(workflow, "analyze");
 
-    workflow = beginAiWorkflowNodeRun(workflow, "clean-redraw");
+    workflow = beginAiWorkflowNodeRun(workflow, "black-line-art");
 
     expect(workflow.nodes.map(({ id, status }) => ({ id, status }))).toEqual([
       { id: "start", status: "complete" },
       { id: "analyze", status: "complete" },
-      { id: "clean-redraw", status: "running" },
-      { id: "black-line-art", status: "ready" },
-      { id: "apply-source-colors", status: "stale" },
+      { id: "clean-redraw", status: "ready" },
+      { id: "black-line-art", status: "running" },
+      { id: "colorize-line-art", status: "stale" },
       { id: "regiona-vector", status: "ready" },
     ]);
-    expect(canUseAiWorkflowNodeAsVectorSource(workflow, "apply-source-colors")).toBe(false);
+    expect(canUseAiWorkflowNodeAsVectorSource(workflow, "colorize-line-art")).toBe(false);
   });
 });

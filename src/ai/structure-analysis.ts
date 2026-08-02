@@ -26,6 +26,12 @@ export interface AiStructureAnalysis {
   imageKind: AiImageKind;
   summary: string;
   subjectDescription: string;
+  recreationPrompt: string;
+  corePrompt: string;
+  negativePrompt: string;
+  styleTags: [string, string, string, string];
+  analysis: string[];
+  variantOffer: string;
   majorObjects: AiStructureObject[];
   suggestedColorCount: number;
   detectedProblems: string[];
@@ -63,12 +69,30 @@ const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
 const maximumRegions = 64;
 const maximumObjects = 32;
 const maximumProblems = 16;
+const minimumRecreationPromptWords = 130;
+const maximumRecreationPromptWords = 220;
+const minimumCorePromptWords = 30;
+const maximumCorePromptWords = 60;
 
 export function parseAiStructureAnalysis(value: unknown): AiStructureAnalysis {
   const record = readRecord(value, "analysis");
   const imageKind = readString(record.imageKind, "imageKind", 24) as AiImageKind;
   const summary = readString(record.summary, "summary", 280);
   const subjectDescription = readString(record.subjectDescription, "subjectDescription", 280);
+  const recreationPrompt = readPrompt(record.recreationPrompt, "recreationPrompt", {
+    minimumWords: minimumRecreationPromptWords,
+    maximumWords: maximumRecreationPromptWords,
+    maximumLength: 2200,
+  });
+  const corePrompt = readPrompt(record.corePrompt, "corePrompt", {
+    minimumWords: minimumCorePromptWords,
+    maximumWords: maximumCorePromptWords,
+    maximumLength: 800,
+  });
+  const negativePrompt = readSingleLine(record.negativePrompt, "negativePrompt", 500);
+  const styleTags = parseStyleTags(record.styleTags);
+  const analysis = parseReversePromptAnalysis(record.analysis);
+  const variantOffer = readString(record.variantOffer, "variantOffer", 300);
   const majorObjects = parseMajorObjects(record.majorObjects);
   const suggestedColorCount = readInteger(record.suggestedColorCount, "suggestedColorCount", 2, 32);
   const detectedProblems = parseDetectedProblems(record.detectedProblems);
@@ -102,12 +126,36 @@ export function parseAiStructureAnalysis(value: unknown): AiStructureAnalysis {
     imageKind,
     summary,
     subjectDescription,
+    recreationPrompt,
+    corePrompt,
+    negativePrompt,
+    styleTags,
+    analysis,
+    variantOffer,
     majorObjects,
     suggestedColorCount,
     detectedProblems,
     reconstructionStrategy,
     regions,
   };
+}
+
+function parseStyleTags(value: unknown): [string, string, string, string] {
+  if (!Array.isArray(value) || value.length !== 4) {
+    throw new AiStructureAnalysisError("styleTags must contain exactly four tags.");
+  }
+  const tags = value.map((tag, index) => readSingleLine(tag, `styleTags[${index}]`, 64));
+  if (new Set(tags.map((tag) => tag.toLowerCase())).size !== tags.length) {
+    throw new AiStructureAnalysisError("styleTags must not contain duplicates.");
+  }
+  return tags as [string, string, string, string];
+}
+
+function parseReversePromptAnalysis(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length < 3 || value.length > 5) {
+    throw new AiStructureAnalysisError("analysis must contain three to five sentences.");
+  }
+  return value.map((sentence, index) => readSingleLine(sentence, `analysis[${index}]`, 500));
 }
 
 function parseMajorObjects(value: unknown): AiStructureObject[] {
@@ -214,6 +262,31 @@ function readString(value: unknown, field: string, maximumLength: number): strin
     throw new AiStructureAnalysisError(`${field} must be between 1 and ${maximumLength} characters.`);
   }
   return trimmed;
+}
+
+function readSingleLine(value: unknown, field: string, maximumLength: number): string {
+  const text = readString(value, field, maximumLength);
+  if (/\r|\n/.test(text)) {
+    throw new AiStructureAnalysisError(`${field} must be one line.`);
+  }
+  return text;
+}
+
+function readPrompt(
+  value: unknown,
+  field: string,
+  {
+    minimumWords,
+    maximumWords,
+    maximumLength,
+  }: { minimumWords: number; maximumWords: number; maximumLength: number },
+): string {
+  const prompt = readSingleLine(value, field, maximumLength);
+  const words = prompt.match(/[\p{L}\p{N}][\p{L}\p{N}-]*/gu)?.length ?? 0;
+  if (words < minimumWords || words > maximumWords) {
+    throw new AiStructureAnalysisError(`${field} must contain ${minimumWords} to ${maximumWords} words.`);
+  }
+  return prompt;
 }
 
 function readInteger(value: unknown, field: string, minimum: number, maximum: number): number {

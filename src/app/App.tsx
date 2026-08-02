@@ -102,12 +102,11 @@ export function App() {
   const [isGeminiSettingsOpen, setIsGeminiSettingsOpen] = useState(false);
   const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
   const [lineArt, setLineArt] = useState<AiGeneratedImage>();
-  const [colorReconstruction, setColorReconstruction] = useState<AiGeneratedImage>();
+  const [colorizedLineArt, setColorizedLineArt] = useState<AiGeneratedImage>();
   const [analysis, setAnalysis] = useState<AiStructureAnalysis>();
   const [aiError, setAiError] = useState<string>();
   const [aiGenerationStage, setAiGenerationStage] = useState<AiGenerationStage>();
   const [workflowInspectorNodeId, setWorkflowInspectorNodeId] = useState<WorkflowNodeId>();
-  const [editorUsesWorkflowCandidate, setEditorUsesWorkflowCandidate] = useState(false);
   const [pendingVectorCandidate, setPendingVectorCandidate] = useState<{
     image: AiGeneratedImage;
     label: string;
@@ -253,7 +252,6 @@ export function App() {
       const nextSource = await createSourceState(file);
       setSource(nextSource);
       setWorkflowSource({ ...nextSource, url: URL.createObjectURL(file) });
-      setEditorUsesWorkflowCandidate(false);
       setAppliedTargetColors(targetColors);
       setAppliedRegionSimplification(regionSimplification);
       setAppliedDespeckleEnabled(despeckleEnabled);
@@ -265,7 +263,7 @@ export function App() {
       resetSelectionHistory();
       setCleanRedraw(undefined);
       setLineArt(undefined);
-      setColorReconstruction(undefined);
+      setColorizedLineArt(undefined);
       setAnalysis(undefined);
       setAiError(undefined);
     } catch (cause) {
@@ -381,7 +379,6 @@ export function App() {
         createImageFileFromGeneratedImage(candidate.image, `regiona-${candidate.label.toLowerCase().replaceAll(" ", "-")}.${extension}`),
       );
       setSource(nextSource);
-      setEditorUsesWorkflowCandidate(true);
       setAppliedTargetColors(targetColors);
       setAppliedRegionSimplification(regionSimplification);
       setAppliedDespeckleEnabled(despeckleEnabled);
@@ -414,7 +411,7 @@ export function App() {
     const shouldAnalyze = !analysis;
     const shouldRedraw = !cleanRedraw;
     const shouldLineArt = !lineArt;
-    const shouldColorize = !colorReconstruction;
+    const shouldColorize = !colorizedLineArt;
     if (!(shouldAnalyze || shouldRedraw || shouldLineArt || shouldColorize)) {
       setStatusText("All ready workflow tasks have completed.");
       return;
@@ -429,7 +426,7 @@ export function App() {
     try {
       const imageProvider = createGeminiImageProvider(apiKey);
       const analysisProvider = createGeminiAnalysisProvider(apiKey);
-      let currentCleanRedraw = cleanRedraw;
+      let currentLineArt = lineArt;
 
       if (shouldAnalyze) {
         setAiGenerationStage("analysis");
@@ -440,30 +437,31 @@ export function App() {
 
       if (shouldRedraw) {
         setAiGenerationStage("redraw");
-        currentCleanRedraw = await imageProvider.createCleanRedraw({ source: inputSource.file });
+        const generatedCleanRedraw = await imageProvider.createCleanRedraw({ source: inputSource.file });
         if (!isCurrentRun()) return;
-        setCleanRedraw(currentCleanRedraw);
+        setCleanRedraw(generatedCleanRedraw);
       }
 
       if (shouldLineArt) {
         setAiGenerationStage("line-art");
         const generatedLineArt = await imageProvider.createLineArt({ source: inputSource.file });
         if (!isCurrentRun()) return;
+        currentLineArt = generatedLineArt;
         setLineArt(generatedLineArt);
       }
 
-      if (shouldColorize && currentCleanRedraw) {
+      if (shouldColorize && currentLineArt) {
         setAiGenerationStage("color");
-        const generatedColors = await imageProvider.reconstructColors({
+        const generatedColors = await imageProvider.colorizeLineArt({
           original: inputSource.file,
-          cleanRedraw: createImageFileFromGeneratedImage(
-            currentCleanRedraw,
-            `regiona-clean-redraw.${currentCleanRedraw.mimeType === "image/jpeg" ? "jpg" : "png"}`,
+          lineArt: createImageFileFromGeneratedImage(
+            currentLineArt,
+            `regiona-black-line-art.${currentLineArt.mimeType === "image/jpeg" ? "jpg" : "png"}`,
           ),
           palette: result?.palette.map((color) => color.hex),
         });
         if (!isCurrentRun()) return;
-        setColorReconstruction(generatedColors);
+        setColorizedLineArt(generatedColors);
       }
     } catch (cause) {
       if (isCurrentRun()) {
@@ -504,7 +502,6 @@ export function App() {
         source: inputSource.file,
       });
       setCleanRedraw(generated);
-      setColorReconstruction(undefined);
     } catch (cause) {
       setAiError(
         cause instanceof Error
@@ -532,6 +529,7 @@ export function App() {
     try {
       const provider = createGeminiImageProvider(apiKey);
       setLineArt(await provider.createLineArt({ source: inputSource.file }));
+      setColorizedLineArt(undefined);
     } catch (cause) {
       setAiError(cause instanceof Error ? cause.message : "Could not generate black line art. Please try again.");
     } finally {
@@ -562,13 +560,13 @@ export function App() {
     }
   };
 
-  const handleReconstructColors = async () => {
+  const handleColorizeLineArt = async () => {
     const inputSource = mode === "workflow" ? workflowSource ?? source : source;
-    if (!inputSource || !cleanRedraw || busy) return;
+    if (!inputSource || !lineArt || busy) return;
 
     const { apiKey } = loadGeminiApiKey();
     if (!apiKey) {
-      setAiError("Add your Gemini API key in settings before reconstructing colors.");
+      setAiError("Add your Gemini API key in settings before colorizing line art.");
       setIsGeminiSettingsOpen(true);
       return;
     }
@@ -577,20 +575,20 @@ export function App() {
     setAiGenerationStage("color");
     try {
       const provider = createGeminiImageProvider(apiKey);
-      const generated = await provider.reconstructColors({
+      const generated = await provider.colorizeLineArt({
         original: inputSource.file,
-        cleanRedraw: createImageFileFromGeneratedImage(
-          cleanRedraw,
-          `regiona-clean-redraw.${cleanRedraw.mimeType === "image/jpeg" ? "jpg" : "png"}`,
+        lineArt: createImageFileFromGeneratedImage(
+          lineArt,
+          `regiona-black-line-art.${lineArt.mimeType === "image/jpeg" ? "jpg" : "png"}`,
         ),
         palette: result?.palette.map((color) => color.hex),
       });
-      setColorReconstruction(generated);
+      setColorizedLineArt(generated);
     } catch (cause) {
       setAiError(
         cause instanceof Error
           ? cause.message
-          : "Could not reconstruct colors. Please try again.",
+          : "Could not colorize line art. Please try again.",
       );
     } finally {
       setAiGenerationStage(undefined);
@@ -605,7 +603,7 @@ export function App() {
         analyze: "awaiting-source",
         "clean-redraw": "awaiting-source",
         "black-line-art": "awaiting-source",
-        "apply-source-colors": "awaiting-source",
+        "colorize-line-art": "awaiting-source",
         "regiona-vector": "awaiting-source",
       } as const;
     }
@@ -615,16 +613,16 @@ export function App() {
       analyze: aiGenerationStage === "analysis" ? "running" : analysis ? "complete" : "ready",
       "clean-redraw": aiGenerationStage === "redraw" ? "running" : cleanRedraw ? "complete" : "ready",
       "black-line-art": aiGenerationStage === "line-art" ? "running" : lineArt ? "complete" : "ready",
-      "apply-source-colors": aiGenerationStage === "color"
+      "colorize-line-art": aiGenerationStage === "color"
         ? "running"
-        : colorReconstruction
+        : colorizedLineArt
           ? "complete"
-          : cleanRedraw
+          : lineArt
             ? "ready"
             : "idle",
       "regiona-vector": "ready",
     } as const;
-  }, [aiGenerationStage, analysis, cleanRedraw, colorReconstruction, lineArt, source, workflowSource]);
+  }, [aiGenerationStage, analysis, cleanRedraw, colorizedLineArt, lineArt, source, workflowSource]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -666,7 +664,7 @@ export function App() {
       <AppHeader
         status={aiGenerationStage ? "processing" : status}
         statusText={aiGenerationStage === "color"
-          ? "Applying original colors to AI redraw"
+          ? "Colorizing black line art from the source image"
           : aiGenerationStage === "line-art"
             ? "Generating black line art"
             : aiGenerationStage === "analysis"
@@ -730,7 +728,7 @@ export function App() {
           <WorkflowInspector
             analysis={analysis}
             cleanRedraw={cleanRedraw}
-            colorReconstruction={colorReconstruction}
+            colorizedLineArt={colorizedLineArt}
             error={aiError}
             lineArt={lineArt}
             nodeId={workflowInspectorNodeId}
@@ -747,7 +745,7 @@ export function App() {
             onOpenEditor={() => setMode("direct")}
             onRunAnalyze={() => void handleAnalyzeImage()}
             onRunCleanRedraw={() => void handleGenerateCleanRedraw()}
-            onRunColorReconstruction={() => void handleReconstructColors()}
+            onRunColorizeLineArt={() => void handleColorizeLineArt()}
             onRunLineArt={() => void handleGenerateLineArt()}
             onUseInRegionaVector={(image, label) => {
               setWorkflowInspectorNodeId(undefined);
@@ -781,18 +779,11 @@ export function App() {
           palette={result?.palette ?? []}
           regionCount={result?.regions.length ?? 0}
           busy={busy}
-          cleanRedraw={editorUsesWorkflowCandidate ? undefined : cleanRedraw}
-          colorReconstruction={editorUsesWorkflowCandidate ? undefined : colorReconstruction}
-          aiGenerationStage={aiGenerationStage}
-          aiError={aiError}
           onTargetColorsChange={setTargetColors}
           onRegionSimplificationChange={setRegionSimplification}
           onDespeckleEnabledChange={setDespeckleEnabled}
           onRegenerate={handleRegenerate}
           onFile={handleFile}
-          onGenerateCleanRedraw={() => void handleGenerateCleanRedraw()}
-          onReconstructColors={() => void handleReconstructColors()}
-          onOpenGeminiSettings={() => setIsGeminiSettingsOpen(true)}
         />
         <PreviewWorkspace
           originalPixels={source?.pixels}

@@ -8,7 +8,7 @@ import {
 } from "../src/ai/openai-image-provider";
 
 const sourceImage = new File(["source"], "source.png", { type: "image/png" });
-const cleanRedraw = new File(["redraw"], "redraw.png", { type: "image/png" });
+const lineArt = new File(["line-art"], "line-art.png", { type: "image/png" });
 
 function createClient(base64 = "aGVsbG8=") {
   const edit = vi.fn().mockResolvedValue({ data: [{ b64_json: base64 }] });
@@ -58,20 +58,21 @@ describe("OpenAI image reconstruction provider", () => {
     }));
   });
 
-  it("uses the clean redraw for geometry and the original image for color reconstruction", async () => {
+  it("uses black line art for geometry and the original image for line-art colorization", async () => {
     const { client, edit } = createClient();
     const provider = createOpenAiImageProviderWithClient(client);
 
-    await provider.reconstructColors({
+    await provider.colorizeLineArt({
       original: sourceImage,
-      cleanRedraw,
+      lineArt,
       palette: ["#F25C35", "#117E69"],
     });
 
     expect(edit).toHaveBeenCalledWith(expect.objectContaining({
-      image: [cleanRedraw, sourceImage],
+      image: [lineArt, sourceImage],
     }));
     expect(edit.mock.calls[0]?.[0].prompt).toContain("#f25c35, #117e69");
+    expect(edit.mock.calls[0]?.[0].prompt).toContain("black linework");
   });
 
   it("rejects an unsupported source image before it reaches OpenAI", async () => {

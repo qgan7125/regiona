@@ -7,7 +7,6 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 
 import { simplificationLabel, type RegionSimplification } from "../engine/regions/simplification";
-import type { AiGeneratedImage } from "../ai/openai-image-provider";
 import type { PaletteColor } from "../types/project";
 
 interface SourceSummary {
@@ -27,18 +26,11 @@ interface UploadPanelProps {
   palette: PaletteColor[];
   regionCount: number;
   busy: boolean;
-  cleanRedraw?: AiGeneratedImage;
-  colorReconstruction?: AiGeneratedImage;
-  aiGenerationStage?: "analysis" | "redraw" | "line-art" | "color";
-  aiError?: string;
   onTargetColorsChange: (value: number) => void;
   onRegionSimplificationChange: (value: RegionSimplification) => void;
   onDespeckleEnabledChange: (value: boolean) => void;
   onRegenerate: () => void;
   onFile: (file: File) => void;
-  onGenerateCleanRedraw: () => void;
-  onReconstructColors: () => void;
-  onOpenGeminiSettings: () => void;
 }
 
 function formatPalettePercentage(percentage: number) {
@@ -55,18 +47,11 @@ export function UploadPanel({
   palette,
   regionCount,
   busy,
-  cleanRedraw,
-  colorReconstruction,
-  aiGenerationStage,
-  aiError,
   onTargetColorsChange,
   onRegionSimplificationChange,
   onDespeckleEnabledChange,
   onRegenerate,
   onFile,
-  onGenerateCleanRedraw,
-  onReconstructColors,
-  onOpenGeminiSettings,
 }: UploadPanelProps) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -122,72 +107,6 @@ export function UploadPanel({
           </div>
         </dl>
       ) : null}
-
-      <section className="ai-assist-section" aria-labelledby="ai-assist-title">
-        <div className="section-title-row">
-          <h3 id="ai-assist-title">AI clean redraw</h3>
-          <span>Gemini BYOK</span>
-        </div>
-        <p className="helper-text">
-          Creates a separate, cleaner intermediate image. Your uploaded original stays unchanged.
-        </p>
-        <Button
-          className="ai-redraw-button"
-          disabled={!source || busy}
-          fullWidth
-          onClick={onGenerateCleanRedraw}
-          variant="outlined"
-        >
-          {aiGenerationStage === "redraw" ? "Generating clean redrawâ€¦" : "Generate clean redraw"}
-        </Button>
-        <Button
-          className="ai-redraw-button"
-          disabled={!cleanRedraw || busy}
-          fullWidth
-          onClick={onReconstructColors}
-          variant="outlined"
-        >
-          {aiGenerationStage === "color" ? "Applying original colorsâ€¦" : "Apply original colors"}
-        </Button>
-        <Button
-          className="ai-settings-link"
-          onClick={onOpenGeminiSettings}
-          size="small"
-          type="button"
-          variant="text"
-        >
-          Gemini settings
-        </Button>
-        {aiError ? <p className="ai-assist-error" role="alert">{aiError}</p> : null}
-        {cleanRedraw ? (
-          <figure className="ai-redraw-preview">
-            <img alt="Generated clean redraw preview" src={cleanRedraw.dataUrl} />
-            <figcaption>
-              <span>Clean redraw ready</span>
-              <a
-                download={`regiona-clean-redraw.${cleanRedraw.mimeType === "image/jpeg" ? "jpg" : "png"}`}
-                href={cleanRedraw.dataUrl}
-              >
-                Download {cleanRedraw.mimeType === "image/jpeg" ? "JPEG" : "PNG"}
-              </a>
-            </figcaption>
-          </figure>
-        ) : null}
-        {colorReconstruction ? (
-          <figure className="ai-redraw-preview">
-            <img alt="Generated color reconstruction preview" src={colorReconstruction.dataUrl} />
-            <figcaption>
-              <span>Color reconstruction ready</span>
-              <a
-                download={`regiona-color-reconstruction.${colorReconstruction.mimeType === "image/jpeg" ? "jpg" : "png"}`}
-                href={colorReconstruction.dataUrl}
-              >
-                Download {colorReconstruction.mimeType === "image/jpeg" ? "JPEG" : "PNG"}
-              </a>
-            </figcaption>
-          </figure>
-        ) : null}
-      </section>
 
       <div className="control-group">
         <div className="control-label">

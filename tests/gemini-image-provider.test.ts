@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createGeminiImageProvider } from "../src/ai/gemini-image-provider";
 
 const sourceImage = new File(["source"], "source.png", { type: "image/png" });
-const cleanRedraw = new File(["redraw"], "redraw.png", { type: "image/png" });
+const lineArt = new File(["line-art"], "line-art.png", { type: "image/png" });
 
 function successfulGeminiResponse(
   mimeType = "image/png",
@@ -59,13 +59,13 @@ describe("Gemini image reconstruction provider", () => {
     ]));
   });
 
-  it("uses both the clean redraw and the original to reconstruct colors", async () => {
+  it("uses black line art first and the original second to colorize line art", async () => {
     const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse());
     const provider = createGeminiImageProvider("gemini-user-key", fetcher);
 
-    await provider.reconstructColors({
+    await provider.colorizeLineArt({
       original: sourceImage,
-      cleanRedraw,
+      lineArt,
       palette: ["#F25C35", "#117E69"],
     });
 
@@ -73,9 +73,12 @@ describe("Gemini image reconstruction provider", () => {
       contents: Array<{ parts: Array<{ inline_data?: { data: string } }> }>;
     };
     expect(request.contents[0]?.parts.filter((part) => part.inline_data)).toEqual([
-      expect.objectContaining({ inline_data: expect.objectContaining({ data: "cmVkcmF3" }) }),
+      expect.objectContaining({ inline_data: expect.objectContaining({ data: "bGluZS1hcnQ=" }) }),
       expect.objectContaining({ inline_data: expect.objectContaining({ data: "c291cmNl" }) }),
     ]);
+    expect(request.contents[0]?.parts[0]).toEqual(expect.objectContaining({
+      text: expect.stringContaining("black linework"),
+    }));
   });
 
   it("creates black line art from the original image only", async () => {

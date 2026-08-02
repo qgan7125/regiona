@@ -8,6 +8,12 @@ const validAnalysis = {
   imageKind: "illustration",
   summary: "A character with a warm circular backdrop.",
   subjectDescription: "A dark bird-like character.",
+  recreationPrompt: Array.from({ length: 130 }, () => "visible").join(" "),
+  corePrompt: Array.from({ length: 30 }, () => "graphic").join(" "),
+  negativePrompt: "blur, crop, extra objects",
+  styleTags: ["flat illustration", "bold outline", "graphic", "centered"],
+  analysis: ["The crop is centered.", "The subject is visible.", "The palette is limited."],
+  variantOffer: "I can provide variants for another target model.",
   majorObjects: [],
   suggestedColorCount: 6,
   detectedProblems: ["compression-artifacts"],
@@ -35,6 +41,9 @@ describe("Gemini analysis provider", () => {
       responseMimeType: "application/json",
       responseSchema: { type: "OBJECT" },
     });
+    expect(request.contents[0]?.parts[0]).toEqual(expect.objectContaining({
+      text: expect.stringContaining("reverse-prompt analyst"),
+    }));
     expect(request.contents[0]?.parts).toEqual(expect.arrayContaining([
       expect.objectContaining({ inline_data: expect.objectContaining({ data: "c291cmNl" }) }),
     ]));

@@ -28,7 +28,7 @@ interface WorkflowInspectorProps {
   analysis?: AiStructureAnalysis;
   cleanRedraw?: AiGeneratedImage;
   lineArt?: AiGeneratedImage;
-  colorReconstruction?: AiGeneratedImage;
+  colorizedLineArt?: AiGeneratedImage;
   runningStage?: "analysis" | "redraw" | "line-art" | "color";
   error?: string;
   onClose: () => void;
@@ -36,7 +36,7 @@ interface WorkflowInspectorProps {
   onRunAnalyze: () => void;
   onRunCleanRedraw: () => void;
   onRunLineArt: () => void;
-  onRunColorReconstruction: () => void;
+  onRunColorizeLineArt: () => void;
   onUseInRegionaVector: (image: AiGeneratedImage, label: string) => void;
   onOpenEditor: () => void;
 }
@@ -48,7 +48,7 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
   },
   analyze: {
     title: "Analyze",
-    description: "Ask Gemini for a review of the visible structure and likely vectorization risks.",
+    description: "Reverse-engineer a prompt from visible details, then summarize practical Regiona reconstruction advice.",
   },
   "clean-redraw": {
     title: "AI clean redraw",
@@ -58,9 +58,9 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
     title: "Black line art",
     description: "Create a black-on-white line-art candidate that can feed Regiona vector directly.",
   },
-  "apply-source-colors": {
-    title: "Apply source colors",
-    description: "Restore source colors onto the clean-redraw geometry as a separate candidate.",
+  "colorize-line-art": {
+    title: "Colorize line art",
+    description: "Use the original as a color reference while preserving black line art as the geometry reference.",
   },
   "regiona-vector": {
     title: "Regiona vector",
@@ -74,7 +74,7 @@ export function WorkflowInspector({
   analysis,
   cleanRedraw,
   lineArt,
-  colorReconstruction,
+  colorizedLineArt,
   runningStage,
   error,
   onClose,
@@ -82,7 +82,7 @@ export function WorkflowInspector({
   onRunAnalyze,
   onRunCleanRedraw,
   onRunLineArt,
-  onRunColorReconstruction,
+  onRunColorizeLineArt,
   onUseInRegionaVector,
   onOpenEditor,
 }: WorkflowInspectorProps) {
@@ -137,9 +137,37 @@ export function WorkflowInspector({
                 {runningStage === "analysis" ? "Analyzing..." : analysis ? "Analyze again" : "Analyze image"}
               </Button>
               {analysis ? (
-                <Stack spacing={1}>
-                  <Typography variant="subtitle2">{analysis.summary}</Typography>
-                  <Typography color="text.secondary" variant="body2">{analysis.subjectDescription}</Typography>
+                <Stack spacing={1.5}>
+                  <Box>
+                    <Typography color="text.secondary" variant="overline">Recreation prompt</Typography>
+                    <Typography variant="body2">{analysis.recreationPrompt}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography color="text.secondary" variant="overline">Core prompt</Typography>
+                    <Typography variant="body2">{analysis.corePrompt}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography color="text.secondary" variant="overline">Negative prompt</Typography>
+                    <Typography variant="body2">{analysis.negativePrompt}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography color="text.secondary" variant="overline">Style tags</Typography>
+                    <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75 }}>
+                      {analysis.styleTags.map((tag) => <Chip key={tag} label={tag} size="small" />)}
+                    </Stack>
+                  </Box>
+                  <Box>
+                    <Typography color="text.secondary" variant="overline">Analysis</Typography>
+                    <Box component="ol" sx={{ m: 0, pl: 2.5 }}>
+                      {analysis.analysis.map((sentence, index) => <li key={`${index}-${sentence}`}><Typography variant="body2">{sentence}</Typography></li>)}
+                    </Box>
+                  </Box>
+                  <Typography color="text.secondary" variant="body2">{analysis.variantOffer}</Typography>
+                  <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1.5 }}>
+                    <Typography variant="subtitle2">Regiona reconstruction advice</Typography>
+                    <Typography color="text.secondary" variant="body2">{analysis.summary}</Typography>
+                    <Typography color="text.secondary" variant="body2">{analysis.subjectDescription}</Typography>
+                  </Box>
                   <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75 }}>
                     <Chip label={`${analysis.imageKind} image`} size="small" />
                     <Chip label={`${analysis.suggestedColorCount} suggested colors`} size="small" />
@@ -149,7 +177,7 @@ export function WorkflowInspector({
                     <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
                       {analysis.detectedProblems.map((problem) => <li key={problem}><Typography variant="body2">{problem}</Typography></li>)}
                     </Box>
-                  ) : <Typography color="text.secondary" variant="body2">No high-confidence issues reported.</Typography>}
+                  ) : <Typography color="text.secondary" variant="body2">No high-confidence Regiona issues reported.</Typography>}
                 </Stack>
               ) : null}
             </Stack>
@@ -191,24 +219,24 @@ export function WorkflowInspector({
             )
           ) : null}
 
-          {nodeId === "apply-source-colors" ? (
+          {nodeId === "colorize-line-art" ? (
             comparisonOriginal ? (
               <>
-                {!cleanRedraw ? <Typography color="text.secondary" variant="body2">Generate a clean redraw first; this node combines it with the original source.</Typography> : null}
+                {!lineArt ? <Typography color="text.secondary" variant="body2">Generate black line art first; this node combines it with the original source.</Typography> : null}
                 <WorkflowImageComparison
                   onUseInRegionaVector={onUseInRegionaVector}
                   original={comparisonOriginal}
-                  output={colorReconstruction}
-                  outputLabel="Color reconstruction"
+                  output={colorizedLineArt}
+                  outputLabel="Colorized line art"
                   primaryAction={
-                    <Button disabled={!cleanRedraw || isRunning} onClick={onRunColorReconstruction} size="small" variant="contained">
-                      {runningStage === "color" ? "Applying colors..." : colorReconstruction ? "Reapply source colors" : "Apply source colors"}
+                    <Button disabled={!lineArt || isRunning} onClick={onRunColorizeLineArt} size="small" variant="contained">
+                      {runningStage === "color" ? "Colorizing..." : colorizedLineArt ? "Recolorize line art" : "Colorize line art"}
                     </Button>
                   }
                 />
               </>
             ) : (
-              <Button disabled={!cleanRedraw || isRunning} onClick={onRunColorReconstruction} variant="contained">Apply source colors</Button>
+              <Button disabled={!lineArt || isRunning} onClick={onRunColorizeLineArt} variant="contained">Colorize line art</Button>
             )
           ) : null}
 

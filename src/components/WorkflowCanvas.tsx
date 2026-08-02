@@ -37,7 +37,7 @@ export type WorkflowNodeId =
   | "analyze"
   | "clean-redraw"
   | "black-line-art"
-  | "apply-source-colors"
+  | "colorize-line-art"
   | "regiona-vector";
 
 interface WorkflowNodeData extends Record<string, unknown> {
@@ -66,11 +66,11 @@ const initialEdges: Edge[] = [
   { id: "start-analyze", source: "start", target: "analyze" },
   { id: "start-redraw", source: "start", target: "clean-redraw" },
   { id: "start-line-art", source: "start", target: "black-line-art" },
-  { id: "start-color", source: "start", target: "apply-source-colors" },
-  { id: "redraw-color", source: "clean-redraw", target: "apply-source-colors" },
+  { id: "start-color", source: "start", target: "colorize-line-art" },
+  { id: "line-art-color", source: "black-line-art", target: "colorize-line-art" },
   { id: "start-vector", source: "start", target: "regiona-vector" },
   { id: "line-art-vector", source: "black-line-art", target: "regiona-vector" },
-  { id: "color-vector", source: "apply-source-colors", target: "regiona-vector" },
+  { id: "color-vector", source: "colorize-line-art", target: "regiona-vector" },
 ];
 
 function createWorkflowNodes(
@@ -103,10 +103,10 @@ function createWorkflowNodes(
 
   return [
     node("start", "Start", sourceName ?? "Upload source image", 0, 260),
-    node("analyze", "Analyze", "Quality and vectorization advice", 300, 0),
+    node("analyze", "Analyze", "Reverse prompt + Regiona advice", 300, 0),
     node("clean-redraw", "AI clean redraw", "Clean geometry candidate", 300, 170),
     node("black-line-art", "Black line art", "Black lines on white", 300, 340),
-    node("apply-source-colors", "Apply source colors", "Clean redraw + original", 600, 170),
+    node("colorize-line-art", "Colorize line art", "Black line art + original", 600, 340),
     node("regiona-vector", "Regiona vector", "Quantize, edit, export", 900, 260),
   ];
 }

@@ -14,16 +14,16 @@ export interface CleanRedrawInput {
   source: File;
 }
 
-export interface ColorReconstructionInput {
+export interface LineArtColorizationInput {
   original: File;
-  cleanRedraw: File;
+  lineArt: File;
   palette?: readonly string[];
 }
 
 export interface ImageReconstructionProvider {
   createCleanRedraw(input: CleanRedrawInput): Promise<AiGeneratedImage>;
   createLineArt(input: CleanRedrawInput): Promise<AiGeneratedImage>;
-  reconstructColors(input: ColorReconstructionInput): Promise<AiGeneratedImage>;
+  colorizeLineArt(input: LineArtColorizationInput): Promise<AiGeneratedImage>;
 }
 
 interface OpenAiImageEditRequest {
@@ -107,12 +107,12 @@ export function createOpenAiImageProviderWithClient(
         prompt: lineArtPrompt,
       });
     },
-    reconstructColors: async ({ original, cleanRedraw, palette }) => {
+    colorizeLineArt: async ({ original, lineArt, palette }) => {
       assertSupportedSource(original);
-      assertSupportedSource(cleanRedraw);
+      assertSupportedSource(lineArt);
       return requestImageEdit(client, {
-        image: [cleanRedraw, original],
-        prompt: colorReconstructionPrompt(normalizePalette(palette)),
+        image: [lineArt, original],
+        prompt: colorizeLineArtPrompt(normalizePalette(palette)),
       });
     },
   };
@@ -133,16 +133,16 @@ const lineArtPrompt = [
   "Do not add, remove, crop, or rearrange content.",
 ].join(" ");
 
-function colorReconstructionPrompt(palette: readonly string[]) {
+function colorizeLineArtPrompt(palette: readonly string[]) {
   const paletteInstruction = palette.length
     ? `Use this target palette where it fits the original semantics: ${palette.join(", ")}.`
     : "Use the original image as the color reference.";
 
   return [
-    "The first image is the clean geometry reference. The second image is the original color reference.",
-    "Apply the original semantic colors to the clean geometry while preserving its composition, silhouette, and boundaries.",
+    "The first image is the black line-art geometry reference. The second image is the original color reference.",
+    "Color the white regions of the line art using the original image's semantic colors while preserving its composition, silhouette, boundaries, and black linework.",
     paletteInstruction,
-    "Do not add, remove, crop, or rearrange content. Keep clean, flat color regions suitable for vectorization.",
+    "Do not add, remove, crop, or rearrange content. Keep the background, black linework, and clean flat color regions suitable for vectorization.",
   ].join(" ");
 }
 
