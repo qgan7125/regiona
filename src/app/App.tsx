@@ -742,6 +742,7 @@ export function App() {
               url: (workflowSource ?? source)!.url,
               originalWidth: (workflowSource ?? source)!.originalWidth,
               originalHeight: (workflowSource ?? source)!.originalHeight,
+              mimeType: (workflowSource ?? source)!.file.type,
             } : undefined}
             onClose={() => setWorkflowInspectorNodeId(undefined)}
             onFile={(file) => void handleFile(file)}

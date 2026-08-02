@@ -20,6 +20,7 @@ interface WorkflowSourceSummary {
   url: string;
   originalWidth: number;
   originalHeight: number;
+  mimeType: string;
 }
 
 interface WorkflowInspectorProps {
@@ -95,6 +96,13 @@ export function WorkflowInspector({
   const detail = nodeId ? details[nodeId] : undefined;
   const hasSource = Boolean(source);
   const isRunning = Boolean(runningStage);
+  const comparisonOriginal = source ? {
+    url: source.url,
+    filename: source.filename,
+    width: source.originalWidth,
+    height: source.originalHeight,
+    mimeType: source.mimeType,
+  } : undefined;
 
   return (
     <Dialog className="workflow-inspector-dialog" fullWidth maxWidth="xl" onClose={onClose} open={Boolean(nodeId)} scroll="paper">
@@ -114,7 +122,7 @@ export function WorkflowInspector({
             {source ? (
               <>
                 <Box component="img" alt="Original source preview" src={source.url} sx={{ width: "100%", maxHeight: 300, objectFit: "contain", bgcolor: "#f4f5f2" }} />
-                <Typography variant="body2">{source.filename} · {source.originalWidth} × {source.originalHeight}</Typography>
+                <Typography variant="body2">{source.filename} · {source.originalWidth} × {source.originalHeight} · {source.mimeType.replace("image/", "").toUpperCase()}</Typography>
               </>
             ) : <Typography color="text.secondary">Upload a PNG, JPEG, or WebP to begin this workflow.</Typography>}
             <Button component="label" variant="contained">
@@ -153,7 +161,7 @@ export function WorkflowInspector({
             <Button disabled={!hasSource || isRunning} onClick={onRunCleanRedraw} variant="contained">
               {runningStage === "redraw" ? "Generating…" : cleanRedraw ? "Regenerate clean redraw" : "Generate clean redraw"}
             </Button>
-            {source ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={source} output={cleanRedraw} outputLabel="Clean redraw" /> : null}
+            {comparisonOriginal ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={comparisonOriginal} output={cleanRedraw} outputLabel="Clean redraw" /> : null}
           </Stack>
         ) : null}
 
@@ -162,7 +170,7 @@ export function WorkflowInspector({
             <Button disabled={!hasSource || isRunning} onClick={onRunLineArt} variant="contained">
               {runningStage === "line-art" ? "Generating…" : lineArt ? "Regenerate black line art" : "Generate black line art"}
             </Button>
-            {source ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={source} output={lineArt} outputLabel="Black line art" /> : null}
+            {comparisonOriginal ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={comparisonOriginal} output={lineArt} outputLabel="Black line art" /> : null}
           </Stack>
         ) : null}
 
@@ -172,7 +180,7 @@ export function WorkflowInspector({
               {runningStage === "color" ? "Applying colors…" : colorReconstruction ? "Reapply source colors" : "Apply source colors"}
             </Button>
             {!cleanRedraw ? <Typography color="text.secondary" variant="body2">Generate a clean redraw first; this node combines it with the original source.</Typography> : null}
-            {source ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={source} output={colorReconstruction} outputLabel="Color reconstruction" /> : null}
+            {comparisonOriginal ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={comparisonOriginal} output={colorReconstruction} outputLabel="Color reconstruction" /> : null}
           </Stack>
         ) : null}
 

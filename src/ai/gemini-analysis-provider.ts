@@ -3,7 +3,7 @@ import {
   type AiStructureAnalysis,
 } from "./structure-analysis";
 
-const geminiAnalysisModel = "gemini-2.5-flash-lite";
+const geminiAnalysisModel = "gemini-3.1-flash-image";
 const geminiAnalysisUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiAnalysisModel}:generateContent`;
 const maximumSourceBytes = 20 * 1024 * 1024;
 const supportedImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
