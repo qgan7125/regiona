@@ -102,10 +102,12 @@ button {
 .workflow-image-comparison__toolbar { display: flex; grid-column: 1 / -1; align-items: center; gap: .75rem; min-width: 0; padding: .5rem .75rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); font-size: .82rem; }
 .workflow-image-comparison__primary-action { min-width: 0; }
 .workflow-image-comparison__primary-action .MuiButton-root { white-space: nowrap; }
-.workflow-image-comparison__toolbar-control, .workflow-image-comparison__view-controls, .workflow-image-comparison__actions { display: flex; align-items: center; gap: .5rem; }
+.workflow-image-comparison__toolbar-control, .workflow-image-comparison__reference-toggle, .workflow-image-comparison__view-controls, .workflow-image-comparison__actions { display: flex; align-items: center; gap: .5rem; }
 .workflow-image-comparison__toolbar-control { flex: 0 1 12rem; min-width: 9rem; }
 .workflow-image-comparison__toolbar-control > span { flex: 0 0 auto; white-space: nowrap; }
 .workflow-image-comparison__toolbar-control .MuiSlider-root { min-width: 0; }
+.workflow-image-comparison__reference-toggle { flex: 0 0 auto; }
+.workflow-image-comparison__reference-toggle .MuiButton-root { white-space: nowrap; }
 .workflow-image-comparison__view-controls { flex: 0 0 auto; margin-left: auto; }
 .workflow-image-comparison__view-controls output { min-width: 3.25rem; color: var(--ink); text-align: center; }
 .workflow-image-comparison figure { display: grid; gap: .75rem; min-width: 0; margin: 0; padding: 1rem; background: var(--surface); border: 1px solid var(--line); }

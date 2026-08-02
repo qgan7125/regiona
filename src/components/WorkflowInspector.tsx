@@ -281,6 +281,18 @@ export function WorkflowInspector({
                 <WorkflowImageComparison
                   onUseInRegionaVector={onUseInRegionaVector}
                   original={comparisonOriginal}
+                  referenceOptions={[
+                    { id: "source", label: "Source reference", ...comparisonOriginal },
+                    ...(lineArt ? [{
+                      id: "line-art",
+                      label: "Black line art",
+                      url: lineArt.dataUrl,
+                      filename: "black-line-art",
+                      width: comparisonOriginal.width,
+                      height: comparisonOriginal.height,
+                      mimeType: lineArt.mimeType,
+                    }] : []),
+                  ]}
                   output={colorizedLineArt}
                   outputLabel="Colorized line art"
                   toolbarControl={

@@ -7,11 +7,22 @@ import { LinkedImagePreview } from "./LinkedImagePreview";
 
 interface WorkflowImageComparisonProps {
   original: { url: string; filename: string; width: number; height: number; mimeType: string };
+  referenceOptions?: WorkflowReferenceOption[];
   output?: AiGeneratedImage;
   outputLabel: string;
   primaryAction?: ReactNode;
   toolbarControl?: ReactNode;
   onUseInRegionaVector: (image: AiGeneratedImage, label: string) => void;
+}
+
+export interface WorkflowReferenceOption {
+  id: string;
+  label: string;
+  url: string;
+  filename: string;
+  width: number;
+  height: number;
+  mimeType: string;
 }
 
 const initialTransform: ComparisonTransform = {
@@ -21,6 +32,7 @@ const initialTransform: ComparisonTransform = {
 
 export function WorkflowImageComparison({
   original,
+  referenceOptions,
   output,
   outputLabel,
   primaryAction,
@@ -28,6 +40,12 @@ export function WorkflowImageComparison({
   onUseInRegionaVector,
 }: WorkflowImageComparisonProps) {
   const extension = output?.mimeType === "image/jpeg" ? "jpg" : "png";
+  const defaultReference: WorkflowReferenceOption = { id: "original", label: "Original", ...original };
+  const availableReferences = referenceOptions?.length ? referenceOptions : [defaultReference];
+  const [referenceId, setReferenceId] = useState(availableReferences[0]?.id ?? defaultReference.id);
+  const activeReference = availableReferences.find((reference) => reference.id === referenceId)
+    ?? availableReferences[0]
+    ?? defaultReference;
   const [transform, setTransform] = useState<ComparisonTransform>(initialTransform);
   const [loadedOutput, setLoadedOutput] = useState<
     { sourceUrl: string; width: number; height: number } | undefined
@@ -51,14 +69,28 @@ export function WorkflowImageComparison({
     zoom: Math.min(800, current.zoom + 25),
   }));
   const resetTransform = () => setTransform(initialTransform);
-  const candidateWidth = outputDimensions?.width ?? original.width;
-  const candidateHeight = outputDimensions?.height ?? original.height;
+  const candidateWidth = outputDimensions?.width ?? activeReference.width;
+  const candidateHeight = outputDimensions?.height ?? activeReference.height;
 
   return (
     <section className="workflow-image-comparison" aria-label={`${outputLabel} comparison`}>
       <div className="workflow-image-comparison__toolbar">
         {primaryAction ? <div className="workflow-image-comparison__primary-action">{primaryAction}</div> : null}
         {toolbarControl ? <div className="workflow-image-comparison__toolbar-control">{toolbarControl}</div> : null}
+        {availableReferences.length > 1 ? (
+          <div aria-label="Reference image" className="workflow-image-comparison__reference-toggle" role="group">
+            {availableReferences.map((reference) => (
+              <Button
+                key={reference.id}
+                onClick={() => setReferenceId(reference.id)}
+                size="small"
+                variant={reference.id === activeReference.id ? "contained" : "outlined"}
+              >
+                {reference.label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
         <div className="workflow-image-comparison__view-controls">
           <span>Linked views</span>
           <Button aria-label="Zoom out" disabled={transform.zoom <= 25} onClick={zoomOut} size="small" variant="outlined">-</Button>
@@ -86,17 +118,17 @@ export function WorkflowImageComparison({
       </div>
       <figure>
         <figcaption>
-          <span>Original</span>
+          <span>{activeReference.label}</span>
           <small>{original.width} x {original.height} · {original.mimeType.replace("image/", "").toUpperCase()}</small>
         </figcaption>
         <div className="workflow-image-comparison__media">
           <LinkedImagePreview
-            ariaLabel={`Original: ${original.filename}. Drag to pan and use the mouse wheel to zoom both images.`}
-            height={original.height}
+            ariaLabel={`${activeReference.label}: ${activeReference.filename}. Drag to pan and use the mouse wheel to zoom both images.`}
+            height={activeReference.height}
             onTransformChange={setTransform}
-            sourceUrl={original.url}
+            sourceUrl={activeReference.url}
             transform={transform}
-            width={original.width}
+            width={activeReference.width}
           />
         </div>
       </figure>
