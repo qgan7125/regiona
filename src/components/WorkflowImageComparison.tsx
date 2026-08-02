@@ -48,15 +48,19 @@ export function WorkflowImageComparison({
             <div className="workflow-image-comparison__media">
               <img alt={`${outputLabel} candidate`} onLoad={handleOutputLoad} src={output.dataUrl} style={imageStyle} />
             </div>
-            <a download={`regiona-${outputLabel.toLowerCase().replaceAll(" ", "-")}.${extension}`} href={output.dataUrl}>
-              Download {extension.toUpperCase()}
-            </a>
-            <Button onClick={() => onUseInRegionaVector(output, outputLabel)} size="small" variant="contained">
-              Use in Regiona vector
-            </Button>
           </>
         ) : <p className="workflow-image-comparison__empty">Generate a candidate to compare it with the original.</p>}
       </figure>
+      {output ? (
+        <div className="workflow-image-comparison__actions">
+          <a download={`regiona-${outputLabel.toLowerCase().replaceAll(" ", "-")}.${extension}`} href={output.dataUrl}>
+            Download {extension.toUpperCase()}
+          </a>
+          <Button onClick={() => onUseInRegionaVector(output, outputLabel)} size="small" variant="contained">
+            Use in Regiona vector
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }

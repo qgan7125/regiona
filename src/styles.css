@@ -99,9 +99,10 @@ button {
 .workflow-image-comparison figure { display: grid; gap: .75rem; min-width: 0; margin: 0; padding: 1rem; background: var(--surface); border: 1px solid var(--line); }
 .workflow-image-comparison figcaption { font-weight: 700; }
 .workflow-image-comparison figcaption small { display: block; margin-top: .25rem; color: var(--muted); font-size: .78rem; font-weight: 400; }
-.workflow-image-comparison__media { display: grid; min-height: 16rem; max-height: 28rem; place-items: start center; overflow: auto; background: #f4f5f2; }
+.workflow-image-comparison__media { display: grid; width: 100%; min-width: 0; height: min(50dvh, 28rem); min-height: 16rem; place-items: start center; overflow: auto; background: #f4f5f2; }
 .workflow-image-comparison img { object-fit: contain; background: #f4f5f2; }
-.workflow-image-comparison a { color: var(--accent-dark); font-size: .85rem; font-weight: 700; }
+.workflow-image-comparison__actions { display: flex; grid-column: 1 / -1; justify-content: flex-end; gap: .75rem; }
+.workflow-image-comparison__actions a { display: inline-flex; align-items: center; min-height: 2rem; color: var(--accent-dark); font-size: .85rem; font-weight: 700; }
 .workflow-image-comparison__empty { display: grid; min-height: 14rem; margin: 0; place-items: center; color: var(--muted); text-align: center; }
 
 @media (max-width: 700px) { .mode-choice > div, .workflow-image-comparison { grid-template-columns: 1fr; } }
