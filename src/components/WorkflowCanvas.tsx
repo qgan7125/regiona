@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type ChangeEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, type ChangeEvent, type DragEvent, type MouseEvent } from "react";
 import {
   addEdge,
   Background,
@@ -14,19 +14,32 @@ import {
   type Edge,
   type Node,
   type NodeProps,
+  type ReactFlowInstance,
+  type XYPosition,
 } from "@xyflow/react";
 import Button from "@mui/material/Button";
 
 import { describeUpscaleCandidate } from "../ai/image-scale";
-import { createAiWorkflowState, type AiWorkflowNodeStatus } from "../ai/workflow-state";
+import {
+  connectAiWorkflowNodes,
+  disconnectAiWorkflowNodes,
+  type AiWorkflowNodeKind,
+  type AiWorkflowNodeStatus,
+  type AiWorkflowState,
+} from "../ai/workflow-state";
 
 import "@xyflow/react/dist/style.css";
 
 interface WorkflowCanvasProps {
   sourceName?: string;
+  workflow: Pick<AiWorkflowState, "nodes" | "edges">;
   imageScaleFactor: number;
   nodeStatuses?: Partial<Record<WorkflowNodeId, AiWorkflowNodeStatus | "awaiting-source">>;
   onFile: (file: File) => void;
+  onAddNode: (kind: AiWorkflowNodeKind) => void;
+  onRemoveNode: (nodeId: WorkflowNodeId) => void;
+  onConnectWorkflowNodes: (connection: { sourceId: string; targetId: string; targetPort: "image" | "line-art" }) => void;
+  onDisconnectWorkflowNodes: (edgeId: string) => void;
   onOpenEditor: () => void;
   onInspectNode: (nodeId: WorkflowNodeId) => void;
   onRunReadyNodes: () => void;
@@ -42,6 +55,17 @@ export type WorkflowNodeId =
   | "black-line-art"
   | "colorize-line-art"
   | "regiona-vector";
+
+interface WorkflowNodeDefinition {
+  id: WorkflowNodeId;
+  kind: AiWorkflowNodeKind;
+  title: string;
+  detail: string;
+  position: XYPosition;
+  acceptsInput: boolean;
+  providesOutput: boolean;
+  canDelete: boolean;
+}
 
 interface WorkflowNodeData extends Record<string, unknown> {
   title: string;
@@ -64,98 +88,232 @@ function WorkflowNode({ data }: NodeProps<Node<WorkflowNodeData>>) {
 }
 
 const nodeTypes = { workflow: WorkflowNode };
-
-const initialEdges: Edge[] = [
-  { id: "start-analyze", source: "start", target: "analyze" },
-  { id: "start-image-scale", source: "start", target: "image-scale" },
-  { id: "start-redraw", source: "start", target: "clean-redraw" },
-  { id: "start-line-art", source: "start", target: "black-line-art" },
-  { id: "line-art-color", source: "black-line-art", target: "colorize-line-art" },
-  { id: "start-vector", source: "start", target: "regiona-vector" },
-  { id: "line-art-vector", source: "black-line-art", target: "regiona-vector" },
-  { id: "color-vector", source: "colorize-line-art", target: "regiona-vector" },
-  { id: "image-scale-vector", source: "image-scale", target: "regiona-vector" },
+const nodeDefinitions: Record<WorkflowNodeId, WorkflowNodeDefinition> = {
+  start: {
+    id: "start",
+    kind: "start",
+    title: "Start",
+    detail: "Upload source image",
+    position: { x: 80, y: 280 },
+    acceptsInput: false,
+    providesOutput: true,
+    canDelete: false,
+  },
+  analyze: {
+    id: "analyze",
+    kind: "analyze",
+    title: "Analyze",
+    detail: "Forensic reverse prompt",
+    position: { x: 380, y: 80 },
+    acceptsInput: true,
+    providesOutput: false,
+    canDelete: true,
+  },
+  "image-scale": {
+    id: "image-scale",
+    kind: "upscale",
+    title: "AI upscale",
+    detail: "High-resolution candidate",
+    position: { x: 380, y: 180 },
+    acceptsInput: true,
+    providesOutput: true,
+    canDelete: true,
+  },
+  "clean-redraw": {
+    id: "clean-redraw",
+    kind: "redraw",
+    title: "AI clean redraw",
+    detail: "Clean geometry candidate",
+    position: { x: 380, y: 280 },
+    acceptsInput: true,
+    providesOutput: true,
+    canDelete: true,
+  },
+  "black-line-art": {
+    id: "black-line-art",
+    kind: "line-art",
+    title: "Black line art",
+    detail: "Black lines on white",
+    position: { x: 680, y: 280 },
+    acceptsInput: true,
+    providesOutput: true,
+    canDelete: true,
+  },
+  "colorize-line-art": {
+    id: "colorize-line-art",
+    kind: "color",
+    title: "Colorize line art",
+    detail: "Black line art → limited colors",
+    position: { x: 980, y: 280 },
+    acceptsInput: true,
+    providesOutput: true,
+    canDelete: true,
+  },
+  "regiona-vector": {
+    id: "regiona-vector",
+    kind: "vector",
+    title: "Regiona vector",
+    detail: "Quantize, edit, export",
+    position: { x: 430, y: 450 },
+    acceptsInput: true,
+    providesOutput: false,
+    canDelete: false,
+  },
+};
+const libraryNodeIds: WorkflowNodeId[] = [
+  "analyze",
+  "image-scale",
+  "clean-redraw",
+  "black-line-art",
+  "colorize-line-art",
 ];
 
-function createWorkflowNodes(
-  sourceName?: string,
-  nodeStatuses?: WorkflowCanvasProps["nodeStatuses"],
-  imageScaleFactor = 2,
-): Node<WorkflowNodeData>[] {
-  const statuses = new Map<string, AiWorkflowNodeStatus | "awaiting-source">(
-    createAiWorkflowState(sourceName ?? "pending-source").nodes
-      .map((node) => [node.id, sourceName ? node.status : "awaiting-source"]),
-  );
-  const node = (
-    id: string,
-    title: string,
-    detail: string,
-    x: number,
-    y: number,
-  ): Node<WorkflowNodeData> => ({
+function targetPortForNode(nodeId: string): "image" | "line-art" {
+  return nodeId === "colorize-line-art" ? "line-art" : "image";
+}
+
+function createCanvasNode(
+  id: WorkflowNodeId,
+  sourceName: string | undefined,
+  status: AiWorkflowNodeStatus | "awaiting-source" | undefined,
+  imageScaleFactor: number,
+  position?: XYPosition,
+): Node<WorkflowNodeData> {
+  const definition = nodeDefinitions[id];
+  const detail = id === "start"
+    ? sourceName ?? definition.detail
+    : id === "image-scale"
+      ? describeUpscaleCandidate(imageScaleFactor)
+      : definition.detail;
+
+  return {
     id,
     type: "workflow",
-    position: { x, y },
-    deletable: false,
+    position: position ?? definition.position,
+    deletable: definition.canDelete,
     data: {
-      title,
+      title: definition.title,
       detail,
-      status: nodeStatuses?.[id as WorkflowNodeId] ?? statuses.get(id) ?? "awaiting-source",
-      acceptsInput: id !== "start",
-      providesOutput: id !== "analyze",
+      status: status ?? "awaiting-source",
+      acceptsInput: definition.acceptsInput,
+      providesOutput: definition.providesOutput,
     },
-  });
-
-  return [
-    node("start", "Start", sourceName ?? "Upload source image", 0, 260),
-    node("analyze", "Analyze", "Forensic reverse prompt", 300, 0),
-    node("image-scale", "AI upscale", describeUpscaleCandidate(imageScaleFactor), 300, 85),
-    node("clean-redraw", "AI clean redraw", "Clean geometry candidate", 300, 170),
-    node("black-line-art", "Black line art", "Black lines on white", 300, 340),
-    node("colorize-line-art", "Colorize line art", "Black line art → limited colors", 600, 340),
-    node("regiona-vector", "Regiona vector", "Quantize, edit, export", 900, 260),
-  ];
+  };
 }
 
 export function WorkflowCanvas({
   sourceName,
+  workflow,
   imageScaleFactor,
   nodeStatuses,
   onFile,
+  onAddNode,
+  onRemoveNode,
+  onConnectWorkflowNodes,
+  onDisconnectWorkflowNodes,
   onOpenEditor,
   onInspectNode,
   onRunReadyNodes,
   onCancelRun,
   isRunningWorkflow,
 }: WorkflowCanvasProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(createWorkflowNodes());
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const pendingNodePositions = useRef(new Map<WorkflowNodeId, XYPosition>());
+  const flowInstanceRef = useRef<ReactFlowInstance<Node<WorkflowNodeData>, Edge> | null>(null);
+  const [nodes, setNodes, applyNodeChanges] = useNodesState(
+    workflow.nodes.map((node) => createCanvasNode(
+      node.id as WorkflowNodeId,
+      sourceName,
+      nodeStatuses?.[node.id as WorkflowNodeId] ?? (sourceName ? node.status : "awaiting-source"),
+      imageScaleFactor,
+    )),
+  );
+  const [edges, setEdges, applyEdgeChanges] = useEdgesState<Edge>(
+    workflow.edges.map((edge) => ({ id: edge.id, source: edge.sourceId, target: edge.targetId })),
+  );
 
   useEffect(() => {
-    const updatedNodeData = new Map(
-      createWorkflowNodes(sourceName, nodeStatuses, imageScaleFactor).map((node) => [node.id, node.data]),
-    );
-    setNodes((current) => current.map((node) => ({
-      ...node,
-      data: updatedNodeData.get(node.id) ?? node.data,
-    })));
-  }, [imageScaleFactor, nodeStatuses, setNodes, sourceName]);
+    setNodes((current) => {
+      const existing = new Map(current.map((node) => [node.id, node]));
+      return workflow.nodes.map((node) => {
+        const id = node.id as WorkflowNodeId;
+        const currentNode = existing.get(id);
+        const position = currentNode?.position ?? pendingNodePositions.current.get(id);
+        pendingNodePositions.current.delete(id);
+        return createCanvasNode(
+          id,
+          sourceName,
+          nodeStatuses?.[id] ?? (sourceName ? node.status : "awaiting-source"),
+          imageScaleFactor,
+          position,
+        );
+      });
+    });
+    setEdges(workflow.edges.map((edge) => ({ id: edge.id, source: edge.sourceId, target: edge.targetId })));
+  }, [imageScaleFactor, nodeStatuses, setEdges, setNodes, sourceName, workflow.edges, workflow.nodes]);
 
-  const onConnect = useCallback((connection: Connection) => {
-    setEdges((current) => addEdge(connection, current));
-  }, [setEdges]);
+  const addNode = useCallback((id: WorkflowNodeId, position?: XYPosition) => {
+    const definition = nodeDefinitions[id];
+    if (!definition.canDelete || workflow.nodes.some((node) => node.id === id)) return;
+    if (position) pendingNodePositions.current.set(id, position);
+    onAddNode(definition.kind);
+  }, [onAddNode, workflow.nodes]);
 
-  const onReconnect = useCallback((oldEdge: Edge, connection: Connection) => {
-    setEdges((current) => reconnectEdge(oldEdge, connection, current));
-  }, [setEdges]);
+  const handleNodesChange = useCallback((changes: Parameters<typeof applyNodeChanges>[0]) => {
+    applyNodeChanges(changes);
+    for (const change of changes) {
+      if (change.type === "remove") onRemoveNode(change.id as WorkflowNodeId);
+    }
+  }, [applyNodeChanges, onRemoveNode]);
 
-  const isValidConnection = useCallback((connection: Connection | Edge) => Boolean(
-    connection.source
-    && connection.target
-    && connection.source !== connection.target
-    && connection.source !== "analyze"
-    && connection.target !== "start",
-  ), []);
+  const handleEdgesChange = useCallback((changes: Parameters<typeof applyEdgeChanges>[0]) => {
+    applyEdgeChanges(changes);
+    for (const change of changes) {
+      if (change.type === "remove") onDisconnectWorkflowNodes(change.id);
+    }
+  }, [applyEdgeChanges, onDisconnectWorkflowNodes]);
+
+  const isValidConnection = useCallback((connection: Connection | Edge) => {
+    if (!connection.source || !connection.target || connection.source === connection.target) return false;
+    try {
+      connectAiWorkflowNodes(workflow as AiWorkflowState, {
+        sourceId: connection.source,
+        targetId: connection.target,
+        targetPort: targetPortForNode(connection.target),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [workflow]);
+
+  const handleConnect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target || !isValidConnection(connection)) return;
+    const targetPort = targetPortForNode(connection.target);
+    const edge: Edge = {
+      ...connection,
+      id: `${connection.source}:${targetPort}:${connection.target}`,
+    };
+    setEdges((current) => addEdge(edge, current));
+    onConnectWorkflowNodes({ sourceId: connection.source, targetId: connection.target, targetPort });
+  }, [isValidConnection, onConnectWorkflowNodes, setEdges]);
+
+  const handleReconnect = useCallback((oldEdge: Edge, connection: Connection) => {
+    if (!connection.source || !connection.target) return;
+    try {
+      const withoutPreviousEdge = disconnectAiWorkflowNodes(workflow as AiWorkflowState, oldEdge.id);
+      const targetPort = targetPortForNode(connection.target);
+      connectAiWorkflowNodes(withoutPreviousEdge, {
+        sourceId: connection.source,
+        targetId: connection.target,
+        targetPort,
+      });
+      setEdges((current) => reconnectEdge(oldEdge, connection, current));
+      onDisconnectWorkflowNodes(oldEdge.id);
+      onConnectWorkflowNodes({ sourceId: connection.source, targetId: connection.target, targetPort });
+    } catch {
+      // React Flow keeps the existing edge when the new connection is incompatible.
+    }
+  }, [onConnectWorkflowNodes, onDisconnectWorkflowNodes, setEdges, workflow]);
 
   const handleNodeClick = useCallback((_event: MouseEvent, node: Node<WorkflowNodeData>) => {
     onInspectNode(node.id as WorkflowNodeId);
@@ -167,16 +325,45 @@ export function WorkflowCanvas({
     event.target.value = "";
   };
 
+  const handleDragStart = (event: DragEvent<HTMLButtonElement>, id: WorkflowNodeId) => {
+    event.dataTransfer.setData("application/regiona-workflow-node", id);
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (event: DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (event: DragEvent) => {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("application/regiona-workflow-node") as WorkflowNodeId;
+    if (!nodeDefinitions[id]) return;
+    const position = flowInstanceRef.current?.screenToFlowPosition({
+      x: event.clientX,
+      y: event.clientY,
+    }) ?? {
+      x: event.clientX - 100,
+      y: event.clientY - 80,
+    };
+    addNode(id, position);
+  };
+
   return (
     <main className="workflow-shell" aria-label="Image workflow">
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onReconnect={onReconnect}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
+        onConnect={handleConnect}
+        onReconnect={handleReconnect}
         onNodeClick={handleNodeClick}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onInit={(instance) => {
+          flowInstanceRef.current = instance;
+        }}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         fitView
@@ -189,14 +376,34 @@ export function WorkflowCanvas({
       >
         <Background gap={20} size={1} />
         <Controls />
-        <Panel position="top-left" className="workflow-panel">
+        <Panel position="top-left" className="workflow-panel workflow-panel--library">
           <p className="eyebrow">Workflow</p>
           <h1>Build your image path</h1>
-          <p>Choose a node to inspect or run it. Only current inputs can continue to vectorization.</p>
+          <p>Drag a node onto the canvas, or click one to add it. Connect its handles to define the image path.</p>
           <Button component="label" variant="contained">
             {sourceName ? "Replace source image" : "Upload source image"}
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} />
+            <input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} />
           </Button>
+          <section className="workflow-library" aria-labelledby="workflow-library-title">
+            <h2 id="workflow-library-title">Node library</h2>
+            {libraryNodeIds.map((id) => {
+              const definition = nodeDefinitions[id];
+              const added = workflow.nodes.some((node) => node.id === id);
+              return (
+                <button
+                  type="button"
+                  key={id}
+                  draggable={!added}
+                  disabled={added}
+                  onClick={() => addNode(id)}
+                  onDragStart={(event) => handleDragStart(event, id)}
+                >
+                  <strong>{definition.title}</strong>
+                  <span>{id === "image-scale" ? describeUpscaleCandidate(imageScaleFactor) : definition.detail}</span>
+                </button>
+              );
+            })}
+          </section>
         </Panel>
         <Panel position="top-right" className="workflow-panel workflow-panel--actions">
           {isRunningWorkflow ? (

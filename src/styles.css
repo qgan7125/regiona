@@ -85,6 +85,13 @@ button {
 .workflow-panel p { margin: .5rem 0 1rem; color: var(--muted); line-height: 1.45; }
 .workflow-panel input { display: none; }
 .workflow-panel--actions { display: grid; gap: .5rem; }
+.workflow-panel--library { max-height: calc(100dvh - var(--app-header-height) - 2rem); overflow: auto; }
+.workflow-library { display: grid; gap: .5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.workflow-library h2 { margin: 0; font-size: .85rem; }
+.workflow-library button { display: grid; gap: .25rem; padding: .625rem .75rem; color: var(--ink); background: var(--surface); border: 1px solid var(--line); cursor: grab; text-align: left; }
+.workflow-library button:hover:not(:disabled), .workflow-library button:focus-visible { border-color: var(--accent); outline: none; }
+.workflow-library button:disabled { cursor: default; }
+.workflow-library span { color: var(--muted); font-size: .75rem; line-height: 1.35; }
 .workflow-node { position: relative; display: grid; width: 12rem; gap: .35rem; padding: .9rem; background: var(--surface-raised); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .workflow-node strong { font-size: .9rem; }
 .workflow-node span { min-width: 0; color: var(--muted); font-size: .78rem; line-height: 1.35; overflow-wrap: anywhere; word-break: break-word; }

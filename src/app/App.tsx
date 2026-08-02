@@ -9,6 +9,14 @@ import { createGeminiAnalysisProvider } from "../ai/gemini-analysis-provider";
 import { calculateUpscaleDimensions, resizeAiGeneratedImage } from "../ai/image-scale";
 import { loadGeminiApiKey } from "../ai/gemini-key-store";
 import type { AiStructureAnalysis } from "../ai/structure-analysis";
+import {
+  addAiWorkflowNode,
+  connectAiWorkflowNodes,
+  createAiWorkflowState,
+  disconnectAiWorkflowNodes,
+  removeAiWorkflowNode,
+  type AiWorkflowNodeKind,
+} from "../ai/workflow-state";
 import { AppHeader } from "../components/AppHeader";
 import { Inspector } from "../components/Inspector";
 import { GeminiSettingsDialog } from "../components/GeminiSettingsDialog";
@@ -88,6 +96,7 @@ export function App() {
   const [generation, setGeneration] = useState(0);
   const [source, setSource] = useState<SourceState>();
   const [workflowSource, setWorkflowSource] = useState<SourceState>();
+  const [workflow, setWorkflow] = useState(() => createAiWorkflowState("pending-source"));
   const [result, setResult] = useState<ReconstructionResult>();
   const [colorHistory, setColorHistory] = useState<
     ReconstructionResult[]
@@ -535,6 +544,27 @@ export function App() {
     setStatusText("Workflow run cancelled");
   };
 
+  const handleAddWorkflowNode = useCallback((kind: AiWorkflowNodeKind) => {
+    setWorkflow((current) => addAiWorkflowNode(current, kind));
+  }, []);
+
+  const handleRemoveWorkflowNode = useCallback((nodeId: WorkflowNodeId) => {
+    setWorkflow((current) => removeAiWorkflowNode(current, nodeId));
+    setWorkflowInspectorNodeId((current) => current === nodeId ? undefined : current);
+  }, []);
+
+  const handleConnectWorkflowNodes = useCallback((connection: {
+    sourceId: string;
+    targetId: string;
+    targetPort: "image" | "line-art";
+  }) => {
+    setWorkflow((current) => connectAiWorkflowNodes(current, connection));
+  }, []);
+
+  const handleDisconnectWorkflowNodes = useCallback((edgeId: string) => {
+    setWorkflow((current) => disconnectAiWorkflowNodes(current, edgeId));
+  }, []);
+
   const handleGenerateCleanRedraw = async () => {
     const inputSource = mode === "workflow" ? workflowSource ?? source : source;
     if (!inputSource || busy) return;
@@ -808,10 +838,15 @@ export function App() {
             isRunningWorkflow={isWorkflowRunActive}
             nodeStatuses={workflowNodeStatuses}
             sourceName={(workflowSource ?? source)?.filename}
+            workflow={workflow}
             onFile={(file) => void handleFile(file)}
+            onAddNode={handleAddWorkflowNode}
             onCancelRun={handleCancelWorkflowRun}
+            onConnectWorkflowNodes={handleConnectWorkflowNodes}
+            onDisconnectWorkflowNodes={handleDisconnectWorkflowNodes}
             onInspectNode={setWorkflowInspectorNodeId}
             onOpenEditor={() => setMode("direct")}
+            onRemoveNode={handleRemoveWorkflowNode}
             onRunReadyNodes={() => void handleRunReadyWorkflowNodes()}
           />
           <WorkflowInspector

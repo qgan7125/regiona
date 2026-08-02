@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   addAiIntermediateImage,
+  addAiWorkflowNode,
   beginAiWorkflowNodeRun,
   canUseAiWorkflowNodeAsVectorSource,
   completeAiWorkflowNodeRun,
   connectAiWorkflowNodes,
   createAiWorkflowState,
+  disconnectAiWorkflowNodes,
+  removeAiWorkflowNode,
   selectAiWorkingImage,
 } from "../src/ai/workflow-state";
 
@@ -59,27 +62,49 @@ describe("AI workflow state", () => {
     })).toThrow("dimensions");
   });
 
-  it("creates a ready fan-out from Start while waiting for line art before colorization", () => {
+  it("starts with only a direct Start to Regiona vector path", () => {
     const workflow = createAiWorkflowState("original-image");
 
     expect(workflow.nodes.map(({ id, status }) => ({ id, status }))).toEqual([
       { id: "start", status: "complete" },
-      { id: "analyze", status: "ready" },
-      { id: "image-scale", status: "ready" },
-      { id: "clean-redraw", status: "ready" },
-      { id: "black-line-art", status: "ready" },
-      { id: "colorize-line-art", status: "idle" },
       { id: "regiona-vector", status: "ready" },
     ]);
-    expect(workflow.edges.filter((edge) => edge.targetId === "colorize-line-art"))
-      .toEqual([expect.objectContaining({ sourceId: "black-line-art", targetPort: "line-art" })]);
+    expect(workflow.edges).toEqual([
+      expect.objectContaining({ sourceId: "start", targetId: "regiona-vector", targetPort: "image" }),
+    ]);
   });
 
-  it("treats the image scale node as an image-producing workflow branch", () => {
-    const workflow = createAiWorkflowState("original-image");
+  it("lets users compose an upscale to line-art to color path", () => {
+    let workflow = createAiWorkflowState("original-image");
+    workflow = addAiWorkflowNode(workflow, "upscale");
+    workflow = addAiWorkflowNode(workflow, "line-art");
+    workflow = addAiWorkflowNode(workflow, "color");
+    workflow = disconnectAiWorkflowNodes(workflow, "start:image:regiona-vector");
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "start",
+      targetId: "image-scale",
+      targetPort: "image",
+    });
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "image-scale",
+      targetId: "black-line-art",
+      targetPort: "image",
+    });
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "black-line-art",
+      targetId: "colorize-line-art",
+      targetPort: "line-art",
+    });
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "colorize-line-art",
+      targetId: "regiona-vector",
+      targetPort: "image",
+    });
 
     expect(workflow.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceId: "start", targetId: "image-scale", targetPort: "image" }),
+      expect.objectContaining({ sourceId: "image-scale", targetId: "black-line-art" }),
+      expect.objectContaining({ sourceId: "black-line-art", targetId: "colorize-line-art" }),
+      expect.objectContaining({ sourceId: "colorize-line-art", targetId: "regiona-vector" }),
     ]));
     expect(canUseAiWorkflowNodeAsVectorSource(
       completeAiWorkflowNodeRun(workflow, "image-scale"),
@@ -87,8 +112,24 @@ describe("AI workflow state", () => {
     )).toBe(true);
   });
 
+  it("removes a library node with every connection that belongs to it", () => {
+    let workflow = addAiWorkflowNode(createAiWorkflowState("original-image"), "analyze");
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "start",
+      targetId: "analyze",
+      targetPort: "image",
+    });
+
+    expect(removeAiWorkflowNode(workflow, "analyze")).toMatchObject({
+      nodes: expect.not.arrayContaining([expect.objectContaining({ id: "analyze" })]),
+      edges: expect.not.arrayContaining([expect.objectContaining({ targetId: "analyze" })]),
+    });
+  });
+
   it("rejects incompatible workflow connections and duplicate input sources", () => {
-    const workflow = createAiWorkflowState("original-image");
+    let workflow = createAiWorkflowState("original-image");
+    workflow = addAiWorkflowNode(workflow, "analyze");
+    workflow = addAiWorkflowNode(workflow, "redraw");
 
     expect(() => connectAiWorkflowNodes(workflow, {
       sourceId: "analyze",
@@ -105,6 +146,24 @@ describe("AI workflow state", () => {
 
   it("marks only completed descendants stale when black line art is rerun", () => {
     let workflow = createAiWorkflowState("original-image");
+    workflow = addAiWorkflowNode(workflow, "analyze");
+    workflow = addAiWorkflowNode(workflow, "line-art");
+    workflow = addAiWorkflowNode(workflow, "color");
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "start",
+      targetId: "analyze",
+      targetPort: "image",
+    });
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "start",
+      targetId: "black-line-art",
+      targetPort: "image",
+    });
+    workflow = connectAiWorkflowNodes(workflow, {
+      sourceId: "black-line-art",
+      targetId: "colorize-line-art",
+      targetPort: "line-art",
+    });
     workflow = completeAiWorkflowNodeRun(workflow, "black-line-art");
     workflow = completeAiWorkflowNodeRun(workflow, "colorize-line-art");
     workflow = completeAiWorkflowNodeRun(workflow, "analyze");
@@ -113,12 +172,10 @@ describe("AI workflow state", () => {
 
     expect(workflow.nodes.map(({ id, status }) => ({ id, status }))).toEqual([
       { id: "start", status: "complete" },
+      { id: "regiona-vector", status: "ready" },
       { id: "analyze", status: "complete" },
-      { id: "image-scale", status: "ready" },
-      { id: "clean-redraw", status: "ready" },
       { id: "black-line-art", status: "running" },
       { id: "colorize-line-art", status: "stale" },
-      { id: "regiona-vector", status: "ready" },
     ]);
     expect(canUseAiWorkflowNodeAsVectorSource(workflow, "colorize-line-art")).toBe(false);
   });

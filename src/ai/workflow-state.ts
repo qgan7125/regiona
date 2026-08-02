@@ -18,6 +18,20 @@ const imageProducingNodeKinds = new Set<AiWorkflowNodeKind>([
   "line-art",
   "color",
 ]);
+const libraryNodeKinds = new Set<AiWorkflowNodeKind>([
+  "analyze",
+  "upscale",
+  "redraw",
+  "line-art",
+  "color",
+]);
+const nodeIdsByKind: Partial<Record<AiWorkflowNodeKind, string>> = {
+  analyze: "analyze",
+  upscale: "image-scale",
+  redraw: "clean-redraw",
+  "line-art": "black-line-art",
+  color: "colorize-line-art",
+};
 
 export interface AiIntermediateImage {
   id: string;
@@ -56,21 +70,61 @@ export function createAiWorkflowState(originalImageId: string): AiWorkflowState 
     intermediateImages: [],
     nodes: [
       { id: "start", kind: "start", status: "complete", revision: 1 },
-      { id: "analyze", kind: "analyze", status: "idle", revision: 0 },
-      { id: "image-scale", kind: "upscale", status: "idle", revision: 0 },
-      { id: "clean-redraw", kind: "redraw", status: "idle", revision: 0 },
-      { id: "black-line-art", kind: "line-art", status: "idle", revision: 0 },
-      { id: "colorize-line-art", kind: "color", status: "idle", revision: 0 },
       { id: "regiona-vector", kind: "vector", status: "idle", revision: 0 },
     ],
     edges: [
-      createEdge("start", "analyze", "image"),
-      createEdge("start", "image-scale", "image"),
-      createEdge("start", "clean-redraw", "image"),
-      createEdge("start", "black-line-art", "image"),
-      createEdge("black-line-art", "colorize-line-art", "line-art"),
       createEdge("start", "regiona-vector", "image"),
     ],
+  });
+}
+
+export function addAiWorkflowNode(
+  workflow: AiWorkflowState,
+  kind: AiWorkflowNodeKind,
+): AiWorkflowState {
+  if (!libraryNodeKinds.has(kind)) {
+    throw new Error("Only library workflow nodes can be added to a workflow.");
+  }
+
+  const id = nodeIdsByKind[kind];
+  if (!id) throw new Error("The selected workflow node does not have an id.");
+  if (workflow.nodes.some((node) => node.id === id)) {
+    throw new Error("That workflow node is already on the canvas.");
+  }
+
+  return refreshReadyNodes({
+    ...workflow,
+    nodes: [...workflow.nodes, { id, kind, status: "idle", revision: 0 }],
+  });
+}
+
+export function removeAiWorkflowNode(
+  workflow: AiWorkflowState,
+  nodeId: string,
+): AiWorkflowState {
+  const node = findNode(workflow, nodeId);
+  if (!libraryNodeKinds.has(node.kind)) {
+    throw new Error("Start and Regiona vector cannot be removed from a workflow.");
+  }
+
+  return refreshReadyNodes({
+    ...workflow,
+    nodes: workflow.nodes.filter((candidate) => candidate.id !== nodeId),
+    edges: workflow.edges.filter((edge) => edge.sourceId !== nodeId && edge.targetId !== nodeId),
+  });
+}
+
+export function disconnectAiWorkflowNodes(
+  workflow: AiWorkflowState,
+  edgeId: string,
+): AiWorkflowState {
+  if (!workflow.edges.some((edge) => edge.id === edgeId)) {
+    throw new Error("The selected workflow connection does not exist.");
+  }
+
+  return refreshReadyNodes({
+    ...workflow,
+    edges: workflow.edges.filter((edge) => edge.id !== edgeId),
   });
 }
 
@@ -280,8 +334,14 @@ function markNodeStatus(
 function refreshReadyNodes(workflow: AiWorkflowState): AiWorkflowState {
   return {
     ...workflow,
-    nodes: workflow.nodes.map((node) => node.status === "idle" && hasCurrentInputs(workflow, node)
-      ? { ...node, status: "ready" }
-      : node),
+    nodes: workflow.nodes.map((node) => {
+      if (node.status === "idle" && hasCurrentInputs(workflow, node)) {
+        return { ...node, status: "ready" };
+      }
+      if (node.status === "ready" && !hasCurrentInputs(workflow, node)) {
+        return { ...node, status: "idle" };
+      }
+      return node;
+    }),
   };
 }
