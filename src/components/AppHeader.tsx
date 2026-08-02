@@ -1,25 +1,26 @@
+import Button from "@mui/material/Button";
+
 type WorkStatus = "idle" | "decoding" | "processing" | "ready" | "error";
+type NavigationView = "choose" | "direct" | "workflow";
 
 interface AppHeaderProps {
   status: WorkStatus;
   statusText: string;
-  canExport: boolean;
+  activeView: NavigationView;
   onGoHome: () => void;
+  onOpenEditor: () => void;
   onOpenWorkflow: () => void;
   onOpenSettings: () => void;
-  onExportProject: () => void;
-  onExportSvg: () => void;
 }
 
 export function AppHeader({
   status,
   statusText,
-  canExport,
+  activeView,
   onGoHome,
+  onOpenEditor,
   onOpenWorkflow,
   onOpenSettings,
-  onExportProject,
-  onExportSvg,
 }: AppHeaderProps) {
   return (
     <header className="app-header">
@@ -30,55 +31,35 @@ export function AppHeader({
           <small>region-first reconstruction</small>
         </span>
       </button>
-      <div className="status-line" role="status" aria-live="polite">
-        <span className={`status-dot status-${status}`} aria-hidden="true" />
-        {statusText}
-      </div>
-      <div className="header-actions">
+      <nav className="primary-navigation" aria-label="Primary navigation">
         <Button
-          className="secondary-button"
-          onClick={onGoHome}
-          variant="outlined"
+          aria-current={activeView === "direct" ? "page" : undefined}
+          className="navigation-button"
+          onClick={onOpenEditor}
           size="small"
+          variant="text"
         >
-          Start
+          Editor
         </Button>
         <Button
-          className="secondary-button"
+          aria-current={activeView === "workflow" ? "page" : undefined}
+          className="navigation-button"
           onClick={onOpenWorkflow}
-          variant="outlined"
           size="small"
+          variant="text"
         >
           Workflow
         </Button>
-        <Button
-          className="secondary-button ai-settings-button"
-          onClick={onOpenSettings}
-          variant="outlined"
-          size="small"
-        >
+      </nav>
+      <div className="header-utility">
+        <div className="status-line" role="status" aria-live="polite">
+          <span className={`status-dot status-${status}`} aria-hidden="true" />
+          {statusText}
+        </div>
+        <Button className="navigation-button" onClick={onOpenSettings} size="small" variant="text">
           AI settings
-        </Button>
-        <Button
-          className="secondary-button"
-          disabled={!canExport}
-          onClick={onExportProject}
-          variant="outlined"
-          size="small"
-        >
-          Project JSON
-        </Button>
-        <Button
-          className="primary-button"
-          disabled={!canExport}
-          onClick={onExportSvg}
-          variant="contained"
-          size="small"
-        >
-          Export editable SVG
         </Button>
       </div>
     </header>
   );
 }
-import Button from "@mui/material/Button";

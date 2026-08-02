@@ -17,10 +17,12 @@ interface InspectorProps {
   selectedRegionIds: string[];
   canUndoColor: boolean;
   canRedoColor: boolean;
+  canExportSvg: boolean;
   onSelectRegions: (regionIds: string[]) => void;
   onRecolor: (hex: string) => void;
   onUndoColor: () => void;
   onRedoColor: () => void;
+  onExportSvg: () => void;
 }
 
 export function Inspector({
@@ -30,10 +32,12 @@ export function Inspector({
   selectedRegionIds,
   canUndoColor,
   canRedoColor,
+  canExportSvg,
   onSelectRegions,
   onRecolor,
   onUndoColor,
   onRedoColor,
+  onExportSvg,
 }: InspectorProps) {
   const selected = regions.filter((region) => selectedRegionIds.includes(region.id));
   const primarySelected = selected.at(-1);
@@ -70,6 +74,16 @@ export function Inspector({
           </span>
         </Tooltip>
       </div>
+
+      {canExportSvg ? (
+        <section className="inspector-export" aria-label="Project output">
+          <div>
+            <p className="eyebrow">Output</p>
+            <strong>Editable SVG</strong>
+          </div>
+          <Button onClick={onExportSvg} size="small" variant="contained">Export SVG</Button>
+        </section>
+      ) : null}
 
       {primarySelected ? (
         <section className="region-inspector">

@@ -35,7 +35,6 @@ import type { ColorSample } from "../preview/color-sample";
 import type { ReconstructionResult } from "../types/project";
 import { decodeImage } from "../utils/image-file";
 import {
-  exportRegionaProject,
   exportRegionaSvg,
 } from "../utils/project-export";
 import { ReconstructionWorkerClient } from "../workers/worker-client";
@@ -675,19 +674,14 @@ export function App() {
           : aiGenerationStage === "redraw"
             ? "Generating AI clean redraw"
             : statusText}
-        canExport={Boolean(result)}
+        activeView={mode}
         onGoHome={() => setMode("choose")}
+        onOpenEditor={() => setMode("direct")}
         onOpenWorkflow={() => {
           setWorkflowInspectorNodeId(undefined);
           setMode("workflow");
         }}
         onOpenSettings={() => setIsGeminiSettingsOpen(true)}
-        onExportProject={() => {
-          if (result) exportRegionaProject(result);
-        }}
-        onExportSvg={() => {
-          if (result) exportRegionaSvg(result);
-        }}
       />
       {isGeminiSettingsOpen ? (
         <GeminiSettingsDialog
@@ -827,6 +821,10 @@ export function App() {
           onRecolor={handleRecolor}
           onUndoColor={handleUndoColor}
           onRedoColor={handleRedoColor}
+          canExportSvg={Boolean(result)}
+          onExportSvg={() => {
+            if (result) exportRegionaSvg(result);
+          }}
         />
       </div>}
       <VectorSourceConfirmationDialog

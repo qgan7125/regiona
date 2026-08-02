@@ -117,7 +117,8 @@ button {
   z-index: 10;
   top: 0;
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) auto minmax(300px, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1.5rem;
   align-items: center;
   min-height: var(--app-header-height);
   padding: 0 20px;
@@ -206,34 +207,41 @@ button {
   }
 }
 
-.header-actions {
+.primary-navigation,
+.header-utility {
   display: flex;
+  align-items: center;
+  gap: .25rem;
+}
+
+.primary-navigation {
+  justify-self: start;
+}
+
+.header-utility {
   justify-self: end;
-  gap: 8px;
+  gap: .75rem;
 }
 
-.primary-button,
-.secondary-button {
-  min-height: 38px;
-  padding: 0 14px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
+.navigation-button {
+  min-height: 36px !important;
+  padding: 0 .75rem !important;
+  color: #cbd1ce !important;
+  border: 1px solid transparent !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
 }
 
-.primary-button {
-  color: #fff;
-  background: var(--accent);
+.navigation-button:hover {
+  color: #fff !important;
+  background: rgb(255 255 255 / 7%) !important;
 }
 
-.primary-button:hover:not(:disabled) {
-  background: #ff6a42;
-}
-
-.secondary-button {
-  color: #d6dcda;
-  background: transparent;
-  border: 1px solid #46504c;
+.navigation-button[aria-current="page"] {
+  color: #fff !important;
+  background: rgb(242 92 53 / 18%) !important;
+  border-color: rgb(242 92 53 / 55%) !important;
 }
 
 .openai-settings-dialog .MuiPaper-root {
@@ -929,6 +937,25 @@ input[type="range"] {
   text-transform: none;
 }
 
+.inspector-export {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin: 0 0 16px;
+  padding: .75rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.inspector-export .eyebrow {
+  margin: 0 0 .15rem;
+}
+
+.inspector-export strong {
+  font-size: .9rem;
+}
+
 .canvas-brush-size {
   position: absolute;
   top: 54px;
@@ -1406,30 +1433,13 @@ input[type="color"] {
 @media (max-width: 760px) {
   .app-header {
     position: static;
-    grid-template-columns: 1fr auto;
-    gap: 12px;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
     padding: 12px 14px;
   }
 
-  .status-line {
-    display: none;
-  }
-
-  .header-actions {
-    gap: 4px;
-  }
-
-  .header-actions .secondary-button:not(.undo-button) {
-    display: none;
-  }
-
-  .header-actions .secondary-button.ai-settings-button {
-    display: inline-flex;
-  }
-
-  .primary-button {
-    max-width: 150px;
-  }
+  .primary-navigation { justify-self: end; }
+  .header-utility { display: none; }
 
   .editor-grid {
     display: flex;
