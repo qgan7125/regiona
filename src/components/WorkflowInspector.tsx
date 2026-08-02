@@ -6,6 +6,7 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import Slider from "@mui/material/Slider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -30,6 +31,7 @@ interface WorkflowInspectorProps {
   cleanRedraw?: AiGeneratedImage;
   lineArt?: AiGeneratedImage;
   colorizedLineArt?: AiGeneratedImage;
+  colorCount: number;
   runningStage?: "analysis" | "redraw" | "line-art" | "color";
   error?: string;
   onClose: () => void;
@@ -38,6 +40,7 @@ interface WorkflowInspectorProps {
   onRunCleanRedraw: () => void;
   onRunLineArt: () => void;
   onRunColorizeLineArt: () => void;
+  onColorCountChange: (colorCount: number) => void;
   onUseInRegionaVector: (image: AiGeneratedImage, label: string) => void;
   onOpenEditor: () => void;
 }
@@ -98,6 +101,7 @@ export function WorkflowInspector({
   cleanRedraw,
   lineArt,
   colorizedLineArt,
+  colorCount,
   runningStage,
   error,
   onClose,
@@ -106,6 +110,7 @@ export function WorkflowInspector({
   onRunCleanRedraw,
   onRunLineArt,
   onRunColorizeLineArt,
+  onColorCountChange,
   onUseInRegionaVector,
   onOpenEditor,
 }: WorkflowInspectorProps) {
@@ -268,7 +273,22 @@ export function WorkflowInspector({
           {nodeId === "colorize-line-art" ? (
             comparisonOriginal ? (
               <>
-                {!lineArt ? <Typography color="text.secondary" variant="body2">Generate black line art first; this node combines it with the original source.</Typography> : null}
+                {!lineArt ? <Typography color="text.secondary" variant="body2">Generate black line art first. The black-and-white line art is the working image; your uploaded source remains the color reference.</Typography> : null}
+                <Box className="workflow-analysis-card">
+                  <Typography variant="subtitle2">Color count</Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    Use {colorCount} flat fill colors. Black linework and the white background remain unchanged.
+                  </Typography>
+                  <Slider
+                    aria-label="Line-art color count"
+                    disabled={!lineArt || isRunning}
+                    max={32}
+                    min={2}
+                    onChange={(_event, value) => onColorCountChange(Number(value))}
+                    value={colorCount}
+                    valueLabelDisplay="auto"
+                  />
+                </Box>
                 <WorkflowImageComparison
                   onUseInRegionaVector={onUseInRegionaVector}
                   original={comparisonOriginal}
@@ -276,13 +296,13 @@ export function WorkflowInspector({
                   outputLabel="Colorized line art"
                   primaryAction={
                     <Button disabled={!lineArt || isRunning} onClick={onRunColorizeLineArt} size="small" variant="contained">
-                      {runningStage === "color" ? "Colorizing..." : colorizedLineArt ? "Recolorize line art" : "Colorize line art"}
+                      {runningStage === "color" ? "Colorizing..." : colorizedLineArt ? `Recolorize with ${colorCount} colors` : `Colorize with ${colorCount} colors`}
                     </Button>
                   }
                 />
               </>
             ) : (
-              <Button disabled={!lineArt || isRunning} onClick={onRunColorizeLineArt} variant="contained">Colorize line art</Button>
+              <Button disabled={!lineArt || isRunning} onClick={onRunColorizeLineArt} variant="contained">Colorize with {colorCount} colors</Button>
             )
           ) : null}
 

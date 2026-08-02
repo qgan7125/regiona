@@ -65,14 +65,25 @@ describe("OpenAI image reconstruction provider", () => {
     await provider.colorizeLineArt({
       original: sourceImage,
       lineArt,
-      palette: ["#F25C35", "#117E69"],
+      colorCount: 8,
     });
 
     expect(edit).toHaveBeenCalledWith(expect.objectContaining({
       image: [lineArt, sourceImage],
     }));
-    expect(edit.mock.calls[0]?.[0].prompt).toContain("#f25c35, #117e69");
+    expect(edit.mock.calls[0]?.[0].prompt).toContain("8 flat fill colors");
     expect(edit.mock.calls[0]?.[0].prompt).toContain("black linework");
+  });
+
+  it("rejects a line-art color count outside the supported range", async () => {
+    const { client } = createClient();
+    const provider = createOpenAiImageProviderWithClient(client);
+
+    await expect(provider.colorizeLineArt({
+      original: sourceImage,
+      lineArt,
+      colorCount: 1,
+    })).rejects.toThrow("between 2 and 32");
   });
 
   it("rejects an unsupported source image before it reaches OpenAI", async () => {

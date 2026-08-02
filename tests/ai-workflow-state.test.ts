@@ -70,6 +70,8 @@ describe("AI workflow state", () => {
       { id: "colorize-line-art", status: "idle" },
       { id: "regiona-vector", status: "ready" },
     ]);
+    expect(workflow.edges.filter((edge) => edge.targetId === "colorize-line-art"))
+      .toEqual([expect.objectContaining({ sourceId: "black-line-art", targetPort: "line-art" })]);
   });
 
   it("rejects incompatible workflow connections and duplicate input sources", () => {

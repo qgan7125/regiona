@@ -1,7 +1,6 @@
 const openAiImageModel = "gpt-image-2";
 const maximumSourceBytes = 20 * 1024 * 1024;
 const supportedImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
-const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
 const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export interface AiGeneratedImage {
@@ -17,7 +16,7 @@ export interface CleanRedrawInput {
 export interface LineArtColorizationInput {
   original: File;
   lineArt: File;
-  palette?: readonly string[];
+  colorCount: number;
 }
 
 export interface ImageReconstructionProvider {
@@ -107,12 +106,12 @@ export function createOpenAiImageProviderWithClient(
         prompt: lineArtPrompt,
       });
     },
-    colorizeLineArt: async ({ original, lineArt, palette }) => {
+    colorizeLineArt: async ({ original, lineArt, colorCount }) => {
       assertSupportedSource(original);
       assertSupportedSource(lineArt);
       return requestImageEdit(client, {
         image: [lineArt, original],
-        prompt: colorizeLineArtPrompt(normalizePalette(palette)),
+        prompt: colorizeLineArtPrompt(normalizeColorCount(colorCount)),
       });
     },
   };
@@ -133,15 +132,11 @@ const lineArtPrompt = [
   "Do not add, remove, crop, or rearrange content.",
 ].join(" ");
 
-function colorizeLineArtPrompt(palette: readonly string[]) {
-  const paletteInstruction = palette.length
-    ? `Use this target palette where it fits the original semantics: ${palette.join(", ")}.`
-    : "Use the original image as the color reference.";
-
+function colorizeLineArtPrompt(colorCount: number) {
   return [
-    "The first image is the black line-art geometry reference. The second image is the original color reference.",
+    "The first image is the black-and-white working image to colorize. The second image is the original color reference.",
     "Color the white regions of the line art using the original image's semantic colors while preserving its composition, silhouette, boundaries, and black linework.",
-    paletteInstruction,
+    `Use exactly ${colorCount} flat fill colors, excluding the preserved black linework and white background.`,
     "Do not add, remove, crop, or rearrange content. Keep the background, black linework, and clean flat color regions suitable for vectorization.",
   ].join(" ");
 }
@@ -202,14 +197,9 @@ function assertSupportedSource(source: File) {
   }
 }
 
-function normalizePalette(palette: readonly string[] | undefined): string[] {
-  if (!palette?.length) return [];
-  if (palette.length > 32) throw new Error("AI reconstruction supports at most 32 target palette colors.");
-
-  const normalized = palette.map((color) => color.trim().toLowerCase());
-  if (normalized.some((color) => !hexColorPattern.test(color))) {
-    throw new Error("Target palette colors must be six-digit hex values.");
+function normalizeColorCount(colorCount: number): number {
+  if (!Number.isInteger(colorCount) || colorCount < 2 || colorCount > 32) {
+    throw new Error("Line-art colorization supports a color count between 2 and 32.");
   }
-
-  return [...new Set(normalized)];
+  return colorCount;
 }

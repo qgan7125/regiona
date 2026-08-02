@@ -7,7 +7,7 @@ Make **Analyze** useful before reconstruction by producing a prompt-ready, text-
 ## User flows
 
 - `Start -> Analyze`: return the six reverse-prompt sections; never generate or alter an image.
-- `Start -> Black line art -> Colorize line art -> Regiona vector`: preserve the line-art composition, keep black line work, and restore source-appropriate colors to its white regions.
+- `Start -> Black line art -> Colorize line art -> Regiona vector`: Colorize accepts only the black-and-white line-art output. The source image remains an implicit color reference, while the user selects 2–32 flat fill colors.
 - `Start -> AI clean redraw -> Regiona vector`: remains unchanged and independent.
 
 ## Contracts
@@ -21,7 +21,7 @@ Make **Analyze** useful before reconstruction by producing a prompt-ready, text-
 5. `analysis` — 3–5 sentences.
 6. `variantOffer` — one final sentence.
 
-The Gemini provider requests JSON for these fields and validates untrusted responses before the UI renders them. `ColorReconstructionInput` is renamed to make `lineArt` explicit; it sends the line-art image first and the original image second.
+The Gemini provider requests JSON for these fields and validates untrusted responses before the UI renders them. `LineArtColorizationInput` makes `lineArt` and `colorCount` explicit; it sends the line-art image first and the original reference second.
 
 ## Commands
 
@@ -57,7 +57,7 @@ Add or update unit tests for parser fields, Gemini request ordering, and workflo
 
 ## Success criteria
 
-- The graph and inspector call the node **Colorize line art** and show that it needs black line art, not clean redraw.
-- A colorize request contains black line art plus original source and says it must retain black linework.
+- The graph and inspector call the node **Colorize line art** and show it only as the direct next step of black line art.
+- A colorize request contains black line art plus the original source reference, retains black linework, and uses the selected 2–32 fill-color count.
 - Analyze renders all six requested reverse-prompt sections and continues to show concise Regiona reconstruction advice.
 - Tests, lint, type check, and build pass.

@@ -66,7 +66,6 @@ const initialEdges: Edge[] = [
   { id: "start-analyze", source: "start", target: "analyze" },
   { id: "start-redraw", source: "start", target: "clean-redraw" },
   { id: "start-line-art", source: "start", target: "black-line-art" },
-  { id: "start-color", source: "start", target: "colorize-line-art" },
   { id: "line-art-color", source: "black-line-art", target: "colorize-line-art" },
   { id: "start-vector", source: "start", target: "regiona-vector" },
   { id: "line-art-vector", source: "black-line-art", target: "regiona-vector" },
@@ -106,7 +105,7 @@ function createWorkflowNodes(
     node("analyze", "Analyze", "Reverse prompt + Regiona advice", 300, 0),
     node("clean-redraw", "AI clean redraw", "Clean geometry candidate", 300, 170),
     node("black-line-art", "Black line art", "Black lines on white", 300, 340),
-    node("colorize-line-art", "Colorize line art", "Black line art + original", 600, 340),
+    node("colorize-line-art", "Colorize line art", "Black line art → limited colors", 600, 340),
     node("regiona-vector", "Regiona vector", "Quantize, edit, export", 900, 260),
   ];
 }

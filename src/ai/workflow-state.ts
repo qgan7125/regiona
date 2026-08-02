@@ -7,7 +7,7 @@ export type AiWorkflowNodeKind =
   | "color"
   | "vector";
 export type AiWorkflowNodeStatus = "idle" | "ready" | "running" | "complete" | "stale" | "error";
-export type AiWorkflowInputPort = "image" | "original" | "line-art";
+export type AiWorkflowInputPort = "image" | "line-art";
 
 const intermediateStages = new Set<AiIntermediateStage>(["redraw", "color", "line-art"]);
 const imageProducingNodeKinds = new Set<AiWorkflowNodeKind>([
@@ -64,7 +64,6 @@ export function createAiWorkflowState(originalImageId: string): AiWorkflowState 
       createEdge("start", "analyze", "image"),
       createEdge("start", "clean-redraw", "image"),
       createEdge("start", "black-line-art", "image"),
-      createEdge("start", "colorize-line-art", "original"),
       createEdge("black-line-art", "colorize-line-art", "line-art"),
       createEdge("start", "regiona-vector", "image"),
     ],
@@ -209,7 +208,7 @@ function requiredInputPorts(kind: AiWorkflowNodeKind): AiWorkflowInputPort[] {
     case "vector":
       return ["image"];
     case "color":
-      return ["original", "line-art"];
+      return ["line-art"];
     case "start":
       return [];
   }
@@ -220,7 +219,6 @@ function isCompatibleInput(
   targetKind: AiWorkflowNodeKind,
   targetPort: AiWorkflowInputPort,
 ): boolean {
-  if (targetPort === "original") return sourceKind === "start";
   if (targetPort === "line-art") return sourceKind === "line-art";
   return targetKind !== "start";
 }

@@ -103,6 +103,7 @@ export function App() {
   const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
   const [lineArt, setLineArt] = useState<AiGeneratedImage>();
   const [colorizedLineArt, setColorizedLineArt] = useState<AiGeneratedImage>();
+  const [lineArtColorCount, setLineArtColorCount] = useState(12);
   const [analysis, setAnalysis] = useState<AiStructureAnalysis>();
   const [aiError, setAiError] = useState<string>();
   const [aiGenerationStage, setAiGenerationStage] = useState<AiGenerationStage>();
@@ -458,7 +459,7 @@ export function App() {
             currentLineArt,
             `regiona-black-line-art.${currentLineArt.mimeType === "image/jpeg" ? "jpg" : "png"}`,
           ),
-          palette: result?.palette.map((color) => color.hex),
+          colorCount: lineArtColorCount,
         });
         if (!isCurrentRun()) return;
         setColorizedLineArt(generatedColors);
@@ -581,7 +582,7 @@ export function App() {
           lineArt,
           `regiona-black-line-art.${lineArt.mimeType === "image/jpeg" ? "jpg" : "png"}`,
         ),
-        palette: result?.palette.map((color) => color.hex),
+        colorCount: lineArtColorCount,
       });
       setColorizedLineArt(generated);
     } catch (cause) {
@@ -728,6 +729,7 @@ export function App() {
           <WorkflowInspector
             analysis={analysis}
             cleanRedraw={cleanRedraw}
+            colorCount={lineArtColorCount}
             colorizedLineArt={colorizedLineArt}
             error={aiError}
             lineArt={lineArt}
@@ -747,6 +749,10 @@ export function App() {
             onRunCleanRedraw={() => void handleGenerateCleanRedraw()}
             onRunColorizeLineArt={() => void handleColorizeLineArt()}
             onRunLineArt={() => void handleGenerateLineArt()}
+            onColorCountChange={(colorCount) => {
+              setLineArtColorCount(colorCount);
+              setColorizedLineArt(undefined);
+            }}
             onUseInRegionaVector={(image, label) => {
               setWorkflowInspectorNodeId(undefined);
               setPendingVectorCandidate({ image, label });

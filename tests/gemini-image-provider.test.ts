@@ -66,7 +66,7 @@ describe("Gemini image reconstruction provider", () => {
     await provider.colorizeLineArt({
       original: sourceImage,
       lineArt,
-      palette: ["#F25C35", "#117E69"],
+      colorCount: 8,
     });
 
     const request = JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string) as {
@@ -78,6 +78,9 @@ describe("Gemini image reconstruction provider", () => {
     ]);
     expect(request.contents[0]?.parts[0]).toEqual(expect.objectContaining({
       text: expect.stringContaining("black linework"),
+    }));
+    expect(request.contents[0]?.parts[0]).toEqual(expect.objectContaining({
+      text: expect.stringContaining("8 flat fill colors"),
     }));
   });
 
