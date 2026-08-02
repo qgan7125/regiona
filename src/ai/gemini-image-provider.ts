@@ -54,6 +54,17 @@ export function createGeminiImageProvider(
         ],
       });
     },
+    improveImageScale: async ({ source, scale }) => {
+      assertSupportedSource(source);
+      return requestGeminiImage({
+        apiKey: normalizedKey,
+        fetcher,
+        parts: [
+          { text: imageScaleImprovementPrompt(normalizeImageScale(scale)) },
+          await toGeminiImageInput(source),
+        ],
+      });
+    },
     createLineArt: async ({ source }) => {
       assertSupportedSource(source);
       return requestGeminiImage({
@@ -88,6 +99,15 @@ const cleanRedrawPrompt = [
   "Remove compression noise, anti-alias speckles, accidental tiny fragments, and non-semantic texture.",
   "Use clean, flat, closed color regions; do not add, remove, crop, or rearrange content.",
 ].join(" ");
+
+function imageScaleImprovementPrompt(scale: number) {
+  return [
+    `Create a ${scale}× higher-resolution version of the supplied image for precise editing and vectorization.`,
+    "Preserve the exact composition, aspect ratio, crop, subject, silhouettes, text, colors, and meaningful details.",
+    "Improve edge clarity and fine detail without inventing, removing, rearranging, or restyling content.",
+    "Return a clean high-definition image at approximately the requested pixel scale.",
+  ].join(" ");
+}
 
 const lineArtPrompt = [
   "Create solid black line art from the supplied image for later vectorization.",
@@ -202,4 +222,11 @@ function normalizeColorCount(colorCount: number): number {
     throw new Error("Line-art colorization supports a color count between 2 and 32.");
   }
   return colorCount;
+}
+
+function normalizeImageScale(scale: number): number {
+  if (!Number.isInteger(scale) || scale < 2 || scale > 4) {
+    throw new Error("AI image scale improvement supports an integer scale between 2× and 4×.");
+  }
+  return scale;
 }

@@ -25,7 +25,7 @@ import {
   redoSelectionEdit,
   undoSelectionEdit,
 } from "./selection-state";
-import { recolorRegions } from "../engine/reconstruct";
+import { mergeSameFillRegions, recolorRegions, renderRegionPixels } from "../engine/reconstruct";
 import {
   maximumAreaForSimplification,
   simplificationLabel,
@@ -41,7 +41,7 @@ import { ReconstructionWorkerClient } from "../workers/worker-client";
 
 type WorkStatus = "idle" | "decoding" | "processing" | "ready" | "error";
 type AppMode = "choose" | "direct" | "workflow";
-type AiGenerationStage = "analysis" | "redraw" | "line-art" | "color";
+type AiGenerationStage = "analysis" | "scale" | "redraw" | "line-art" | "color";
 
 interface SourceState {
   file: File;
@@ -85,10 +85,10 @@ export function App() {
   const [workflowSource, setWorkflowSource] = useState<SourceState>();
   const [result, setResult] = useState<ReconstructionResult>();
   const [colorHistory, setColorHistory] = useState<
-    ReconstructionResult["regions"][]
+    ReconstructionResult[]
   >([]);
   const [colorFuture, setColorFuture] = useState<
-    ReconstructionResult["regions"][]
+    ReconstructionResult[]
   >([]);
   const [pickedColors, setPickedColors] = useState<ColorSample[]>([]);
   const [isRecoloring, setIsRecoloring] = useState(false);
@@ -101,6 +101,7 @@ export function App() {
   const [error, setError] = useState<string>();
   const [isGeminiSettingsOpen, setIsGeminiSettingsOpen] = useState(false);
   const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
+  const [imageScale, setImageScale] = useState<AiGeneratedImage>();
   const [lineArt, setLineArt] = useState<AiGeneratedImage>();
   const [colorizedLineArt, setColorizedLineArt] = useState<AiGeneratedImage>();
   const [lineArtColorCount, setLineArtColorCount] = useState(12);
@@ -263,6 +264,7 @@ export function App() {
       setPickedColors([]);
       resetSelectionHistory();
       setCleanRedraw(undefined);
+      setImageScale(undefined);
       setLineArt(undefined);
       setColorizedLineArt(undefined);
       setAnalysis(undefined);
@@ -277,10 +279,16 @@ export function App() {
   const recolorSelectedRegions = (regionIds: string[], fill: string) => {
     if (!result) return;
     const recoloredRegions = recolorRegions(result.regions, regionIds, fill);
+    if (recoloredRegions === result.regions) return;
+    const recoloredResult = {
+      ...result,
+      regions: recoloredRegions,
+      quantizedPixels: renderRegionPixels(result.labelMap, recoloredRegions),
+    };
     const nextHistory = appendColorHistory(
       colorHistory,
-      result.regions,
-      recoloredRegions,
+      result,
+      recoloredResult,
     );
     if (nextHistory === colorHistory) return;
 
@@ -288,7 +296,7 @@ export function App() {
     window.requestAnimationFrame(() => {
       setColorHistory(nextHistory);
       setColorFuture([]);
-      setResult({ ...result, regions: recoloredRegions });
+      setResult(recoloredResult);
       window.requestAnimationFrame(() => setIsRecoloring(false));
     });
   };
@@ -298,24 +306,42 @@ export function App() {
     recolorSelectedRegions(selectedRegionIds, fill);
   };
 
+  const handleMergeSelectedRegions = () => {
+    if (!result || selectedRegionIds.length < 2) return;
+
+    try {
+      const nextResult = mergeSameFillRegions(result, selectedRegionIds);
+      const mergedRegionId = result.regions.find((region) => selectedRegionIds.includes(region.id))?.id;
+      setResult(nextResult);
+      setColorHistory((history) => appendColorHistory(history, result, nextResult));
+      setColorFuture([]);
+      setSelectionHistory([]);
+      setSelectionFuture([]);
+      selectedRegionIdsRef.current = mergedRegionId ? [mergedRegionId] : [];
+      setSelectedRegionIds(selectedRegionIdsRef.current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not merge the selected SVG regions.");
+    }
+  };
+
   const handleUndoColor = useCallback(() => {
     if (!result) return;
-    const previous = undoColorEdit(result.regions, colorHistory);
-    if (previous.regions === result.regions) return;
+    const previous = undoColorEdit(result, colorHistory);
+    if (previous.result === result) return;
 
     setColorHistory(previous.history);
-    setColorFuture((current) => [result.regions, ...current].slice(0, 50));
-    setResult({ ...result, regions: previous.regions });
+    setColorFuture((current) => [result, ...current].slice(0, 50));
+    setResult(previous.result);
   }, [colorHistory, result]);
 
   const handleRedoColor = useCallback(() => {
     if (!result) return;
-    const next = redoColorEdit(result.regions, colorFuture);
-    if (next.regions === result.regions) return;
+    const next = redoColorEdit(result, colorFuture);
+    if (next.result === result) return;
 
-    setColorHistory((current) => appendColorHistory(current, result.regions, next.regions));
+    setColorHistory((current) => appendColorHistory(current, result, next.result));
     setColorFuture(next.future);
-    setResult({ ...result, regions: next.regions });
+    setResult(next.result);
   }, [colorFuture, result]);
 
   const handleUndoSelection = useCallback(() => {
@@ -410,10 +436,11 @@ export function App() {
     }
 
     const shouldAnalyze = !analysis;
+    const shouldScale = !imageScale;
     const shouldRedraw = !cleanRedraw;
     const shouldLineArt = !lineArt;
     const shouldColorize = !colorizedLineArt;
-    if (!(shouldAnalyze || shouldRedraw || shouldLineArt || shouldColorize)) {
+    if (!(shouldAnalyze || shouldScale || shouldRedraw || shouldLineArt || shouldColorize)) {
       setStatusText("All ready workflow tasks have completed.");
       return;
     }
@@ -434,6 +461,13 @@ export function App() {
         const generatedAnalysis = await analysisProvider.analyzeImage({ source: inputSource.file });
         if (!isCurrentRun()) return;
         setAnalysis(generatedAnalysis);
+      }
+
+      if (shouldScale) {
+        setAiGenerationStage("scale");
+        const generatedScale = await imageProvider.improveImageScale({ source: inputSource.file, scale: 2 });
+        if (!isCurrentRun()) return;
+        setImageScale(generatedScale);
       }
 
       if (shouldRedraw) {
@@ -509,6 +543,29 @@ export function App() {
           ? cause.message
           : "Could not generate a clean redraw. Please try again.",
       );
+    } finally {
+      setAiGenerationStage(undefined);
+    }
+  };
+
+  const handleImproveImageScale = async () => {
+    const inputSource = mode === "workflow" ? workflowSource ?? source : source;
+    if (!inputSource || busy) return;
+
+    const { apiKey } = loadGeminiApiKey();
+    if (!apiKey) {
+      setAiError("Add your Gemini API key in settings before upscaling this image.");
+      setIsGeminiSettingsOpen(true);
+      return;
+    }
+
+    setAiError(undefined);
+    setAiGenerationStage("scale");
+    try {
+      const provider = createGeminiImageProvider(apiKey);
+      setImageScale(await provider.improveImageScale({ source: inputSource.file, scale: 2 }));
+    } catch (cause) {
+      setAiError(cause instanceof Error ? cause.message : "Could not create a high-resolution image. Please try again.");
     } finally {
       setAiGenerationStage(undefined);
     }
@@ -602,6 +659,7 @@ export function App() {
       return {
         start: "awaiting-source",
         analyze: "awaiting-source",
+        "image-scale": "awaiting-source",
         "clean-redraw": "awaiting-source",
         "black-line-art": "awaiting-source",
         "colorize-line-art": "awaiting-source",
@@ -612,6 +670,7 @@ export function App() {
     return {
       start: "complete",
       analyze: aiGenerationStage === "analysis" ? "running" : analysis ? "complete" : "ready",
+      "image-scale": aiGenerationStage === "scale" ? "running" : imageScale ? "complete" : "ready",
       "clean-redraw": aiGenerationStage === "redraw" ? "running" : cleanRedraw ? "complete" : "ready",
       "black-line-art": aiGenerationStage === "line-art" ? "running" : lineArt ? "complete" : "ready",
       "colorize-line-art": aiGenerationStage === "color"
@@ -623,7 +682,7 @@ export function App() {
             : "idle",
       "regiona-vector": "ready",
     } as const;
-  }, [aiGenerationStage, analysis, cleanRedraw, colorizedLineArt, lineArt, source, workflowSource]);
+  }, [aiGenerationStage, analysis, cleanRedraw, colorizedLineArt, imageScale, lineArt, source, workflowSource]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -666,6 +725,8 @@ export function App() {
         status={aiGenerationStage ? "processing" : status}
         statusText={aiGenerationStage === "color"
           ? "Colorizing black line art from the source image"
+          : aiGenerationStage === "scale"
+            ? "Creating a high-resolution image candidate"
           : aiGenerationStage === "line-art"
             ? "Generating black line art"
             : aiGenerationStage === "analysis"
@@ -728,6 +789,7 @@ export function App() {
           />
           <WorkflowInspector
             analysis={analysis}
+            imageScale={imageScale}
             cleanRedraw={cleanRedraw}
             colorCount={lineArtColorCount}
             colorizedLineArt={colorizedLineArt}
@@ -746,6 +808,7 @@ export function App() {
             onFile={(file) => void handleFile(file)}
             onOpenEditor={() => setMode("direct")}
             onRunAnalyze={() => void handleAnalyzeImage()}
+            onRunImageScale={() => void handleImproveImageScale()}
             onRunCleanRedraw={() => void handleGenerateCleanRedraw()}
             onRunColorizeLineArt={() => void handleColorizeLineArt()}
             onRunLineArt={() => void handleGenerateLineArt()}
@@ -816,6 +879,7 @@ export function App() {
           canRedoColor={Boolean(result && colorFuture.length)}
           onSelectRegions={updateSelectedRegions}
           onRecolor={handleRecolor}
+          onMergeSelected={handleMergeSelectedRegions}
           onUndoColor={handleUndoColor}
           onRedoColor={handleRedoColor}
           canExportSvg={Boolean(result)}

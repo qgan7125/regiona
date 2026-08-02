@@ -1,4 +1,4 @@
-import type { PaletteColor, VisualRegion } from "../types/project";
+import type { PaletteColor, ReconstructionResult } from "../types/project";
 
 const MAX_COLOR_HISTORY_ENTRIES = 50;
 
@@ -7,42 +7,37 @@ export function getPaletteFillChoices(palette: PaletteColor[]) {
 }
 
 export function appendColorHistory(
-  history: VisualRegion[][],
-  previousRegions: VisualRegion[],
-  nextRegions: VisualRegion[],
+  history: ReconstructionResult[],
+  previous: ReconstructionResult,
+  next: ReconstructionResult,
 ) {
-  if (
-    previousRegions.length === nextRegions.length &&
-    previousRegions.every((region, index) => region.fill === nextRegions[index]?.fill)
-  ) {
-    return history;
-  }
+  if (previous === next) return history;
 
-  return [...history.slice(-(MAX_COLOR_HISTORY_ENTRIES - 1)), previousRegions];
+  return [...history.slice(-(MAX_COLOR_HISTORY_ENTRIES - 1)), previous];
 }
 
 export function undoColorEdit(
-  regions: VisualRegion[],
-  history: VisualRegion[][],
+  result: ReconstructionResult,
+  history: ReconstructionResult[],
 ) {
-  const previousRegions = history.at(-1);
-  if (!previousRegions) return { regions, history };
+  const previous = history.at(-1);
+  if (!previous) return { result, history };
 
   return {
-    regions: previousRegions,
+    result: previous,
     history: history.slice(0, -1),
   };
 }
 
 export function redoColorEdit(
-  regions: VisualRegion[],
-  future: VisualRegion[][],
+  result: ReconstructionResult,
+  future: ReconstructionResult[],
 ) {
-  const nextRegions = future[0];
-  if (!nextRegions) return { regions, future };
+  const next = future[0];
+  if (!next) return { result, future };
 
   return {
-    regions: nextRegions,
+    result: next,
     future: future.slice(1),
   };
 }

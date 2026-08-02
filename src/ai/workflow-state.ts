@@ -1,7 +1,8 @@
-export type AiIntermediateStage = "redraw" | "color" | "line-art";
+export type AiIntermediateStage = "redraw" | "color" | "line-art" | "upscale";
 export type AiWorkflowNodeKind =
   | "start"
   | "analyze"
+  | "upscale"
   | "redraw"
   | "line-art"
   | "color"
@@ -9,9 +10,10 @@ export type AiWorkflowNodeKind =
 export type AiWorkflowNodeStatus = "idle" | "ready" | "running" | "complete" | "stale" | "error";
 export type AiWorkflowInputPort = "image" | "line-art";
 
-const intermediateStages = new Set<AiIntermediateStage>(["redraw", "color", "line-art"]);
+const intermediateStages = new Set<AiIntermediateStage>(["redraw", "color", "line-art", "upscale"]);
 const imageProducingNodeKinds = new Set<AiWorkflowNodeKind>([
   "start",
+  "upscale",
   "redraw",
   "line-art",
   "color",
@@ -55,6 +57,7 @@ export function createAiWorkflowState(originalImageId: string): AiWorkflowState 
     nodes: [
       { id: "start", kind: "start", status: "complete", revision: 1 },
       { id: "analyze", kind: "analyze", status: "idle", revision: 0 },
+      { id: "image-scale", kind: "upscale", status: "idle", revision: 0 },
       { id: "clean-redraw", kind: "redraw", status: "idle", revision: 0 },
       { id: "black-line-art", kind: "line-art", status: "idle", revision: 0 },
       { id: "colorize-line-art", kind: "color", status: "idle", revision: 0 },
@@ -62,6 +65,7 @@ export function createAiWorkflowState(originalImageId: string): AiWorkflowState 
     ],
     edges: [
       createEdge("start", "analyze", "image"),
+      createEdge("start", "image-scale", "image"),
       createEdge("start", "clean-redraw", "image"),
       createEdge("start", "black-line-art", "image"),
       createEdge("black-line-art", "colorize-line-art", "line-art"),
@@ -203,6 +207,7 @@ function findNode(workflow: AiWorkflowState, nodeId: string): AiWorkflowNode {
 function requiredInputPorts(kind: AiWorkflowNodeKind): AiWorkflowInputPort[] {
   switch (kind) {
     case "analyze":
+    case "upscale":
     case "redraw":
     case "line-art":
     case "vector":

@@ -35,6 +35,7 @@ This plan restores the design document's **Analyze** and **Colorize** concepts, 
 | Node | Inputs | Output | User purpose |
 | --- | --- | --- | --- |
 | **Start** | User file | Original image | Establishes the immutable reference image for the workflow. |
+| **AI upscale** | Original image | High-resolution image | Produces an explicit 2× AI high-resolution candidate for detail review or Regiona vector processing. |
 | **AI clean redraw** | Original image | Cleaned image | Removes non-semantic texture and noisy fragments while preserving composition. |
 | **Analyze** | Original or any generated image | Reverse prompt | Reconstructs a prompt-ready visual description from visible evidence; it does not assess Regiona processing. |
 | **Black line art** | Original image | Black lines on white | Produces an independently reviewable line-art candidate. |
@@ -103,7 +104,7 @@ If a user confirms a candidate as the Regiona vector source, the existing region
 
 **Acceptance criteria**
 
-- A Start image can validly feed Analyze, Clean redraw, Black line art, and Regiona vector.
+- A Start image can validly feed Analyze, AI upscale, Clean redraw, Black line art, and Regiona vector.
 - Clean redraw plus Start can validly feed Apply source colours.
 - Rerunning an upstream image-producing node marks only its descendants stale.
 

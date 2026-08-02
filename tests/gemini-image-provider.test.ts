@@ -101,6 +101,21 @@ describe("Gemini image reconstruction provider", () => {
     ]);
   });
 
+  it("requests a two-times AI scale improvement from the original image", async () => {
+    const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse());
+    const provider = createGeminiImageProvider("gemini-user-key", fetcher);
+
+    await provider.improveImageScale({ source: sourceImage, scale: 2 });
+
+    const request = JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string) as {
+      contents: Array<{ parts: Array<{ text?: string; inline_data?: { data: string } }> }>;
+    };
+    expect(request.contents[0]?.parts).toEqual([
+      expect.objectContaining({ text: expect.stringContaining("2×") }),
+      expect.objectContaining({ inline_data: expect.objectContaining({ data: "c291cmNl" }) }),
+    ]);
+  });
+
   it("keeps a JPEG result returned by Gemini", async () => {
     const fetcher = vi.fn().mockResolvedValue(successfulGeminiResponse(
       "image/jpeg",

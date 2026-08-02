@@ -35,6 +35,7 @@ interface WorkflowCanvasProps {
 export type WorkflowNodeId =
   | "start"
   | "analyze"
+  | "image-scale"
   | "clean-redraw"
   | "black-line-art"
   | "colorize-line-art"
@@ -64,12 +65,14 @@ const nodeTypes = { workflow: WorkflowNode };
 
 const initialEdges: Edge[] = [
   { id: "start-analyze", source: "start", target: "analyze" },
+  { id: "start-image-scale", source: "start", target: "image-scale" },
   { id: "start-redraw", source: "start", target: "clean-redraw" },
   { id: "start-line-art", source: "start", target: "black-line-art" },
   { id: "line-art-color", source: "black-line-art", target: "colorize-line-art" },
   { id: "start-vector", source: "start", target: "regiona-vector" },
   { id: "line-art-vector", source: "black-line-art", target: "regiona-vector" },
   { id: "color-vector", source: "colorize-line-art", target: "regiona-vector" },
+  { id: "image-scale-vector", source: "image-scale", target: "regiona-vector" },
 ];
 
 function createWorkflowNodes(
@@ -103,6 +106,7 @@ function createWorkflowNodes(
   return [
     node("start", "Start", sourceName ?? "Upload source image", 0, 260),
     node("analyze", "Analyze", "Forensic reverse prompt", 300, 0),
+    node("image-scale", "AI upscale", "2× high-resolution candidate", 300, 85),
     node("clean-redraw", "AI clean redraw", "Clean geometry candidate", 300, 170),
     node("black-line-art", "Black line art", "Black lines on white", 300, 340),
     node("colorize-line-art", "Colorize line art", "Black line art → limited colors", 600, 340),

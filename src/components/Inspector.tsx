@@ -20,6 +20,7 @@ interface InspectorProps {
   canExportSvg: boolean;
   onSelectRegions: (regionIds: string[]) => void;
   onRecolor: (hex: string) => void;
+  onMergeSelected: () => void;
   onUndoColor: () => void;
   onRedoColor: () => void;
   onExportSvg: () => void;
@@ -35,12 +36,16 @@ export function Inspector({
   canExportSvg,
   onSelectRegions,
   onRecolor,
+  onMergeSelected,
   onUndoColor,
   onRedoColor,
   onExportSvg,
 }: InspectorProps) {
   const selected = regions.filter((region) => selectedRegionIds.includes(region.id));
   const primarySelected = selected.at(-1);
+  const canMergeSelected = selected.length >= 2
+    && selected.every((region) => region.fill.toLowerCase() === selected[0]?.fill.toLowerCase()
+      && region.opacity === selected[0]?.opacity);
   const listedRegions = useMemo(
     () => [...regions].sort((a, b) => b.pixelArea - a.pixelArea).slice(0, 100),
     [regions],
@@ -58,18 +63,18 @@ export function Inspector({
         <h2 id="inspector-title">Region details</h2>
       </div>
 
-      <div className="inspector-history-actions" role="toolbar" aria-label="Color edit history">
+      <div className="inspector-history-actions" role="toolbar" aria-label="Region edit history">
         <Tooltip title="Undo color change — Ctrl/Cmd + Z" placement="top">
           <span>
             <Button size="small" variant="outlined" disabled={!canUndoColor} onClick={onUndoColor}>
-              Undo color
+              Undo edit
             </Button>
           </span>
         </Tooltip>
         <Tooltip title="Redo color change — Ctrl/Cmd + Shift + Z or Ctrl + Y" placement="top">
           <span>
             <Button size="small" variant="outlined" disabled={!canRedoColor} onClick={onRedoColor}>
-              Redo color
+              Redo edit
             </Button>
           </span>
         </Tooltip>
@@ -147,9 +152,24 @@ export function Inspector({
               Search full palette
             </Button>
           </div>
+          <Tooltip
+            title={canMergeSelected
+              ? "Merge the selected same-color regions into one editable SVG path"
+              : "Select at least two regions with the same fill to merge"}
+            placement="top"
+          >
+            <span>
+              <Button
+                disabled={busy || !canMergeSelected}
+                onClick={onMergeSelected}
+                variant="outlined"
+              >
+                Merge same-color SVG regions
+              </Button>
+            </span>
+          </Tooltip>
           <p className="helper-text">
-            Right-click a region to apply a close palette color from Original.
-            Geometry and neighboring regions remain independent.
+            Right-click a region to apply a close palette color from Original. Merging keeps disconnected parts as one SVG path with multiple subpaths.
           </p>
         </section>
       ) : (

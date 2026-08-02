@@ -577,6 +577,7 @@ Version one exposes a fixed catalogue of typed nodes. Users may add, remove, dup
 | --- | --- | --- | --- |
 | Start | User-uploaded image | Original image | The workflow's immutable reference image. |
 | Analyze | Original or generated image | Reverse prompt | Reconstructs a prompt-ready description from visible evidence for high-fidelity regeneration. It is text-only and does not silently change settings. |
+| AI upscale | Original image | High-resolution image | Produces an explicit 2× AI high-resolution candidate for detail review or Regiona vector processing. |
 | AI clean redraw | Original image | Cleaned image | Removes non-semantic texture and noisy fragments while preserving composition. |
 | Black line art | Original image | Black-on-white line-art image | A direct candidate for Regiona vector processing; does not require redraw or colorization. |
 | Apply source colours | Original image + clean redraw + optional current target palette | Colour reconstruction | Reapplies semantic colour onto clean geometry. |
@@ -1531,6 +1532,8 @@ Users can:
 - Assign role
 - Convert fill to stroke candidate
 - Convert stroke to fill
+
+Merging is an explicit same-fill edit: Regiona only enables it for two or more regions with the same fill and opacity. The resulting editable SVG uses one path with multiple subpaths when the selected shapes are disconnected. The operation updates the preview label map and participates in editor undo/redo.
 
 ## 20.2 Boundary Editing
 

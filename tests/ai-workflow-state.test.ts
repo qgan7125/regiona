@@ -65,6 +65,7 @@ describe("AI workflow state", () => {
     expect(workflow.nodes.map(({ id, status }) => ({ id, status }))).toEqual([
       { id: "start", status: "complete" },
       { id: "analyze", status: "ready" },
+      { id: "image-scale", status: "ready" },
       { id: "clean-redraw", status: "ready" },
       { id: "black-line-art", status: "ready" },
       { id: "colorize-line-art", status: "idle" },
@@ -72,6 +73,18 @@ describe("AI workflow state", () => {
     ]);
     expect(workflow.edges.filter((edge) => edge.targetId === "colorize-line-art"))
       .toEqual([expect.objectContaining({ sourceId: "black-line-art", targetPort: "line-art" })]);
+  });
+
+  it("treats the image scale node as an image-producing workflow branch", () => {
+    const workflow = createAiWorkflowState("original-image");
+
+    expect(workflow.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceId: "start", targetId: "image-scale", targetPort: "image" }),
+    ]));
+    expect(canUseAiWorkflowNodeAsVectorSource(
+      completeAiWorkflowNodeRun(workflow, "image-scale"),
+      "image-scale",
+    )).toBe(true);
   });
 
   it("rejects incompatible workflow connections and duplicate input sources", () => {
@@ -101,6 +114,7 @@ describe("AI workflow state", () => {
     expect(workflow.nodes.map(({ id, status }) => ({ id, status }))).toEqual([
       { id: "start", status: "complete" },
       { id: "analyze", status: "complete" },
+      { id: "image-scale", status: "ready" },
       { id: "clean-redraw", status: "ready" },
       { id: "black-line-art", status: "running" },
       { id: "colorize-line-art", status: "stale" },

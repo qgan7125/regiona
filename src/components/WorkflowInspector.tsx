@@ -29,15 +29,17 @@ interface WorkflowInspectorProps {
   nodeId?: WorkflowNodeId;
   source?: WorkflowSourceSummary;
   analysis?: AiStructureAnalysis;
+  imageScale?: AiGeneratedImage;
   cleanRedraw?: AiGeneratedImage;
   lineArt?: AiGeneratedImage;
   colorizedLineArt?: AiGeneratedImage;
   colorCount: number;
-  runningStage?: "analysis" | "redraw" | "line-art" | "color";
+  runningStage?: "analysis" | "scale" | "redraw" | "line-art" | "color";
   error?: string;
   onClose: () => void;
   onFile: (file: File) => void;
   onRunAnalyze: () => void;
+  onRunImageScale: () => void;
   onRunCleanRedraw: () => void;
   onRunLineArt: () => void;
   onRunColorizeLineArt: () => void;
@@ -54,6 +56,10 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
   analyze: {
     title: "Analyze",
     description: "Reconstruct a prompt from visible details for high-fidelity image regeneration.",
+  },
+  "image-scale": {
+    title: "AI upscale",
+    description: "Create a 2× high-resolution candidate while preserving the source composition and details.",
   },
   "clean-redraw": {
     title: "AI clean redraw",
@@ -93,6 +99,7 @@ export function WorkflowInspector({
   nodeId,
   source,
   analysis,
+  imageScale,
   cleanRedraw,
   lineArt,
   colorizedLineArt,
@@ -102,6 +109,7 @@ export function WorkflowInspector({
   onClose,
   onFile,
   onRunAnalyze,
+  onRunImageScale,
   onRunCleanRedraw,
   onRunLineArt,
   onRunColorizeLineArt,
@@ -217,6 +225,24 @@ export function WorkflowInspector({
                 </Stack>
               ) : null}
             </Stack>
+          ) : null}
+
+          {nodeId === "image-scale" ? (
+            comparisonOriginal ? (
+              <WorkflowImageComparison
+                onUseInRegionaVector={onUseInRegionaVector}
+                original={comparisonOriginal}
+                output={imageScale}
+                outputLabel="AI upscale"
+                primaryAction={
+                  <Button disabled={!hasSource || isRunning} onClick={onRunImageScale} size="small" variant="contained">
+                    {runningStage === "scale" ? "Upscaling..." : imageScale ? "Regenerate 2× upscale" : "Create 2× upscale"}
+                  </Button>
+                }
+              />
+            ) : (
+              <Button disabled={!hasSource || isRunning} onClick={onRunImageScale} variant="contained">Create 2× upscale</Button>
+            )
           ) : null}
 
           {nodeId === "clean-redraw" ? (

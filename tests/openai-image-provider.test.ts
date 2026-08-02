@@ -58,6 +58,18 @@ describe("OpenAI image reconstruction provider", () => {
     }));
   });
 
+  it("requests a two-times AI scale improvement from the original image", async () => {
+    const { client, edit } = createClient();
+    const provider = createOpenAiImageProviderWithClient(client);
+
+    await provider.improveImageScale({ source: sourceImage, scale: 2 });
+
+    expect(edit).toHaveBeenCalledWith(expect.objectContaining({
+      image: sourceImage,
+      prompt: expect.stringContaining("2×"),
+    }));
+  });
+
   it("uses black line art for geometry and the original image for line-art colorization", async () => {
     const { client, edit } = createClient();
     const provider = createOpenAiImageProviderWithClient(client);
