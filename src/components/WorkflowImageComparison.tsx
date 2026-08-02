@@ -71,26 +71,26 @@ export function WorkflowImageComparison({
   const resetTransform = () => setTransform(initialTransform);
   const candidateWidth = outputDimensions?.width ?? activeReference.width;
   const candidateHeight = outputDimensions?.height ?? activeReference.height;
+  const referenceToggle = availableReferences.length > 1 ? (
+    <div aria-label="Reference image" className="workflow-image-comparison__reference-toggle" role="group">
+      {availableReferences.map((reference) => (
+        <Button
+          key={reference.id}
+          onClick={() => setReferenceId(reference.id)}
+          size="small"
+          variant={reference.id === activeReference.id ? "contained" : "outlined"}
+        >
+          {reference.label}
+        </Button>
+      ))}
+    </div>
+  ) : null;
 
   return (
     <section className="workflow-image-comparison" aria-label={`${outputLabel} comparison`}>
       <div className="workflow-image-comparison__toolbar">
         {primaryAction ? <div className="workflow-image-comparison__primary-action">{primaryAction}</div> : null}
         {toolbarControl ? <div className="workflow-image-comparison__toolbar-control">{toolbarControl}</div> : null}
-        {availableReferences.length > 1 ? (
-          <div aria-label="Reference image" className="workflow-image-comparison__reference-toggle" role="group">
-            {availableReferences.map((reference) => (
-              <Button
-                key={reference.id}
-                onClick={() => setReferenceId(reference.id)}
-                size="small"
-                variant={reference.id === activeReference.id ? "contained" : "outlined"}
-              >
-                {reference.label}
-              </Button>
-            ))}
-          </div>
-        ) : null}
         <div className="workflow-image-comparison__view-controls">
           <span>Linked views</span>
           <Button aria-label="Zoom out" disabled={transform.zoom <= 25} onClick={zoomOut} size="small" variant="outlined">-</Button>
@@ -122,6 +122,7 @@ export function WorkflowImageComparison({
           <small>{original.width} x {original.height} · {original.mimeType.replace("image/", "").toUpperCase()}</small>
         </figcaption>
         <div className="workflow-image-comparison__media">
+          {referenceToggle}
           <LinkedImagePreview
             ariaLabel={`${activeReference.label}: ${activeReference.filename}. Drag to pan and use the mouse wheel to zoom both images.`}
             height={activeReference.height}
