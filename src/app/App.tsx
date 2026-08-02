@@ -73,6 +73,7 @@ export function App() {
   const workerRef = useRef<ReconstructionWorkerClient | null>(null);
   const processingRequestRef = useRef(0);
   const processingStartedAtRef = useRef(0);
+  const workflowRunIdRef = useRef(0);
   const [targetColors, setTargetColors] = useState(12);
   const [mode, setMode] = useState<AppMode>("choose");
   const [appliedTargetColors, setAppliedTargetColors] = useState(12);
@@ -112,6 +113,7 @@ export function App() {
     image: AiGeneratedImage;
     label: string;
   }>();
+  const [isWorkflowRunActive, setIsWorkflowRunActive] = useState(false);
 
   useEffect(() => {
     const worker = new ReconstructionWorkerClient();
@@ -241,6 +243,9 @@ export function App() {
   ]);
 
   const handleFile = async (file: File) => {
+    workflowRunIdRef.current += 1;
+    setIsWorkflowRunActive(false);
+    setAiGenerationStage(undefined);
     setError(undefined);
     setStatus("decoding");
     setStatusText("Decoding locally");
@@ -394,6 +399,91 @@ export function App() {
       setStatusText("Could not use this candidate");
       setError(cause instanceof Error ? cause.message : "Could not prepare the selected image.");
     }
+  };
+
+  const handleRunReadyWorkflowNodes = async () => {
+    const inputSource = workflowSource ?? source;
+    if (!inputSource || busy || isWorkflowRunActive) return;
+
+    const { apiKey } = loadGeminiApiKey();
+    if (!apiKey) {
+      setAiError("Add your Gemini API key in settings before running workflow tasks.");
+      setIsGeminiSettingsOpen(true);
+      return;
+    }
+
+    const shouldAnalyze = !analysis;
+    const shouldRedraw = !cleanRedraw;
+    const shouldLineArt = !lineArt;
+    const shouldColorize = !colorReconstruction;
+    if (!(shouldAnalyze || shouldRedraw || shouldLineArt || shouldColorize)) {
+      setStatusText("All ready workflow tasks have completed.");
+      return;
+    }
+
+    const runId = workflowRunIdRef.current + 1;
+    workflowRunIdRef.current = runId;
+    const isCurrentRun = () => workflowRunIdRef.current === runId;
+    setAiError(undefined);
+    setIsWorkflowRunActive(true);
+
+    try {
+      const imageProvider = createGeminiImageProvider(apiKey);
+      const analysisProvider = createGeminiAnalysisProvider(apiKey);
+      let currentCleanRedraw = cleanRedraw;
+
+      if (shouldAnalyze) {
+        setAiGenerationStage("analysis");
+        const generatedAnalysis = await analysisProvider.analyzeImage({ source: inputSource.file });
+        if (!isCurrentRun()) return;
+        setAnalysis(generatedAnalysis);
+      }
+
+      if (shouldRedraw) {
+        setAiGenerationStage("redraw");
+        currentCleanRedraw = await imageProvider.createCleanRedraw({ source: inputSource.file });
+        if (!isCurrentRun()) return;
+        setCleanRedraw(currentCleanRedraw);
+      }
+
+      if (shouldLineArt) {
+        setAiGenerationStage("line-art");
+        const generatedLineArt = await imageProvider.createLineArt({ source: inputSource.file });
+        if (!isCurrentRun()) return;
+        setLineArt(generatedLineArt);
+      }
+
+      if (shouldColorize && currentCleanRedraw) {
+        setAiGenerationStage("color");
+        const generatedColors = await imageProvider.reconstructColors({
+          original: inputSource.file,
+          cleanRedraw: createImageFileFromGeneratedImage(
+            currentCleanRedraw,
+            `regiona-clean-redraw.${currentCleanRedraw.mimeType === "image/jpeg" ? "jpg" : "png"}`,
+          ),
+          palette: result?.palette.map((color) => color.hex),
+        });
+        if (!isCurrentRun()) return;
+        setColorReconstruction(generatedColors);
+      }
+    } catch (cause) {
+      if (isCurrentRun()) {
+        setAiError(cause instanceof Error ? cause.message : "Could not complete the workflow run. Please try again.");
+      }
+    } finally {
+      if (isCurrentRun()) {
+        setAiGenerationStage(undefined);
+        setIsWorkflowRunActive(false);
+      }
+    }
+  };
+
+  const handleCancelWorkflowRun = () => {
+    if (!isWorkflowRunActive) return;
+    workflowRunIdRef.current += 1;
+    setAiGenerationStage(undefined);
+    setIsWorkflowRunActive(false);
+    setStatusText("Workflow run cancelled");
   };
 
   const handleGenerateCleanRedraw = async () => {
@@ -630,11 +720,14 @@ export function App() {
       ) : mode === "workflow" ? (
         <>
           <WorkflowCanvas
+            isRunningWorkflow={isWorkflowRunActive}
             nodeStatuses={workflowNodeStatuses}
             sourceName={(workflowSource ?? source)?.filename}
             onFile={(file) => void handleFile(file)}
+            onCancelRun={handleCancelWorkflowRun}
             onInspectNode={setWorkflowInspectorNodeId}
             onOpenEditor={() => setMode("direct")}
+            onRunReadyNodes={() => void handleRunReadyWorkflowNodes()}
           />
           <WorkflowInspector
             analysis={analysis}

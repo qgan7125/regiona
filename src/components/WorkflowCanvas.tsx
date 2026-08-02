@@ -27,6 +27,9 @@ interface WorkflowCanvasProps {
   onFile: (file: File) => void;
   onOpenEditor: () => void;
   onInspectNode: (nodeId: WorkflowNodeId) => void;
+  onRunReadyNodes: () => void;
+  onCancelRun: () => void;
+  isRunningWorkflow: boolean;
 }
 
 export type WorkflowNodeId =
@@ -114,6 +117,9 @@ export function WorkflowCanvas({
   onFile,
   onOpenEditor,
   onInspectNode,
+  onRunReadyNodes,
+  onCancelRun,
+  isRunningWorkflow,
 }: WorkflowCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(createWorkflowNodes());
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -186,8 +192,12 @@ export function WorkflowCanvas({
           </Button>
         </Panel>
         <Panel position="top-right" className="workflow-panel workflow-panel--actions">
-          <Button disabled={!sourceName} variant="outlined">Run ready nodes</Button>
-          <Button disabled={!sourceName} variant="outlined">Run to Regiona vector</Button>
+          {isRunningWorkflow ? (
+            <Button color="inherit" onClick={onCancelRun} variant="outlined">Cancel current run</Button>
+          ) : (
+            <Button disabled={!sourceName} onClick={onRunReadyNodes} variant="outlined">Run ready nodes</Button>
+          )}
+          <Button disabled={!sourceName || isRunningWorkflow} onClick={onOpenEditor} variant="outlined">Run to Regiona vector</Button>
           <Button disabled={!sourceName} onClick={onOpenEditor} variant="contained">Open Regiona editor</Button>
         </Panel>
       </ReactFlow>
