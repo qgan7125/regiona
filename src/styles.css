@@ -14,6 +14,7 @@
   --accent-dark: #c84020;
   --focus: #117e69;
   --shadow: 0 14px 40px rgb(20 27 25 / 8%);
+  --app-header-height: 72px;
 }
 
 * {
@@ -60,13 +61,13 @@ button {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .mode-choice {
   display: grid;
   place-content: center;
-  min-height: calc(100vh - 4rem);
+  min-height: calc(100dvh - var(--app-header-height));
   max-width: 62rem;
   margin: auto;
   padding: 2rem;
@@ -78,7 +79,7 @@ button {
 .mode-choice button:hover, .mode-choice button:focus-visible { border-color: var(--accent); outline: none; }
 .mode-choice button span { color: var(--muted); line-height: 1.5; }
 
-.workflow-shell { height: calc(100vh - 4rem); min-height: 38rem; }
+.workflow-shell { height: calc(100dvh - var(--app-header-height)); min-height: 0; overflow: hidden; }
 .workflow-panel { width: min(21rem, calc(100vw - 2rem)); padding: 1rem; background: var(--surface-raised); border: 1px solid var(--line); }
 .workflow-panel h1 { margin: .25rem 0; font-size: 1.25rem; }
 .workflow-panel p { margin: .5rem 0 1rem; color: var(--muted); line-height: 1.45; }
@@ -91,7 +92,7 @@ button {
 .workflow-node--stale { opacity: .65; border-style: dashed; }
 .workflow-node--running { border-color: var(--accent); }
 .workflow-inspector-dialog .MuiPaper-root { max-height: min(88dvh, 58rem); color: var(--ink); background: var(--surface-raised); }
-.workflow-inspector { min-height: 18rem; }
+.workflow-inspector { min-height: 0; }
 .workflow-image-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .workflow-image-comparison figure { display: grid; gap: .75rem; min-width: 0; margin: 0; padding: 1rem; background: var(--surface); border: 1px solid var(--line); }
 .workflow-image-comparison figcaption { font-weight: 700; }
@@ -99,7 +100,7 @@ button {
 .workflow-image-comparison a { color: var(--accent-dark); font-size: .85rem; font-weight: 700; }
 .workflow-image-comparison__empty { display: grid; min-height: 14rem; margin: 0; place-items: center; color: var(--muted); text-align: center; }
 
-@media (max-width: 700px) { .mode-choice > div, .workflow-image-comparison { grid-template-columns: 1fr; } .workflow-shell { min-height: 32rem; } }
+@media (max-width: 700px) { .mode-choice > div, .workflow-image-comparison { grid-template-columns: 1fr; } }
 
 .app-header {
   position: sticky;
@@ -108,7 +109,7 @@ button {
   display: grid;
   grid-template-columns: minmax(200px, 1fr) auto minmax(300px, 1fr);
   align-items: center;
-  min-height: 72px;
+  min-height: var(--app-header-height);
   padding: 0 20px;
   color: #f7f8f4;
   background: var(--ink);
