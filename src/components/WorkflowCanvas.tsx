@@ -31,16 +31,18 @@ interface WorkflowNodeData extends Record<string, unknown> {
   title: string;
   detail: string;
   status: AiWorkflowNodeStatus | "awaiting-source";
+  acceptsInput: boolean;
+  providesOutput: boolean;
 }
 
 function WorkflowNode({ data }: NodeProps<Node<WorkflowNodeData>>) {
   return (
     <article className={`workflow-node workflow-node--${data.status}`}>
-      <Handle type="target" position={Position.Left} />
+      {data.acceptsInput && <Handle type="target" position={Position.Left} />}
       <strong>{data.title}</strong>
       <span>{data.detail}</span>
       <small>{data.status.replaceAll("-", " ")}</small>
-      <Handle type="source" position={Position.Right} />
+      {data.providesOutput && <Handle type="source" position={Position.Right} />}
     </article>
   );
 }
@@ -74,7 +76,13 @@ function createWorkflowNodes(sourceName?: string): Node<WorkflowNodeData>[] {
     type: "workflow",
     position: { x, y },
     deletable: false,
-    data: { title, detail, status: statuses.get(id) ?? "awaiting-source" },
+    data: {
+      title,
+      detail,
+      status: statuses.get(id) ?? "awaiting-source",
+      acceptsInput: id !== "start",
+      providesOutput: id !== "analyze",
+    },
   });
 
   return [
