@@ -385,12 +385,16 @@ h3 {
 .upload-control {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
+  width: 100%;
   margin: 18px 0;
   padding: 14px;
   cursor: pointer;
   background: var(--surface-raised);
   border: 1px dashed #aeb5b0;
+  text-align: left;
+  text-transform: none;
 }
 
 .upload-control:hover {
@@ -400,6 +404,23 @@ h3 {
 .upload-control.is-disabled {
   cursor: wait;
   opacity: 0.6;
+}
+
+.upload-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+
+.upload-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-copy small {
+  line-height: 1.45;
 }
 
 .control-group {
