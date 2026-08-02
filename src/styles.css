@@ -74,17 +74,17 @@ button {
 
 .mode-choice h1 { max-width: 35rem; }
 .mode-choice > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.mode-choice button { display: grid; gap: .75rem; padding: 1.5rem; text-align: left; background: var(--paper); border: 1px solid var(--line); cursor: pointer; }
+.mode-choice button { display: grid; gap: .75rem; padding: 1.5rem; text-align: left; background: var(--surface-raised); border: 1px solid var(--line); cursor: pointer; }
 .mode-choice button:hover, .mode-choice button:focus-visible { border-color: var(--accent); outline: none; }
 .mode-choice button span { color: var(--muted); line-height: 1.5; }
 
 .workflow-shell { height: calc(100vh - 4rem); min-height: 38rem; }
-.workflow-panel { width: min(21rem, calc(100vw - 2rem)); padding: 1rem; background: var(--paper); border: 1px solid var(--line); }
+.workflow-panel { width: min(21rem, calc(100vw - 2rem)); padding: 1rem; background: var(--surface-raised); border: 1px solid var(--line); }
 .workflow-panel h1 { margin: .25rem 0; font-size: 1.25rem; }
 .workflow-panel p { margin: .5rem 0 1rem; color: var(--muted); line-height: 1.45; }
 .workflow-panel input { display: none; }
 .workflow-panel--actions { display: grid; gap: .5rem; }
-.workflow-node { position: relative; display: grid; width: 12rem; gap: .35rem; padding: .9rem; background: var(--paper); border: 1px solid var(--line); }
+.workflow-node { position: relative; display: grid; width: 12rem; gap: .35rem; padding: .9rem; background: var(--surface-raised); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .workflow-node strong { font-size: .9rem; }
 .workflow-node span { color: var(--muted); font-size: .78rem; line-height: 1.35; }
 .workflow-node small { color: var(--accent); font-size: .68rem; text-transform: uppercase; }
@@ -113,7 +113,9 @@ button {
   justify-self: start;
   padding: 0;
   color: inherit;
-  background: transparent;
+  appearance: none;
+  border: 0;
+  background-color: transparent !important;
   cursor: pointer;
   gap: 10px;
   color: inherit;
