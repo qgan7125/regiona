@@ -15,6 +15,7 @@ import { PreviewWorkspace } from "../components/PreviewWorkspace";
 import { UploadPanel } from "../components/UploadPanel";
 import { WorkflowCanvas } from "../components/WorkflowCanvas";
 import { WorkflowInspector } from "../components/WorkflowInspector";
+import { VectorSourceConfirmationDialog } from "../components/VectorSourceConfirmationDialog";
 import type { WorkflowNodeId } from "../components/WorkflowCanvas";
 import { appendColorHistory, redoColorEdit, undoColorEdit } from "./editor-state";
 import { appendPickedColor } from "./palette-suggestions";
@@ -54,6 +55,20 @@ interface SourceState {
   pixels: Uint8ClampedArray;
 }
 
+async function createSourceState(file: File): Promise<SourceState> {
+  const decoded = await decodeImage(file);
+  return {
+    file,
+    filename: file.name,
+    url: URL.createObjectURL(file),
+    originalWidth: decoded.originalWidth,
+    originalHeight: decoded.originalHeight,
+    processedWidth: decoded.width,
+    processedHeight: decoded.height,
+    pixels: decoded.pixels,
+  };
+}
+
 export function App() {
   const workerRef = useRef<ReconstructionWorkerClient | null>(null);
   const processingRequestRef = useRef(0);
@@ -67,6 +82,7 @@ export function App() {
   const [appliedDespeckleEnabled, setAppliedDespeckleEnabled] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [source, setSource] = useState<SourceState>();
+  const [workflowSource, setWorkflowSource] = useState<SourceState>();
   const [result, setResult] = useState<ReconstructionResult>();
   const [colorHistory, setColorHistory] = useState<
     ReconstructionResult["regions"][]
@@ -91,6 +107,11 @@ export function App() {
   const [aiError, setAiError] = useState<string>();
   const [aiGenerationStage, setAiGenerationStage] = useState<AiGenerationStage>();
   const [workflowInspectorNodeId, setWorkflowInspectorNodeId] = useState<WorkflowNodeId>();
+  const [editorUsesWorkflowCandidate, setEditorUsesWorkflowCandidate] = useState(false);
+  const [pendingVectorCandidate, setPendingVectorCandidate] = useState<{
+    image: AiGeneratedImage;
+    label: string;
+  }>();
 
   useEffect(() => {
     const worker = new ReconstructionWorkerClient();
@@ -105,6 +126,12 @@ export function App() {
       if (source?.url) URL.revokeObjectURL(source.url);
     },
     [source?.url],
+  );
+  useEffect(
+    () => () => {
+      if (workflowSource?.url) URL.revokeObjectURL(workflowSource.url);
+    },
+    [workflowSource?.url],
   );
 
   const localBusy = status === "decoding" || status === "processing";
@@ -219,18 +246,10 @@ export function App() {
     setStatusText("Decoding locally");
 
     try {
-      const decoded = await decodeImage(file);
-      const url = URL.createObjectURL(file);
-      setSource({
-        file,
-        filename: file.name,
-        url,
-        originalWidth: decoded.originalWidth,
-        originalHeight: decoded.originalHeight,
-        processedWidth: decoded.width,
-        processedHeight: decoded.height,
-        pixels: decoded.pixels,
-      });
+      const nextSource = await createSourceState(file);
+      setSource(nextSource);
+      setWorkflowSource({ ...nextSource, url: URL.createObjectURL(file) });
+      setEditorUsesWorkflowCandidate(false);
       setAppliedTargetColors(targetColors);
       setAppliedRegionSimplification(regionSimplification);
       setAppliedDespeckleEnabled(despeckleEnabled);
@@ -344,8 +363,42 @@ export function App() {
     setGeneration((current) => current + 1);
   };
 
+  const handleUseWorkflowCandidate = async () => {
+    const candidate = pendingVectorCandidate;
+    if (!candidate) return;
+
+    setPendingVectorCandidate(undefined);
+    setStatus("decoding");
+    setStatusText(`Preparing ${candidate.label.toLowerCase()} for Regiona`);
+
+    try {
+      const extension = candidate.image.mimeType === "image/jpeg" ? "jpg" : "png";
+      const nextSource = await createSourceState(
+        createImageFileFromGeneratedImage(candidate.image, `regiona-${candidate.label.toLowerCase().replaceAll(" ", "-")}.${extension}`),
+      );
+      setSource(nextSource);
+      setEditorUsesWorkflowCandidate(true);
+      setAppliedTargetColors(targetColors);
+      setAppliedRegionSimplification(regionSimplification);
+      setAppliedDespeckleEnabled(despeckleEnabled);
+      setGeneration((current) => current + 1);
+      setResult(undefined);
+      setColorHistory([]);
+      setColorFuture([]);
+      setPickedColors([]);
+      resetSelectionHistory();
+      setError(undefined);
+      setMode("direct");
+    } catch (cause) {
+      setStatus("error");
+      setStatusText("Could not use this candidate");
+      setError(cause instanceof Error ? cause.message : "Could not prepare the selected image.");
+    }
+  };
+
   const handleGenerateCleanRedraw = async () => {
-    if (!source || busy) return;
+    const inputSource = mode === "workflow" ? workflowSource ?? source : source;
+    if (!inputSource || busy) return;
 
     const { apiKey } = loadGeminiApiKey();
     if (!apiKey) {
@@ -359,7 +412,7 @@ export function App() {
     try {
       const provider = createGeminiImageProvider(apiKey);
       const generated = await provider.createCleanRedraw({
-        source: source.file,
+        source: inputSource.file,
       });
       setCleanRedraw(generated);
       setColorReconstruction(undefined);
@@ -375,7 +428,8 @@ export function App() {
   };
 
   const handleGenerateLineArt = async () => {
-    if (!source || busy) return;
+    const inputSource = mode === "workflow" ? workflowSource ?? source : source;
+    if (!inputSource || busy) return;
 
     const { apiKey } = loadGeminiApiKey();
     if (!apiKey) {
@@ -388,7 +442,7 @@ export function App() {
     setAiGenerationStage("line-art");
     try {
       const provider = createGeminiImageProvider(apiKey);
-      setLineArt(await provider.createLineArt({ source: source.file }));
+      setLineArt(await provider.createLineArt({ source: inputSource.file }));
     } catch (cause) {
       setAiError(cause instanceof Error ? cause.message : "Could not generate black line art. Please try again.");
     } finally {
@@ -397,7 +451,8 @@ export function App() {
   };
 
   const handleAnalyzeImage = async () => {
-    if (!source || busy) return;
+    const inputSource = mode === "workflow" ? workflowSource ?? source : source;
+    if (!inputSource || busy) return;
 
     const { apiKey } = loadGeminiApiKey();
     if (!apiKey) {
@@ -410,7 +465,7 @@ export function App() {
     setAiGenerationStage("analysis");
     try {
       const provider = createGeminiAnalysisProvider(apiKey);
-      setAnalysis(await provider.analyzeImage({ source: source.file }));
+      setAnalysis(await provider.analyzeImage({ source: inputSource.file }));
     } catch (cause) {
       setAiError(cause instanceof Error ? cause.message : "Could not analyze this image. Please try again.");
     } finally {
@@ -419,7 +474,8 @@ export function App() {
   };
 
   const handleReconstructColors = async () => {
-    if (!source || !cleanRedraw || busy) return;
+    const inputSource = mode === "workflow" ? workflowSource ?? source : source;
+    if (!inputSource || !cleanRedraw || busy) return;
 
     const { apiKey } = loadGeminiApiKey();
     if (!apiKey) {
@@ -433,7 +489,7 @@ export function App() {
     try {
       const provider = createGeminiImageProvider(apiKey);
       const generated = await provider.reconstructColors({
-        original: source.file,
+        original: inputSource.file,
         cleanRedraw: createImageFileFromGeneratedImage(
           cleanRedraw,
           `regiona-clean-redraw.${cleanRedraw.mimeType === "image/jpeg" ? "jpg" : "png"}`,
@@ -453,7 +509,8 @@ export function App() {
   };
 
   const workflowNodeStatuses = useMemo(() => {
-    if (!source) {
+    const currentWorkflowSource = workflowSource ?? source;
+    if (!currentWorkflowSource) {
       return {
         start: "awaiting-source",
         analyze: "awaiting-source",
@@ -478,7 +535,7 @@ export function App() {
             : "idle",
       "regiona-vector": "ready",
     } as const;
-  }, [aiGenerationStage, analysis, cleanRedraw, colorReconstruction, lineArt, source]);
+  }, [aiGenerationStage, analysis, cleanRedraw, colorReconstruction, lineArt, source, workflowSource]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -574,7 +631,7 @@ export function App() {
         <>
           <WorkflowCanvas
             nodeStatuses={workflowNodeStatuses}
-            sourceName={source?.filename}
+            sourceName={(workflowSource ?? source)?.filename}
             onFile={(file) => void handleFile(file)}
             onInspectNode={setWorkflowInspectorNodeId}
             onOpenEditor={() => setMode("direct")}
@@ -587,11 +644,11 @@ export function App() {
             lineArt={lineArt}
             nodeId={workflowInspectorNodeId}
             runningStage={aiGenerationStage}
-            source={source ? {
-              filename: source.filename,
-              url: source.url,
-              originalWidth: source.originalWidth,
-              originalHeight: source.originalHeight,
+            source={workflowSource ?? source ? {
+              filename: (workflowSource ?? source)!.filename,
+              url: (workflowSource ?? source)!.url,
+              originalWidth: (workflowSource ?? source)!.originalWidth,
+              originalHeight: (workflowSource ?? source)!.originalHeight,
             } : undefined}
             onClose={() => setWorkflowInspectorNodeId(undefined)}
             onFile={(file) => void handleFile(file)}
@@ -600,6 +657,10 @@ export function App() {
             onRunCleanRedraw={() => void handleGenerateCleanRedraw()}
             onRunColorReconstruction={() => void handleReconstructColors()}
             onRunLineArt={() => void handleGenerateLineArt()}
+            onUseInRegionaVector={(image, label) => {
+              setWorkflowInspectorNodeId(undefined);
+              setPendingVectorCandidate({ image, label });
+            }}
           />
         </>
       ) : <div className="editor-grid">
@@ -628,8 +689,8 @@ export function App() {
           palette={result?.palette ?? []}
           regionCount={result?.regions.length ?? 0}
           busy={busy}
-          cleanRedraw={cleanRedraw}
-          colorReconstruction={colorReconstruction}
+          cleanRedraw={editorUsesWorkflowCandidate ? undefined : cleanRedraw}
+          colorReconstruction={editorUsesWorkflowCandidate ? undefined : colorReconstruction}
           aiGenerationStage={aiGenerationStage}
           aiError={aiError}
           onTargetColorsChange={setTargetColors}
@@ -670,6 +731,11 @@ export function App() {
           onRedoColor={handleRedoColor}
         />
       </div>}
+      <VectorSourceConfirmationDialog
+        candidate={pendingVectorCandidate}
+        onCancel={() => setPendingVectorCandidate(undefined)}
+        onConfirm={() => void handleUseWorkflowCandidate()}
+      />
     </div>
   );
 }

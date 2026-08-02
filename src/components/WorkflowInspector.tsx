@@ -37,6 +37,7 @@ interface WorkflowInspectorProps {
   onRunCleanRedraw: () => void;
   onRunLineArt: () => void;
   onRunColorReconstruction: () => void;
+  onUseInRegionaVector: (image: AiGeneratedImage, label: string) => void;
   onOpenEditor: () => void;
 }
 
@@ -82,6 +83,7 @@ export function WorkflowInspector({
   onRunCleanRedraw,
   onRunLineArt,
   onRunColorReconstruction,
+  onUseInRegionaVector,
   onOpenEditor,
 }: WorkflowInspectorProps) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -151,7 +153,7 @@ export function WorkflowInspector({
             <Button disabled={!hasSource || isRunning} onClick={onRunCleanRedraw} variant="contained">
               {runningStage === "redraw" ? "Generating…" : cleanRedraw ? "Regenerate clean redraw" : "Generate clean redraw"}
             </Button>
-            {source ? <WorkflowImageComparison original={source} output={cleanRedraw} outputLabel="Clean redraw" /> : null}
+            {source ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={source} output={cleanRedraw} outputLabel="Clean redraw" /> : null}
           </Stack>
         ) : null}
 
@@ -160,7 +162,7 @@ export function WorkflowInspector({
             <Button disabled={!hasSource || isRunning} onClick={onRunLineArt} variant="contained">
               {runningStage === "line-art" ? "Generating…" : lineArt ? "Regenerate black line art" : "Generate black line art"}
             </Button>
-            {source ? <WorkflowImageComparison original={source} output={lineArt} outputLabel="Black line art" /> : null}
+            {source ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={source} output={lineArt} outputLabel="Black line art" /> : null}
           </Stack>
         ) : null}
 
@@ -170,7 +172,7 @@ export function WorkflowInspector({
               {runningStage === "color" ? "Applying colors…" : colorReconstruction ? "Reapply source colors" : "Apply source colors"}
             </Button>
             {!cleanRedraw ? <Typography color="text.secondary" variant="body2">Generate a clean redraw first; this node combines it with the original source.</Typography> : null}
-            {source ? <WorkflowImageComparison original={source} output={colorReconstruction} outputLabel="Color reconstruction" /> : null}
+            {source ? <WorkflowImageComparison onUseInRegionaVector={onUseInRegionaVector} original={source} output={colorReconstruction} outputLabel="Color reconstruction" /> : null}
           </Stack>
         ) : null}
 
