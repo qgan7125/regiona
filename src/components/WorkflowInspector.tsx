@@ -1,4 +1,4 @@
-import { type ChangeEvent } from "react";
+import { type ChangeEvent, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -13,6 +13,7 @@ import type { AiGeneratedImage } from "../ai/openai-image-provider";
 import type { AiStructureAnalysis } from "../ai/structure-analysis";
 import type { WorkflowNodeId } from "./WorkflowCanvas";
 import { WorkflowImageComparison } from "./WorkflowImageComparison";
+import { copyPromptText } from "./prompt-copy";
 
 interface WorkflowSourceSummary {
   filename: string;
@@ -68,6 +69,28 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
   },
 };
 
+interface PromptCardProps {
+  label: string;
+  value: string;
+  copied: boolean;
+  copyUnavailable: boolean;
+  onCopy: () => void;
+}
+
+function PromptCard({ label, value, copied, copyUnavailable, onCopy }: PromptCardProps) {
+  return (
+    <Box className="workflow-prompt-card">
+      <div className="workflow-prompt-card__header">
+        <Typography color="text.secondary" variant="overline">{label}</Typography>
+        <Button aria-label={`Copy ${label}`} onClick={onCopy} size="small" variant="text">
+          {copied ? "Copied" : copyUnavailable ? "Copy unavailable" : "Copy"}
+        </Button>
+      </div>
+      <Typography className="workflow-prompt-card__content" variant="body2">{value}</Typography>
+    </Box>
+  );
+}
+
 export function WorkflowInspector({
   nodeId,
   source,
@@ -86,6 +109,9 @@ export function WorkflowInspector({
   onUseInRegionaVector,
   onOpenEditor,
 }: WorkflowInspectorProps) {
+  const [copiedPrompt, setCopiedPrompt] = useState<string>();
+  const [copyUnavailable, setCopyUnavailable] = useState(false);
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) onFile(file);
@@ -102,6 +128,15 @@ export function WorkflowInspector({
     height: source.originalHeight,
     mimeType: source.mimeType,
   } : undefined;
+
+  const handleCopyPrompt = async (label: string, value: string) => {
+    const copied = await copyPromptText(
+      value,
+      navigator.clipboard?.writeText.bind(navigator.clipboard),
+    );
+    setCopyUnavailable(!copied);
+    setCopiedPrompt(copied ? label : undefined);
+  };
 
   return (
     <Dialog className="workflow-inspector-dialog" fullWidth maxWidth="xl" onClose={onClose} open={Boolean(nodeId)} scroll="paper">
@@ -137,33 +172,44 @@ export function WorkflowInspector({
                 {runningStage === "analysis" ? "Analyzing..." : analysis ? "Analyze again" : "Analyze image"}
               </Button>
               {analysis ? (
-                <Stack spacing={1.5}>
-                  <Box>
-                    <Typography color="text.secondary" variant="overline">Recreation prompt</Typography>
-                    <Typography variant="body2">{analysis.recreationPrompt}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography color="text.secondary" variant="overline">Core prompt</Typography>
-                    <Typography variant="body2">{analysis.corePrompt}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography color="text.secondary" variant="overline">Negative prompt</Typography>
-                    <Typography variant="body2">{analysis.negativePrompt}</Typography>
-                  </Box>
-                  <Box>
+                <Stack className="workflow-analysis" spacing={1.5}>
+                  <PromptCard
+                    copied={copiedPrompt === "Recreation prompt"}
+                    copyUnavailable={copyUnavailable}
+                    label="Recreation prompt"
+                    onCopy={() => void handleCopyPrompt("Recreation prompt", analysis.recreationPrompt)}
+                    value={analysis.recreationPrompt}
+                  />
+                  <PromptCard
+                    copied={copiedPrompt === "Core prompt"}
+                    copyUnavailable={copyUnavailable}
+                    label="Core prompt"
+                    onCopy={() => void handleCopyPrompt("Core prompt", analysis.corePrompt)}
+                    value={analysis.corePrompt}
+                  />
+                  <PromptCard
+                    copied={copiedPrompt === "Negative prompt"}
+                    copyUnavailable={copyUnavailable}
+                    label="Negative prompt"
+                    onCopy={() => void handleCopyPrompt("Negative prompt", analysis.negativePrompt)}
+                    value={analysis.negativePrompt}
+                  />
+                  <Box className="workflow-analysis-card">
                     <Typography color="text.secondary" variant="overline">Style tags</Typography>
                     <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75 }}>
                       {analysis.styleTags.map((tag) => <Chip key={tag} label={tag} size="small" />)}
                     </Stack>
                   </Box>
-                  <Box>
+                  <Box className="workflow-analysis-card">
                     <Typography color="text.secondary" variant="overline">Analysis</Typography>
                     <Box component="ol" sx={{ m: 0, pl: 2.5 }}>
                       {analysis.analysis.map((sentence, index) => <li key={`${index}-${sentence}`}><Typography variant="body2">{sentence}</Typography></li>)}
                     </Box>
                   </Box>
-                  <Typography color="text.secondary" variant="body2">{analysis.variantOffer}</Typography>
-                  <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1.5 }}>
+                  <Box className="workflow-analysis-card">
+                    <Typography color="text.secondary" variant="body2">{analysis.variantOffer}</Typography>
+                  </Box>
+                  <Box className="workflow-analysis-card">
                     <Typography variant="subtitle2">Regiona reconstruction advice</Typography>
                     <Typography color="text.secondary" variant="body2">{analysis.summary}</Typography>
                     <Typography color="text.secondary" variant="body2">{analysis.subjectDescription}</Typography>
