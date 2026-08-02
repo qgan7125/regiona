@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type ChangeEvent } from "react";
+import { useCallback, useEffect, type ChangeEvent, type MouseEvent } from "react";
 import {
   addEdge,
   Background,
@@ -23,9 +23,19 @@ import "@xyflow/react/dist/style.css";
 
 interface WorkflowCanvasProps {
   sourceName?: string;
+  nodeStatuses?: Partial<Record<WorkflowNodeId, AiWorkflowNodeStatus | "awaiting-source">>;
   onFile: (file: File) => void;
   onOpenEditor: () => void;
+  onInspectNode: (nodeId: WorkflowNodeId) => void;
 }
+
+export type WorkflowNodeId =
+  | "start"
+  | "analyze"
+  | "clean-redraw"
+  | "black-line-art"
+  | "apply-source-colors"
+  | "regiona-vector";
 
 interface WorkflowNodeData extends Record<string, unknown> {
   title: string;
@@ -60,7 +70,10 @@ const initialEdges: Edge[] = [
   { id: "color-vector", source: "apply-source-colors", target: "regiona-vector" },
 ];
 
-function createWorkflowNodes(sourceName?: string): Node<WorkflowNodeData>[] {
+function createWorkflowNodes(
+  sourceName?: string,
+  nodeStatuses?: WorkflowCanvasProps["nodeStatuses"],
+): Node<WorkflowNodeData>[] {
   const statuses = new Map<string, AiWorkflowNodeStatus | "awaiting-source">(
     createAiWorkflowState(sourceName ?? "pending-source").nodes
       .map((node) => [node.id, sourceName ? node.status : "awaiting-source"]),
@@ -79,7 +92,7 @@ function createWorkflowNodes(sourceName?: string): Node<WorkflowNodeData>[] {
     data: {
       title,
       detail,
-      status: statuses.get(id) ?? "awaiting-source",
+      status: nodeStatuses?.[id as WorkflowNodeId] ?? statuses.get(id) ?? "awaiting-source",
       acceptsInput: id !== "start",
       providesOutput: id !== "analyze",
     },
@@ -95,19 +108,25 @@ function createWorkflowNodes(sourceName?: string): Node<WorkflowNodeData>[] {
   ];
 }
 
-export function WorkflowCanvas({ sourceName, onFile, onOpenEditor }: WorkflowCanvasProps) {
+export function WorkflowCanvas({
+  sourceName,
+  nodeStatuses,
+  onFile,
+  onOpenEditor,
+  onInspectNode,
+}: WorkflowCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(createWorkflowNodes());
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   useEffect(() => {
     const updatedNodeData = new Map(
-      createWorkflowNodes(sourceName).map((node) => [node.id, node.data]),
+      createWorkflowNodes(sourceName, nodeStatuses).map((node) => [node.id, node.data]),
     );
     setNodes((current) => current.map((node) => ({
       ...node,
       data: updatedNodeData.get(node.id) ?? node.data,
     })));
-  }, [setNodes, sourceName]);
+  }, [nodeStatuses, setNodes, sourceName]);
 
   const onConnect = useCallback((connection: Connection) => {
     setEdges((current) => addEdge(connection, current));
@@ -125,6 +144,10 @@ export function WorkflowCanvas({ sourceName, onFile, onOpenEditor }: WorkflowCan
     && connection.target !== "start",
   ), []);
 
+  const handleNodeClick = useCallback((_event: MouseEvent, node: Node<WorkflowNodeData>) => {
+    onInspectNode(node.id as WorkflowNodeId);
+  }, [onInspectNode]);
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) onFile(file);
@@ -140,6 +163,7 @@ export function WorkflowCanvas({ sourceName, onFile, onOpenEditor }: WorkflowCan
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onReconnect={onReconnect}
+        onNodeClick={handleNodeClick}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         fitView

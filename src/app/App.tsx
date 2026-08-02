@@ -1,17 +1,21 @@
-import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import { type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   createImageFileFromGeneratedImage,
   type AiGeneratedImage,
 } from "../ai/openai-image-provider";
 import { createGeminiImageProvider } from "../ai/gemini-image-provider";
+import { createGeminiAnalysisProvider } from "../ai/gemini-analysis-provider";
 import { loadGeminiApiKey } from "../ai/gemini-key-store";
+import type { AiStructureAnalysis } from "../ai/structure-analysis";
 import { AppHeader } from "../components/AppHeader";
 import { Inspector } from "../components/Inspector";
 import { GeminiSettingsDialog } from "../components/GeminiSettingsDialog";
 import { PreviewWorkspace } from "../components/PreviewWorkspace";
 import { UploadPanel } from "../components/UploadPanel";
 import { WorkflowCanvas } from "../components/WorkflowCanvas";
+import { WorkflowInspector } from "../components/WorkflowInspector";
+import type { WorkflowNodeId } from "../components/WorkflowCanvas";
 import { appendColorHistory, redoColorEdit, undoColorEdit } from "./editor-state";
 import { appendPickedColor } from "./palette-suggestions";
 import {
@@ -37,6 +41,7 @@ import { ReconstructionWorkerClient } from "../workers/worker-client";
 
 type WorkStatus = "idle" | "decoding" | "processing" | "ready" | "error";
 type AppMode = "choose" | "direct" | "workflow";
+type AiGenerationStage = "analysis" | "redraw" | "line-art" | "color";
 
 interface SourceState {
   file: File;
@@ -80,9 +85,12 @@ export function App() {
   const [error, setError] = useState<string>();
   const [isGeminiSettingsOpen, setIsGeminiSettingsOpen] = useState(false);
   const [cleanRedraw, setCleanRedraw] = useState<AiGeneratedImage>();
+  const [lineArt, setLineArt] = useState<AiGeneratedImage>();
   const [colorReconstruction, setColorReconstruction] = useState<AiGeneratedImage>();
+  const [analysis, setAnalysis] = useState<AiStructureAnalysis>();
   const [aiError, setAiError] = useState<string>();
-  const [aiGenerationStage, setAiGenerationStage] = useState<"redraw" | "color">();
+  const [aiGenerationStage, setAiGenerationStage] = useState<AiGenerationStage>();
+  const [workflowInspectorNodeId, setWorkflowInspectorNodeId] = useState<WorkflowNodeId>();
 
   useEffect(() => {
     const worker = new ReconstructionWorkerClient();
@@ -233,7 +241,9 @@ export function App() {
       setPickedColors([]);
       resetSelectionHistory();
       setCleanRedraw(undefined);
+      setLineArt(undefined);
       setColorReconstruction(undefined);
+      setAnalysis(undefined);
       setAiError(undefined);
     } catch (cause) {
       setStatus("error");
@@ -364,6 +374,50 @@ export function App() {
     }
   };
 
+  const handleGenerateLineArt = async () => {
+    if (!source || busy) return;
+
+    const { apiKey } = loadGeminiApiKey();
+    if (!apiKey) {
+      setAiError("Add your Gemini API key in settings before generating black line art.");
+      setIsGeminiSettingsOpen(true);
+      return;
+    }
+
+    setAiError(undefined);
+    setAiGenerationStage("line-art");
+    try {
+      const provider = createGeminiImageProvider(apiKey);
+      setLineArt(await provider.createLineArt({ source: source.file }));
+    } catch (cause) {
+      setAiError(cause instanceof Error ? cause.message : "Could not generate black line art. Please try again.");
+    } finally {
+      setAiGenerationStage(undefined);
+    }
+  };
+
+  const handleAnalyzeImage = async () => {
+    if (!source || busy) return;
+
+    const { apiKey } = loadGeminiApiKey();
+    if (!apiKey) {
+      setAiError("Add your Gemini API key in settings before analyzing this image.");
+      setIsGeminiSettingsOpen(true);
+      return;
+    }
+
+    setAiError(undefined);
+    setAiGenerationStage("analysis");
+    try {
+      const provider = createGeminiAnalysisProvider(apiKey);
+      setAnalysis(await provider.analyzeImage({ source: source.file }));
+    } catch (cause) {
+      setAiError(cause instanceof Error ? cause.message : "Could not analyze this image. Please try again.");
+    } finally {
+      setAiGenerationStage(undefined);
+    }
+  };
+
   const handleReconstructColors = async () => {
     if (!source || !cleanRedraw || busy) return;
 
@@ -397,6 +451,34 @@ export function App() {
       setAiGenerationStage(undefined);
     }
   };
+
+  const workflowNodeStatuses = useMemo(() => {
+    if (!source) {
+      return {
+        start: "awaiting-source",
+        analyze: "awaiting-source",
+        "clean-redraw": "awaiting-source",
+        "black-line-art": "awaiting-source",
+        "apply-source-colors": "awaiting-source",
+        "regiona-vector": "awaiting-source",
+      } as const;
+    }
+
+    return {
+      start: "complete",
+      analyze: aiGenerationStage === "analysis" ? "running" : analysis ? "complete" : "ready",
+      "clean-redraw": aiGenerationStage === "redraw" ? "running" : cleanRedraw ? "complete" : "ready",
+      "black-line-art": aiGenerationStage === "line-art" ? "running" : lineArt ? "complete" : "ready",
+      "apply-source-colors": aiGenerationStage === "color"
+        ? "running"
+        : colorReconstruction
+          ? "complete"
+          : cleanRedraw
+            ? "ready"
+            : "idle",
+      "regiona-vector": "ready",
+    } as const;
+  }, [aiGenerationStage, analysis, cleanRedraw, colorReconstruction, lineArt, source]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -439,6 +521,10 @@ export function App() {
         status={aiGenerationStage ? "processing" : status}
         statusText={aiGenerationStage === "color"
           ? "Applying original colors to AI redraw"
+          : aiGenerationStage === "line-art"
+            ? "Generating black line art"
+            : aiGenerationStage === "analysis"
+              ? "Analyzing image structure"
           : aiGenerationStage === "redraw"
             ? "Generating AI clean redraw"
             : statusText}
@@ -485,11 +571,37 @@ export function App() {
           </div>
         </main>
       ) : mode === "workflow" ? (
-        <WorkflowCanvas
-          sourceName={source?.filename}
-          onFile={(file) => void handleFile(file)}
-          onOpenEditor={() => setMode("direct")}
-        />
+        <>
+          <WorkflowCanvas
+            nodeStatuses={workflowNodeStatuses}
+            sourceName={source?.filename}
+            onFile={(file) => void handleFile(file)}
+            onInspectNode={setWorkflowInspectorNodeId}
+            onOpenEditor={() => setMode("direct")}
+          />
+          <WorkflowInspector
+            analysis={analysis}
+            cleanRedraw={cleanRedraw}
+            colorReconstruction={colorReconstruction}
+            error={aiError}
+            lineArt={lineArt}
+            nodeId={workflowInspectorNodeId}
+            runningStage={aiGenerationStage}
+            source={source ? {
+              filename: source.filename,
+              url: source.url,
+              originalWidth: source.originalWidth,
+              originalHeight: source.originalHeight,
+            } : undefined}
+            onClose={() => setWorkflowInspectorNodeId(undefined)}
+            onFile={(file) => void handleFile(file)}
+            onOpenEditor={() => setMode("direct")}
+            onRunAnalyze={() => void handleAnalyzeImage()}
+            onRunCleanRedraw={() => void handleGenerateCleanRedraw()}
+            onRunColorReconstruction={() => void handleReconstructColors()}
+            onRunLineArt={() => void handleGenerateLineArt()}
+          />
+        </>
       ) : <div className="editor-grid">
         <UploadPanel
           source={

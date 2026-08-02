@@ -29,7 +29,7 @@ interface UploadPanelProps {
   busy: boolean;
   cleanRedraw?: AiGeneratedImage;
   colorReconstruction?: AiGeneratedImage;
-  aiGenerationStage?: "redraw" | "color";
+  aiGenerationStage?: "analysis" | "redraw" | "line-art" | "color";
   aiError?: string;
   onTargetColorsChange: (value: number) => void;
   onRegionSimplificationChange: (value: RegionSimplification) => void;
