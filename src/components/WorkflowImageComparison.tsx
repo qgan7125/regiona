@@ -3,7 +3,6 @@ import Button from "@mui/material/Button";
 
 import type { AiGeneratedImage } from "../ai/openai-image-provider";
 import type { ComparisonTransform } from "../preview/comparison-camera";
-import { ImageComparisonReveal } from "./image-comparison-reveal";
 import { LinkedImagePreview } from "./LinkedImagePreview";
 
 interface WorkflowImageComparisonProps {
@@ -13,7 +12,6 @@ interface WorkflowImageComparisonProps {
   outputLabel: string;
   primaryAction?: ReactNode;
   toolbarControl?: ReactNode;
-  comparisonVariant?: "side-by-side" | "reveal";
   onUseInRegionaVector: (image: AiGeneratedImage, label: string) => void;
 }
 
@@ -39,7 +37,6 @@ export function WorkflowImageComparison({
   outputLabel,
   primaryAction,
   toolbarControl,
-  comparisonVariant = "side-by-side",
   onUseInRegionaVector,
 }: WorkflowImageComparisonProps) {
   const extension = output?.mimeType === "image/jpeg" ? "jpg" : "png";
@@ -119,31 +116,6 @@ export function WorkflowImageComparison({
           </div>
         ) : null}
       </div>
-      {comparisonVariant === "reveal" && output ? (
-        <figure className="workflow-image-comparison__reveal">
-          <figcaption>
-            <span>{activeReference.label} / {outputLabel}</span>
-            <small>{activeReference.width} x {activeReference.height} Â· drag the divider to reveal the difference</small>
-          </figcaption>
-          <div className="workflow-image-comparison__media workflow-image-comparison__media--reveal">
-            {referenceToggle}
-            <ImageComparisonReveal
-              onOutputLoad={handleOutputLoad}
-              onTransformChange={setTransform}
-              original={activeReference}
-              output={{
-                filename: outputLabel,
-                height: candidateHeight,
-                url: output.dataUrl,
-                width: candidateWidth,
-              }}
-              outputLabel={outputLabel}
-              transform={transform}
-            />
-          </div>
-        </figure>
-      ) : (
-        <>
       <figure>
         <figcaption>
           <span>{activeReference.label}</span>
@@ -180,8 +152,6 @@ export function WorkflowImageComparison({
           </div>
         ) : <p className="workflow-image-comparison__empty">Generate a candidate to compare it with the original.</p>}
       </figure>
-        </>
-      )}
     </section>
   );
 }

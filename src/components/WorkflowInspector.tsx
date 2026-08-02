@@ -252,7 +252,6 @@ export function WorkflowInspector({
           {nodeId === "image-scale" ? (
             comparisonOriginal ? (
               <WorkflowImageComparison
-                comparisonVariant="reveal"
                 onUseInRegionaVector={onUseInRegionaVector}
                 original={comparisonOriginal}
                 output={imageScale}
