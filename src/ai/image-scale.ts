@@ -11,6 +11,10 @@ export interface UpscaleDimensions {
   wasLimited: boolean;
 }
 
+export function describeUpscaleCandidate(scale: number) {
+  return `${scale}× high-resolution candidate`;
+}
+
 export function calculateUpscaleDimensions({
   width,
   height,

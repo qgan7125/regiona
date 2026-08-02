@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateUpscaleDimensions } from "../src/ai/image-scale";
+import { calculateUpscaleDimensions, describeUpscaleCandidate } from "../src/ai/image-scale";
 
 describe("calculateUpscaleDimensions", () => {
   it("uses the selected scale to produce deterministic target pixels", () => {
@@ -19,5 +19,9 @@ describe("calculateUpscaleDimensions", () => {
   it("rejects unsupported scale choices", () => {
     expect(() => calculateUpscaleDimensions({ width: 640, height: 480, scale: 5 }))
       .toThrow("between 2× and 4×");
+  });
+
+  it("describes the currently selected upscale factor", () => {
+    expect(describeUpscaleCandidate(4)).toBe("4× high-resolution candidate");
   });
 });

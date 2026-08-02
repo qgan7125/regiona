@@ -13,6 +13,7 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
 
+import { describeUpscaleCandidate } from "../ai/image-scale";
 import type { AiGeneratedImage } from "../ai/openai-image-provider";
 import type { AiStructureAnalysis } from "../ai/structure-analysis";
 import type { WorkflowNodeId } from "./WorkflowCanvas";
@@ -63,7 +64,7 @@ const details: Record<WorkflowNodeId, { title: string; description: string }> = 
   },
   "image-scale": {
     title: "AI upscale",
-    description: "Create a 2× high-resolution candidate while preserving the source composition and details.",
+    description: "Create a high-resolution candidate while preserving the source composition and details.",
   },
   "clean-redraw": {
     title: "AI clean redraw",
@@ -132,7 +133,14 @@ export function WorkflowInspector({
     event.target.value = "";
   };
 
-  const detail = nodeId ? details[nodeId] : undefined;
+  const detail = nodeId
+    ? nodeId === "image-scale"
+      ? {
+        ...details[nodeId],
+        description: `Create a ${describeUpscaleCandidate(imageScaleFactor)} while preserving the source composition and details.`,
+      }
+      : details[nodeId]
+    : undefined;
   const hasSource = Boolean(source);
   const isRunning = Boolean(runningStage);
   const comparisonOriginal = source ? {

@@ -799,6 +799,7 @@ export function App() {
       ) : mode === "workflow" ? (
         <>
           <WorkflowCanvas
+            imageScaleFactor={imageScaleFactor}
             isRunningWorkflow={isWorkflowRunActive}
             nodeStatuses={workflowNodeStatuses}
             sourceName={(workflowSource ?? source)?.filename}

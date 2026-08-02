@@ -17,12 +17,14 @@ import {
 } from "@xyflow/react";
 import Button from "@mui/material/Button";
 
+import { describeUpscaleCandidate } from "../ai/image-scale";
 import { createAiWorkflowState, type AiWorkflowNodeStatus } from "../ai/workflow-state";
 
 import "@xyflow/react/dist/style.css";
 
 interface WorkflowCanvasProps {
   sourceName?: string;
+  imageScaleFactor: number;
   nodeStatuses?: Partial<Record<WorkflowNodeId, AiWorkflowNodeStatus | "awaiting-source">>;
   onFile: (file: File) => void;
   onOpenEditor: () => void;
@@ -78,6 +80,7 @@ const initialEdges: Edge[] = [
 function createWorkflowNodes(
   sourceName?: string,
   nodeStatuses?: WorkflowCanvasProps["nodeStatuses"],
+  imageScaleFactor = 2,
 ): Node<WorkflowNodeData>[] {
   const statuses = new Map<string, AiWorkflowNodeStatus | "awaiting-source">(
     createAiWorkflowState(sourceName ?? "pending-source").nodes
@@ -106,7 +109,7 @@ function createWorkflowNodes(
   return [
     node("start", "Start", sourceName ?? "Upload source image", 0, 260),
     node("analyze", "Analyze", "Forensic reverse prompt", 300, 0),
-    node("image-scale", "AI upscale", "2× high-resolution candidate", 300, 85),
+    node("image-scale", "AI upscale", describeUpscaleCandidate(imageScaleFactor), 300, 85),
     node("clean-redraw", "AI clean redraw", "Clean geometry candidate", 300, 170),
     node("black-line-art", "Black line art", "Black lines on white", 300, 340),
     node("colorize-line-art", "Colorize line art", "Black line art → limited colors", 600, 340),
@@ -116,6 +119,7 @@ function createWorkflowNodes(
 
 export function WorkflowCanvas({
   sourceName,
+  imageScaleFactor,
   nodeStatuses,
   onFile,
   onOpenEditor,
@@ -129,13 +133,13 @@ export function WorkflowCanvas({
 
   useEffect(() => {
     const updatedNodeData = new Map(
-      createWorkflowNodes(sourceName, nodeStatuses).map((node) => [node.id, node.data]),
+      createWorkflowNodes(sourceName, nodeStatuses, imageScaleFactor).map((node) => [node.id, node.data]),
     );
     setNodes((current) => current.map((node) => ({
       ...node,
       data: updatedNodeData.get(node.id) ?? node.data,
     })));
-  }, [nodeStatuses, setNodes, sourceName]);
+  }, [imageScaleFactor, nodeStatuses, setNodes, sourceName]);
 
   const onConnect = useCallback((connection: Connection) => {
     setEdges((current) => addEdge(connection, current));
