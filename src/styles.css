@@ -100,10 +100,13 @@ button {
 .workflow-prompt-card__content { white-space: pre-wrap; overflow-wrap: anywhere; }
 .workflow-image-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .workflow-image-comparison__toolbar { display: flex; grid-column: 1 / -1; align-items: center; gap: .75rem; min-width: 0; padding: .5rem .75rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); font-size: .82rem; }
-.workflow-image-comparison__primary-action { min-width: 0; margin-right: auto; }
+.workflow-image-comparison__primary-action { min-width: 0; }
 .workflow-image-comparison__primary-action .MuiButton-root { white-space: nowrap; }
-.workflow-image-comparison__view-controls, .workflow-image-comparison__actions { display: flex; align-items: center; gap: .5rem; }
-.workflow-image-comparison__view-controls { flex: 0 0 auto; }
+.workflow-image-comparison__toolbar-control, .workflow-image-comparison__view-controls, .workflow-image-comparison__actions { display: flex; align-items: center; gap: .5rem; }
+.workflow-image-comparison__toolbar-control { flex: 0 1 12rem; min-width: 9rem; }
+.workflow-image-comparison__toolbar-control > span { flex: 0 0 auto; white-space: nowrap; }
+.workflow-image-comparison__toolbar-control .MuiSlider-root { min-width: 0; }
+.workflow-image-comparison__view-controls { flex: 0 0 auto; margin-left: auto; }
 .workflow-image-comparison__view-controls output { min-width: 3.25rem; color: var(--ink); text-align: center; }
 .workflow-image-comparison figure { display: grid; gap: .75rem; min-width: 0; margin: 0; padding: 1rem; background: var(--surface); border: 1px solid var(--line); }
 .workflow-image-comparison figcaption { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .5rem; font-weight: 700; }
@@ -114,6 +117,7 @@ button {
 .linked-image-preview canvas { display: block; }
 .workflow-image-comparison__actions a { display: inline-flex; align-items: center; min-height: 2rem; color: var(--accent-dark); font-size: .85rem; font-weight: 700; }
 .workflow-image-comparison__empty { display: grid; min-height: 14rem; margin: 0; place-items: center; color: var(--muted); text-align: center; }
+.workflow-inline-notification { margin: 0; }
 
 @media (max-width: 700px) { .mode-choice > div, .workflow-image-comparison { grid-template-columns: 1fr; } .workflow-image-comparison__toolbar { flex-wrap: wrap; } .workflow-image-comparison__actions { margin-left: auto; } }
 

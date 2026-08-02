@@ -1,5 +1,6 @@
 import { type ChangeEvent, useState } from "react";
 import Box from "@mui/material/Box";
+import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
@@ -272,27 +273,30 @@ export function WorkflowInspector({
           {nodeId === "colorize-line-art" ? (
             comparisonOriginal ? (
               <>
-                {!lineArt ? <Typography color="text.secondary" variant="body2">Generate black line art first. The black-and-white line art is the working image; your uploaded source remains the color reference.</Typography> : null}
-                <Box className="workflow-analysis-card">
-                  <Typography variant="subtitle2">Color count</Typography>
-                  <Typography color="text.secondary" variant="body2">
-                    Use {colorCount} flat fill colors. Black linework and the white background remain unchanged.
-                  </Typography>
-                  <Slider
-                    aria-label="Line-art color count"
-                    disabled={!lineArt || isRunning}
-                    max={32}
-                    min={2}
-                    onChange={(_event, value) => onColorCountChange(Number(value))}
-                    value={colorCount}
-                    valueLabelDisplay="auto"
-                  />
-                </Box>
+                {!lineArt ? (
+                  <Alert className="workflow-inline-notification" severity="info" variant="outlined">
+                    Generate black line art first. It becomes the black-and-white working image; your upload stays available only as the color reference.
+                  </Alert>
+                ) : null}
                 <WorkflowImageComparison
                   onUseInRegionaVector={onUseInRegionaVector}
                   original={comparisonOriginal}
                   output={colorizedLineArt}
                   outputLabel="Colorized line art"
+                  toolbarControl={
+                    <>
+                      <span>Fill colors</span>
+                      <Slider
+                        aria-label="Line-art color count"
+                        disabled={!lineArt || isRunning}
+                        max={32}
+                        min={2}
+                        onChange={(_event, value) => onColorCountChange(Number(value))}
+                        value={colorCount}
+                        valueLabelDisplay="auto"
+                      />
+                    </>
+                  }
                   primaryAction={
                     <Button disabled={!lineArt || isRunning} onClick={onRunColorizeLineArt} size="small" variant="contained">
                       {runningStage === "color" ? "Colorizing..." : colorizedLineArt ? `Recolorize with ${colorCount} colors` : `Colorize with ${colorCount} colors`}

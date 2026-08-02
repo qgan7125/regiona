@@ -10,6 +10,7 @@ interface WorkflowImageComparisonProps {
   output?: AiGeneratedImage;
   outputLabel: string;
   primaryAction?: ReactNode;
+  toolbarControl?: ReactNode;
   onUseInRegionaVector: (image: AiGeneratedImage, label: string) => void;
 }
 
@@ -23,6 +24,7 @@ export function WorkflowImageComparison({
   output,
   outputLabel,
   primaryAction,
+  toolbarControl,
   onUseInRegionaVector,
 }: WorkflowImageComparisonProps) {
   const extension = output?.mimeType === "image/jpeg" ? "jpg" : "png";
@@ -56,6 +58,7 @@ export function WorkflowImageComparison({
     <section className="workflow-image-comparison" aria-label={`${outputLabel} comparison`}>
       <div className="workflow-image-comparison__toolbar">
         {primaryAction ? <div className="workflow-image-comparison__primary-action">{primaryAction}</div> : null}
+        {toolbarControl ? <div className="workflow-image-comparison__toolbar-control">{toolbarControl}</div> : null}
         <div className="workflow-image-comparison__view-controls">
           <span>Linked views</span>
           <Button aria-label="Zoom out" disabled={transform.zoom <= 25} onClick={zoomOut} size="small" variant="outlined">-</Button>
