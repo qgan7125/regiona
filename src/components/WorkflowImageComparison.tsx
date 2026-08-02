@@ -83,7 +83,7 @@ export function WorkflowImageComparison({
       </div>
       <figure>
         <figcaption>
-          Original
+          <span>Original</span>
           <small>{original.width} x {original.height} · {original.mimeType.replace("image/", "").toUpperCase()}</small>
         </figcaption>
         <div className="workflow-image-comparison__media">
@@ -99,7 +99,7 @@ export function WorkflowImageComparison({
       </figure>
       <figure>
         <figcaption>
-          {outputLabel}
+          <span>{outputLabel}</span>
           {outputDimensions ? <small>{outputDimensions.width} x {outputDimensions.height} · {output?.mimeType.replace("image/", "").toUpperCase()}</small> : null}
         </figcaption>
         {output ? (

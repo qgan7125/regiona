@@ -6,7 +6,6 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
-import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -111,12 +110,12 @@ export function WorkflowInspector({
           Workflow node
         </Typography>
         <Typography component="h2" variant="h5">{detail?.title}</Typography>
+        <Typography className="workflow-inspector__description" color="text.secondary" variant="body2">
+          {detail?.description}
+        </Typography>
       </DialogTitle>
       <DialogContent dividers>
         <Stack className="workflow-inspector" spacing={2}>
-          <Typography color="text.secondary">{detail?.description}</Typography>
-          <Divider />
-
           {nodeId === "start" ? (
             <Stack spacing={1.5}>
               {source ? (

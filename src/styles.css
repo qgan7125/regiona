@@ -93,6 +93,7 @@ button {
 .workflow-node--running { border-color: var(--accent); }
 .workflow-inspector-dialog .MuiPaper-root { max-height: min(88dvh, 58rem); color: var(--ink); background: var(--surface-raised); }
 .workflow-inspector { min-height: 0; }
+.workflow-inspector__description { margin-top: .35rem !important; max-width: 60rem; }
 .workflow-image-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .workflow-image-comparison__toolbar { display: flex; grid-column: 1 / -1; align-items: center; gap: .75rem; min-width: 0; padding: .5rem .75rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); font-size: .82rem; }
 .workflow-image-comparison__primary-action { min-width: 0; margin-right: auto; }
@@ -101,8 +102,8 @@ button {
 .workflow-image-comparison__view-controls { flex: 0 0 auto; }
 .workflow-image-comparison__view-controls output { min-width: 3.25rem; color: var(--ink); text-align: center; }
 .workflow-image-comparison figure { display: grid; gap: .75rem; min-width: 0; margin: 0; padding: 1rem; background: var(--surface); border: 1px solid var(--line); }
-.workflow-image-comparison figcaption { font-weight: 700; }
-.workflow-image-comparison figcaption small { display: block; margin-top: .25rem; color: var(--muted); font-size: .78rem; font-weight: 400; }
+.workflow-image-comparison figcaption { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .5rem; font-weight: 700; }
+.workflow-image-comparison figcaption small { color: var(--muted); font-size: .78rem; font-weight: 400; }
 .workflow-image-comparison__media { display: grid; width: 100%; min-width: 0; height: min(55dvh, 32rem); min-height: 16rem; place-items: start center; overflow: auto; background: #f4f5f2; }
 .workflow-image-comparison img { object-fit: contain; background: #f4f5f2; }
 .linked-image-preview { width: 100%; height: 100%; min-width: 0; min-height: 0; }
