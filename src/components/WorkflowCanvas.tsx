@@ -1,11 +1,17 @@
-import { useMemo, type ChangeEvent } from "react";
+import { useCallback, useEffect, type ChangeEvent } from "react";
 import {
+  addEdge,
   Background,
   Controls,
   Handle,
   Panel,
   Position,
   ReactFlow,
+  reconnectEdge,
+  useEdgesState,
+  useNodesState,
+  type Connection,
+  type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
@@ -41,45 +47,75 @@ function WorkflowNode({ data }: NodeProps<Node<WorkflowNodeData>>) {
 
 const nodeTypes = { workflow: WorkflowNode };
 
+const initialEdges: Edge[] = [
+  { id: "start-analyze", source: "start", target: "analyze" },
+  { id: "start-redraw", source: "start", target: "clean-redraw" },
+  { id: "start-line-art", source: "start", target: "black-line-art" },
+  { id: "start-color", source: "start", target: "apply-source-colors" },
+  { id: "redraw-color", source: "clean-redraw", target: "apply-source-colors" },
+  { id: "start-vector", source: "start", target: "regiona-vector" },
+  { id: "line-art-vector", source: "black-line-art", target: "regiona-vector" },
+  { id: "color-vector", source: "apply-source-colors", target: "regiona-vector" },
+];
+
+function createWorkflowNodes(sourceName?: string): Node<WorkflowNodeData>[] {
+  const statuses = new Map<string, AiWorkflowNodeStatus | "awaiting-source">(
+    createAiWorkflowState(sourceName ?? "pending-source").nodes
+      .map((node) => [node.id, sourceName ? node.status : "awaiting-source"]),
+  );
+  const node = (
+    id: string,
+    title: string,
+    detail: string,
+    x: number,
+    y: number,
+  ): Node<WorkflowNodeData> => ({
+    id,
+    type: "workflow",
+    position: { x, y },
+    deletable: false,
+    data: { title, detail, status: statuses.get(id) ?? "awaiting-source" },
+  });
+
+  return [
+    node("start", "Start", sourceName ?? "Upload source image", 0, 260),
+    node("analyze", "Analyze", "Quality and vectorization advice", 300, 0),
+    node("clean-redraw", "AI clean redraw", "Clean geometry candidate", 300, 170),
+    node("black-line-art", "Black line art", "Black lines on white", 300, 340),
+    node("apply-source-colors", "Apply source colors", "Clean redraw + original", 600, 170),
+    node("regiona-vector", "Regiona vector", "Quantize, edit, export", 900, 260),
+  ];
+}
+
 export function WorkflowCanvas({ sourceName, onFile, onOpenEditor }: WorkflowCanvasProps) {
-  const nodes = useMemo(() => {
-    const statuses = new Map<string, AiWorkflowNodeStatus | "awaiting-source">(
-      createAiWorkflowState(sourceName ?? "pending-source").nodes
-        .map((node) => [node.id, sourceName ? node.status : "awaiting-source"]),
+  const [nodes, setNodes, onNodesChange] = useNodesState(createWorkflowNodes());
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  useEffect(() => {
+    const updatedNodeData = new Map(
+      createWorkflowNodes(sourceName).map((node) => [node.id, node.data]),
     );
-    const node = (
-      id: string,
-      title: string,
-      detail: string,
-      x: number,
-      y: number,
-    ): Node<WorkflowNodeData> => ({
-      id,
-      type: "workflow",
-      position: { x, y },
-      data: { title, detail, status: statuses.get(id) ?? "awaiting-source" },
-    });
+    setNodes((current) => current.map((node) => ({
+      ...node,
+      data: updatedNodeData.get(node.id) ?? node.data,
+    })));
+  }, [setNodes, sourceName]);
 
-    return [
-      node("start", "Start", sourceName ?? "Upload source image", 0, 260),
-      node("analyze", "Analyze", "Quality and vectorization advice", 300, 0),
-      node("clean-redraw", "AI clean redraw", "Clean geometry candidate", 300, 170),
-      node("black-line-art", "Black line art", "Black lines on white", 300, 340),
-      node("apply-source-colors", "Apply source colors", "Clean redraw + original", 600, 170),
-      node("regiona-vector", "Regiona vector", "Quantize, edit, export", 900, 260),
-    ];
-  }, [sourceName]);
+  const onConnect = useCallback((connection: Connection) => {
+    setEdges((current) => addEdge(connection, current));
+  }, [setEdges]);
 
-  const edges = useMemo(() => [
-    { id: "start-analyze", source: "start", target: "analyze" },
-    { id: "start-redraw", source: "start", target: "clean-redraw" },
-    { id: "start-line-art", source: "start", target: "black-line-art" },
-    { id: "start-color", source: "start", target: "apply-source-colors" },
-    { id: "redraw-color", source: "clean-redraw", target: "apply-source-colors" },
-    { id: "start-vector", source: "start", target: "regiona-vector" },
-    { id: "line-art-vector", source: "black-line-art", target: "regiona-vector" },
-    { id: "color-vector", source: "apply-source-colors", target: "regiona-vector" },
-  ], []);
+  const onReconnect = useCallback((oldEdge: Edge, connection: Connection) => {
+    setEdges((current) => reconnectEdge(oldEdge, connection, current));
+  }, [setEdges]);
+
+  const isValidConnection = useCallback((connection: Connection | Edge) => Boolean(
+    connection.source
+    && connection.target
+    && connection.source !== connection.target
+    && connection.source !== "analyze"
+    && connection.target !== "start",
+  ), []);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -92,12 +128,19 @@ export function WorkflowCanvas({ sourceName, onFile, onOpenEditor }: WorkflowCan
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onReconnect={onReconnect}
+        isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         fitView
         minZoom={0.35}
         maxZoom={1.5}
         onlyRenderVisibleElements
-        nodesConnectable={false}
+        nodesConnectable
+        edgesReconnectable
+        edgesFocusable
       >
         <Background gap={20} size={1} />
         <Controls />
