@@ -4,10 +4,45 @@ import {
   reconstructImage,
   recolorRegion,
   recolorRegions,
+  mergeSameFillRegions,
   renderRegionPixels,
 } from "../src/engine/reconstruct";
 
 describe("reconstructImage", () => {
+  it("merges selected regions with the same fill into one editable SVG region", () => {
+    const result = {
+      width: 4,
+      height: 1,
+      sourceFilename: "source.png",
+      palette: [],
+      labelMap: new Uint32Array([1, 2, 3, 2]),
+      quantizedPixels: new Uint8ClampedArray(16),
+      regions: [
+        { id: "region-a", colorId: "color-a", fill: "#112233", opacity: 1, pixelArea: 1, bounds: { x: 0, y: 0, width: 1, height: 1 }, origin: "deterministic" as const, pathData: ["M0 0H1V1H0Z"] },
+        { id: "region-b", colorId: "color-b", fill: "#112233", opacity: 1, pixelArea: 2, bounds: { x: 1, y: 0, width: 3, height: 1 }, origin: "deterministic" as const, pathData: ["M1 0H4V1H1Z"] },
+        { id: "region-c", colorId: "color-c", fill: "#ff5a36", opacity: 1, pixelArea: 1, bounds: { x: 2, y: 0, width: 1, height: 1 }, origin: "deterministic" as const, pathData: ["M2 0H3V1H2Z"] },
+      ],
+    };
+
+    const merged = mergeSameFillRegions(result, ["region-a", "region-b"]);
+
+    expect(merged.regions).toEqual([
+      expect.objectContaining({ id: "region-a", fill: "#112233", pixelArea: 3, bounds: { x: 0, y: 0, width: 4, height: 1 }, pathData: ["M0 0H1V1H0Z", "M1 0H4V1H1Z"] }),
+      expect.objectContaining({ id: "region-c" }),
+    ]);
+    expect([...merged.labelMap]).toEqual([1, 1, 2, 1]);
+  });
+
+  it("refuses to merge selected regions with different fills", () => {
+    const regions = [
+      { id: "a", colorId: "a", fill: "#112233", opacity: 1, pixelArea: 1, bounds: { x: 0, y: 0, width: 1, height: 1 }, origin: "deterministic" as const, pathData: [] },
+      { id: "b", colorId: "b", fill: "#ff5a36", opacity: 1, pixelArea: 1, bounds: { x: 1, y: 0, width: 1, height: 1 }, origin: "deterministic" as const, pathData: [] },
+    ];
+    const result = { width: 2, height: 1, sourceFilename: "source.png", palette: [], labelMap: new Uint32Array([1, 2]), quantizedPixels: new Uint8ClampedArray(8), regions };
+
+    expect(() => mergeSameFillRegions(result, ["a", "b"]))
+      .toThrow("same fill");
+  });
   it("builds independently editable paths for disconnected same-color pixels", () => {
     const black: [number, number, number, number] = [0, 0, 0, 255];
     const white: [number, number, number, number] = [255, 255, 255, 255];

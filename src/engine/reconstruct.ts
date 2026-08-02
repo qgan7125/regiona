@@ -68,9 +68,76 @@ export function recolorRegions(
 ) {
   parseHex(fill);
   const selectedIds = new Set(regionIds);
+  const normalizedFill = fill.toLowerCase();
+  if (!regions.some((region) => selectedIds.has(region.id) && region.fill !== normalizedFill)) {
+    return regions;
+  }
   return regions.map((region) =>
-    selectedIds.has(region.id) ? { ...region, fill: fill.toLowerCase() } : region,
+    selectedIds.has(region.id) ? { ...region, fill: normalizedFill } : region,
   );
+}
+
+export function mergeSameFillRegions(
+  result: ReconstructionResult,
+  regionIds: string[],
+): ReconstructionResult {
+  const selectedIds = new Set(regionIds);
+  if (selectedIds.size < 2) {
+    throw new Error("Select at least two regions to merge.");
+  }
+
+  const selected = result.regions.filter((region) => selectedIds.has(region.id));
+  if (selected.length !== selectedIds.size) {
+    throw new Error("Every selected region must still exist before merging.");
+  }
+
+  const [primary, ...remaining] = selected;
+  if (!primary) throw new Error("Select at least two regions to merge.");
+  const normalizedFill = primary.fill.toLowerCase();
+  if (remaining.some((region) => region.fill.toLowerCase() !== normalizedFill)) {
+    throw new Error("Only regions with the same fill can be merged.");
+  }
+  if (remaining.some((region) => region.opacity !== primary.opacity)) {
+    throw new Error("Only regions with the same opacity can be merged.");
+  }
+
+  const mergedRegion: VisualRegion = {
+    ...primary,
+    fill: normalizedFill,
+    pixelArea: selected.reduce((area, region) => area + region.pixelArea, 0),
+    bounds: mergeBounds(selected),
+    pathData: selected.flatMap((region) => region.pathData),
+  };
+  const nextRegions = result.regions.flatMap((region) => {
+    if (!selectedIds.has(region.id)) return [region];
+    return region.id === primary.id ? [mergedRegion] : [];
+  });
+  const nextRegionNumbers = new Map(nextRegions.map((region, index) => [region.id, index + 1]));
+  const regionNumberByPreviousNumber = result.regions.map((region) => (
+    nextRegionNumbers.get(selectedIds.has(region.id) ? primary.id : region.id) ?? 0
+  ));
+  const labelMap = new Uint32Array(result.labelMap.length);
+  for (let index = 0; index < result.labelMap.length; index += 1) {
+    const previousNumber = result.labelMap[index] ?? 0;
+    labelMap[index] = previousNumber > 0
+      ? regionNumberByPreviousNumber[previousNumber - 1] ?? 0
+      : 0;
+  }
+
+  return {
+    ...result,
+    labelMap,
+    regions: nextRegions,
+    quantizedPixels: renderRegionPixels(labelMap, nextRegions),
+  };
+}
+
+function mergeBounds(regions: VisualRegion[]) {
+  const left = Math.min(...regions.map((region) => region.bounds.x));
+  const top = Math.min(...regions.map((region) => region.bounds.y));
+  const right = Math.max(...regions.map((region) => region.bounds.x + region.bounds.width));
+  const bottom = Math.max(...regions.map((region) => region.bounds.y + region.bounds.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 export function reconstructImage(

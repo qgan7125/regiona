@@ -80,6 +80,7 @@ export function UploadPanel({
           <small>PNG, JPEG or WebP · up to 20 MB</small>
         </span>
         <input
+          hidden
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={handleFileChange}
